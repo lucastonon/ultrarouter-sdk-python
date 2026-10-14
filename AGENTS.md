@@ -1,0 +1,150 @@
+# AGENTS.md: using and changing the ultrarouter Python SDK
+
+This file is for AI coding agents (and humans in a hurry). Part 1 is for agents writing code that
+**uses** the SDK; part 2 is for agents **changing** this repository.
+
+## Part 1: using the SDK
+
+### Install
+
+```bash
+pip install ultrarouter            # uv add ultrarouter / poetry add ultrarouter
+pip install "ultrarouter[openai]"  # only if you need client.as_openai()
+```
+
+Python 3.10+. Import name: `ultrarouter`.
+
+### Configure from the environment
+
+Never hardcode keys. The client reads `ULTRAROUTER_API_KEY` and `ULTRAROUTER_BASE_URL`:
+
+```python
+from ultrarouter import UltraRouter
+
+client = UltraRouter()  # create once, reuse; close with client.close() or use `with`
+```
+
+### Canonical patterns
+
+```python
+from ultrarouter import AsyncUltraRouter, UltraRouter, UltraRouterError
+
+client = UltraRouter(default_model="openai/gpt-5.2-mini")
+
+# Chat
+reply = client.chat.completions.create(messages=[{"role": "user", "content": "Hello"}])
+text = reply.choices[0].message.content
+request_id = reply.ur.request_id  # keep it: feedback, stats and support use it
+
+# Streaming
+with client.chat.completions.create(
+    messages=[{"role": "user", "content": "Hi"}], stream=True
+) as stream:
+    streamed = stream.text()
+
+# Embeddings
+vectors = client.embeddings.create(model="openai/text-embedding-3-small", input=["a", "b"])
+
+# Errors: catch the base class, branch on subclasses or .code
+try:
+    client.chat.completions.create(
+        model="acme/unpriced-model", messages=[{"role": "user", "content": "Hi"}]
+    )
+except UltraRouterError as exc:
+    print(exc.code, exc.status, exc.retryable, exc.request_id)
+
+# Outcomes: what happened after the answer (durably queued, never raises on delivery failure)
+receipt = client.outcomes.record(
+    {"request": request_id}, {"channel": "behavioral", "kind": "accepted"}
+)
+client.outcomes.flush()
+```
+
+Async: `AsyncUltraRouter` has the same methods; `await` them and use `async with`.
+
+### Pitfalls
+
+- **Model ids are provider-prefixed**: `openai/gpt-5.2-mini`, not `gpt-5.2-mini`. List them with
+  `client.models.list()`.
+- **One client per process**, not per request; it owns a connection pool.
+- **Do not retry what the SDK already retried.** It retries 408/429/5xx (unless the gateway says
+  `retryable: false`) and connection errors, within the total `timeout`. `ModelUnpricedError`
+  (`model_unpriced`, 403) and other 4xx are never retried: change the request instead.
+- **Streams are not retried** and have no idempotency key.
+- **`bench.run(wait=True)` returns `BenchRunTrigger | BenchRun`**: narrow with
+  `isinstance(run, BenchRun)` before using `run.id`.
+- **Preflight for case-based modules needs `messages=`**; otherwise `knowledge` is `None` with
+  `knowledge_reason == "case_query_missing"`.
+- **Outcome events and reviewer events never contain prompt or completion text.** Without
+  corrections consent, report edits with `ultrarouter.diff_stats(draft, final)`.
+- **Bench capture is for test keys** (`ur_sk_test_...`).
+- **Unknown response fields are kept** in `model.model_extra`; do not assume a field is absent
+  because the model class lacks it.
+- **Enumerated response fields are `str`**, so compare against string literals.
+- **Do not log the client's key** (`client.api_key`) or request/response bodies.
+
+### Where to look
+
+| Need | Location |
+| --- | --- |
+| Every guide | [docs/index.md](docs/index.md) |
+| Every public symbol with signature and docstring | [docs/api-reference.md](docs/api-reference.md) |
+| Every response/request type and its fields | [docs/types-reference.md](docs/types-reference.md) |
+| Which endpoint each method calls | [docs/api-coverage.md](docs/api-coverage.md) |
+| Errors and what to do | [docs/errors.md](docs/errors.md) |
+| Runnable scripts | [examples/](examples/) |
+| All docs in one file for an LLM | [llms-full.txt](llms-full.txt) (index: [llms.txt](llms.txt)) |
+
+## Part 2: changing this repository
+
+### Setup and commands
+
+```bash
+uv sync                      # creates .venv with dev dependencies
+make check                   # everything CI runs: lint, format, types, tests, docs, build, smoke, leak scan
+make test                    # pytest only
+make lint format typecheck   # individual gates
+make generate                # regenerate types, API/types reference, coverage table, llms files
+make smoke                   # build wheel + sdist, install into fresh 3.10 and 3.14 venvs, exercise them
+make test-lowest             # the suite with httpx, pydantic, typing-extensions and openai at their floors
+make leak-scan               # scan the tree, git history and dist/ for secrets (+ $ULTRAROUTER_LEAK_PATTERNS_FILE)
+make parity-check            # regenerate the parity goldens from the TypeScript SDK and diff (TS_SDK=path)
+```
+
+CI (`.github/workflows/ci.yml`) runs the same gates on Python 3.10 to 3.14; `publish.yml` uploads
+to PyPI with trusted publishing, only from a published release or a manual run.
+
+### Rules
+
+- `openapi/openapi.yaml` is a synced artifact: update it only with
+  `python scripts/sync_openapi.py --from <spec>`, then `make generate`.
+- `src/ultrarouter/types/_generated.py` is generated by `scripts/gen_types.py`; never edit it.
+  Change names in the tables at the top of the generator.
+- Every public module, class, function and method needs a docstring (a test enforces it).
+- Every ```` ```python ```` block in `README.md`, `AGENTS.md` and `docs/*.md` is executed against
+  the mock gateway by `tests/test_docs.py`. Keep examples runnable.
+- `docs/api-reference.md`, `docs/types-reference.md`, `docs/api-coverage.md`, `llms.txt` and
+  `llms-full.txt` are generated; tests fail when they drift.
+- Every API-key endpoint in the spec must be mapped in `tests/coverage_map.py` (or explicitly
+  excluded with a reason); `tests/test_api_coverage.py` calls each one sync and async and validates
+  the request body against the spec.
+- Cross-language behaviour (context runtime, placement, rendering, diff stats, canonical JSON) is
+  pinned by `tests/fixtures/parity/`; regenerate with
+  `node scripts/gen_parity_goldens.mjs --ts-sdk <path to the TypeScript SDK>`.
+- `mypy --strict` and `ruff` must stay clean. No new runtime dependencies without a strong reason.
+- Run `make leak-scan` before committing. Never add organisation-specific patterns or names to
+  this repository (not even in tests); they belong in the private patterns file the scanner
+  reads from `ULTRAROUTER_LEAK_PATTERNS_FILE`. Test the scanner with synthetic patterns.
+
+### Layout
+
+```
+src/ultrarouter/          the package (clients, transport, resources, helpers)
+  types/_generated.py     generated models and request shapes
+  context/                the pure context runtime
+tests/                    unit, coverage, parity, docs and example tests; support/ has the mock gateway
+docs/                     guides (tested) and generated references
+examples/                 runnable scripts (tested)
+scripts/                  generators, leak scan, smoke test
+openapi/openapi.yaml      the synced API specification
+```

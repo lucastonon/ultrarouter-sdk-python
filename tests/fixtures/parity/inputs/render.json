@@ -1,0 +1,189 @@
+{
+  "description": "Hosted-prompt render cases (template, declared variables, supplied values).",
+  "cases": [
+    {
+      "template": "no slots here",
+      "variables": [],
+      "vars": {}
+    },
+    {
+      "template": "You are a {{role}} assistant.",
+      "variables": [
+        {
+          "name": "role",
+          "required": true
+        }
+      ],
+      "vars": {
+        "role": "support"
+      }
+    },
+    {
+      "template": "You are a {{role}} assistant.",
+      "variables": [
+        {
+          "name": "role",
+          "required": true
+        }
+      ],
+      "vars": {}
+    },
+    {
+      "template": "Tone: {{tone}}.",
+      "variables": [
+        {
+          "name": "tone",
+          "required": false
+        }
+      ],
+      "vars": {}
+    },
+    {
+      "template": "You are a {{role}} for {{brand}}. Be {{tone}}.",
+      "variables": [
+        {
+          "name": "role",
+          "required": true
+        },
+        {
+          "name": "brand",
+          "required": true
+        },
+        {
+          "name": "tone",
+          "required": false
+        }
+      ],
+      "vars": {
+        "tone": "concise"
+      }
+    },
+    {
+      "template": "undeclared {{slot}} renders empty",
+      "variables": [],
+      "vars": {}
+    },
+    {
+      "template": "no reference to the required var",
+      "variables": [
+        {
+          "name": "must",
+          "required": true
+        }
+      ],
+      "vars": {}
+    },
+    {
+      "template": "count is {{count}}",
+      "variables": [
+        {
+          "name": "count",
+          "required": true
+        }
+      ],
+      "vars": {
+        "count": 42
+      }
+    },
+    {
+      "template": "{{x}} and {{x}} again",
+      "variables": [
+        {
+          "name": "x",
+          "required": true
+        }
+      ],
+      "vars": {
+        "x": "A"
+      }
+    },
+    {
+      "template": "padded {{ name }} slot",
+      "variables": [
+        {
+          "name": "name",
+          "required": true
+        }
+      ],
+      "vars": {
+        "name": "Northwind"
+      }
+    },
+    {
+      "template": "null is treated as missing: {{a}}",
+      "variables": [
+        {
+          "name": "a",
+          "required": true
+        }
+      ],
+      "vars": {
+        "a": null
+      }
+    },
+    {
+      "template": "unicode {{greeting}} ✓ 你好",
+      "variables": [
+        {
+          "name": "greeting",
+          "required": true
+        }
+      ],
+      "vars": {
+        "greeting": "olá 👋"
+      }
+    },
+    {
+      "template": "{{a}}{{b}}{{c}}",
+      "variables": [
+        {
+          "name": "b",
+          "required": true
+        },
+        {
+          "name": "a",
+          "required": true
+        }
+      ],
+      "vars": {
+        "c": "3"
+      }
+    },
+    {
+      "template": "dotted {{user.name}} is not a slot",
+      "variables": [],
+      "vars": {
+        "user.name": "x"
+      }
+    },
+    {
+      "template": "empty string is supplied: [{{e}}]",
+      "variables": [
+        {
+          "name": "e",
+          "required": true
+        }
+      ],
+      "vars": {
+        "e": ""
+      }
+    },
+    {
+      "template": "boolean {{flag}} and float {{f}}",
+      "variables": [
+        {
+          "name": "flag",
+          "required": true
+        },
+        {
+          "name": "f",
+          "required": false
+        }
+      ],
+      "vars": {
+        "flag": "true",
+        "f": "1.5"
+      }
+    }
+  ]
+}

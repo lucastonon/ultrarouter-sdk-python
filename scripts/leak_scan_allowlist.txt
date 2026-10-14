@@ -1,0 +1,3 @@
+# Leak-scan masks: one "<path glob>:<exact substring>  # justification" per line.
+# Keep this list minimal; every entry must name a substring that occurs in the repository.
+*:NotFoundError  # public exception class name of the OpenAI-compatible API; never a leak under any rule set

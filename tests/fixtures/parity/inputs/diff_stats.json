@@ -1,0 +1,65 @@
+{
+  "description": "Draft/final pairs for diff_stats (lengths in UTF-16 code units).",
+  "cases": [
+    {
+      "draft": "",
+      "final": ""
+    },
+    {
+      "draft": "same",
+      "final": "same"
+    },
+    {
+      "draft": "",
+      "final": "added"
+    },
+    {
+      "draft": "removed",
+      "final": ""
+    },
+    {
+      "draft": "The quick brown fox",
+      "final": "The quick red fox"
+    },
+    {
+      "draft": "abc",
+      "final": "xyz"
+    },
+    {
+      "draft": "Please refund the order.",
+      "final": "Please refund the order within 14 days."
+    },
+    {
+      "draft": "line one\nline two\nline three",
+      "final": "line one\nline 2\nline three\nline four"
+    },
+    {
+      "draft": "emoji 👋 here",
+      "final": "emoji 👍 here"
+    },
+    {
+      "draft": "café",
+      "final": "cafe"
+    },
+    {
+      "draft": "你好世界",
+      "final": "你好，世界"
+    },
+    {
+      "draft": "aaaaaaaaaa",
+      "final": "aaaaabaaaaa"
+    },
+    {
+      "draft": "Dear team, thanks.",
+      "final": "Hi team — thanks!"
+    },
+    {
+      "draft": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxmiddleyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy",
+      "final": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxcentreyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy"
+    },
+    {
+      "draft": "a b c d e f g",
+      "final": "a c e g b d f"
+    }
+  ]
+}

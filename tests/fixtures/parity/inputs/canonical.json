@@ -1,0 +1,147 @@
+{
+  "description": "Values for canonical JSON (sorted keys, JavaScript number and string formatting).",
+  "cases": [
+    {
+      "value": null
+    },
+    {
+      "value": true
+    },
+    {
+      "value": false
+    },
+    {
+      "value": 0
+    },
+    {
+      "value": -0.0
+    },
+    {
+      "value": 1
+    },
+    {
+      "value": -17
+    },
+    {
+      "value": 3.5
+    },
+    {
+      "value": 0.1
+    },
+    {
+      "value": 1e-07
+    },
+    {
+      "value": 1.5e-07
+    },
+    {
+      "value": 1e-06
+    },
+    {
+      "value": 123456789.125
+    },
+    {
+      "value": 1e+21
+    },
+    {
+      "value": 1.5e+22
+    },
+    {
+      "value": 9007199254740992
+    },
+    {
+      "value": 9007199254740993
+    },
+    {
+      "value": ""
+    },
+    {
+      "value": "plain"
+    },
+    {
+      "value": "quote \" backslash \\ slash /"
+    },
+    {
+      "value": "tab\tnewline\ncr\rnul\u0000bell\u0007"
+    },
+    {
+      "value": "unicode é 你好 👋   "
+    },
+    {
+      "value": []
+    },
+    {
+      "value": [
+        1,
+        "a",
+        null,
+        [
+          true,
+          false
+        ]
+      ]
+    },
+    {
+      "value": {}
+    },
+    {
+      "value": {
+        "b": 1,
+        "a": 2,
+        "c": {
+          "z": null,
+          "y": [
+            {
+              "k2": 1,
+              "k1": 2
+            }
+          ]
+        }
+      }
+    },
+    {
+      "value": {
+        "10": "ten",
+        "2": "two",
+        "1": "one",
+        "b": "bee",
+        "a": "ay",
+        "01": "zero-one",
+        "-1": "neg"
+      }
+    },
+    {
+      "value": {
+        "é": 1,
+        "e": 2,
+        "z": 3,
+        "Z": 4,
+        "_": 5,
+        "😀": 6,
+        "￿": 7,
+        "aa": 8,
+        "a": 9
+      }
+    },
+    {
+      "value": "lone \ud83d surrogate and pair \ud83d\ude00"
+    },
+    {
+      "value": {
+        "nested": {
+          "floats": [
+            0.5,
+            2.0,
+            -0.0,
+            1e-09
+          ],
+          "ints": [
+            0,
+            -1,
+            2147483648
+          ]
+        }
+      }
+    }
+  ]
+}

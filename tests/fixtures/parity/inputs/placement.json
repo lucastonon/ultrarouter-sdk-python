@@ -1,0 +1,90 @@
+{
+  "description": "Message role sequences; the expected value is the learned-module insertion index and the applied message list.",
+  "module_content": "Learned: prefer the v2 refund wording.",
+  "cases": [
+    {
+      "roles": []
+    },
+    {
+      "roles": [
+        "user"
+      ]
+    },
+    {
+      "roles": [
+        "system"
+      ]
+    },
+    {
+      "roles": [
+        "system",
+        "user"
+      ]
+    },
+    {
+      "roles": [
+        "system",
+        "system",
+        "user",
+        "assistant"
+      ]
+    },
+    {
+      "roles": [
+        "system",
+        "user",
+        "system"
+      ]
+    },
+    {
+      "roles": [
+        "system",
+        "system",
+        "system"
+      ]
+    },
+    {
+      "roles": [
+        "assistant",
+        "system"
+      ]
+    },
+    {
+      "roles": [
+        "system",
+        "developer",
+        "user"
+      ]
+    },
+    {
+      "roles": [
+        "user",
+        "user"
+      ]
+    },
+    {
+      "roles": [
+        "system",
+        "tool",
+        "system",
+        "user"
+      ]
+    },
+    {
+      "roles": [
+        "system",
+        "system",
+        "assistant",
+        "system",
+        "user"
+      ]
+    },
+    {
+      "roles": [
+        "developer",
+        "system",
+        "user"
+      ]
+    }
+  ]
+}

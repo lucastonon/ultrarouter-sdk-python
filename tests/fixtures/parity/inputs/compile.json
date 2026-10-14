@@ -1,0 +1,1669 @@
+{
+  "description": "Synthetic compile cases. 'ultrarouter' uses ULTRAROUTER_PROFILE; 'selection_count' is the custom profile defined identically in scripts/gen_parity_goldens.mjs and tests/support/profiles.py.",
+  "cases": [
+    {
+      "name": "default-volatility-order-and-token-shed",
+      "profile": "ultrarouter",
+      "envelope": {
+        "id": "env-1",
+        "tenant": "tenant-demo",
+        "stage": "answer",
+        "mode": "live",
+        "asOf": "2026-04-01T00:00:00.000Z",
+        "cutoffs": {
+          "knowledge": "2026-04-01T00:00:00.000Z"
+        },
+        "budgets": {
+          "tokens": 40
+        },
+        "seed": "seed-demo",
+        "pins": [],
+        "releases": {},
+        "permissionEpoch": "epoch-1",
+        "ext": {
+          "traceLabel": "demo",
+          "lineage": {
+            "release": "r-7",
+            "locale": "en-US"
+          }
+        }
+      },
+      "contract": {
+        "stage": "answer",
+        "requiredKinds": [],
+        "optionalKinds": [
+          "procedure",
+          "fact",
+          "history"
+        ],
+        "forbiddenKinds": [],
+        "budgets": {
+          "tokens": 25
+        },
+        "limits": [],
+        "pinPolicy": "none",
+        "slots": [
+          "instruction",
+          "reference",
+          "exemplar"
+        ]
+      },
+      "candidates": [
+        {
+          "module": {
+            "id": "procedures",
+            "version": "1",
+            "kind": "procedure",
+            "memoryClass": "procedural",
+            "trustClass": "approved_derived",
+            "privacyClass": "workspace_private",
+            "availability": {
+              "from": null,
+              "to": null
+            },
+            "contentHash": "sha256:procedures",
+            "tokenEstimate": 10,
+            "facets": {},
+            "ext": {
+              "ref": "proc://runbook",
+              "meta": {
+                "source": "procedure-lib",
+                "revision": 3
+              }
+            }
+          }
+        },
+        {
+          "module": {
+            "id": "facts",
+            "version": "1",
+            "kind": "fact",
+            "memoryClass": "semantic",
+            "trustClass": "authoritative",
+            "privacyClass": "workspace_private",
+            "availability": {
+              "from": null,
+              "to": null
+            },
+            "contentHash": "sha256:facts",
+            "tokenEstimate": 10,
+            "facets": {},
+            "ext": {
+              "ref": "fact://pricing",
+              "meta": {
+                "source": "fact-lib",
+                "revision": 7
+              }
+            }
+          }
+        },
+        {
+          "module": {
+            "id": "history",
+            "version": "1",
+            "kind": "history",
+            "memoryClass": "episodic",
+            "trustClass": "approved_derived",
+            "privacyClass": "workspace_private",
+            "availability": {
+              "from": null,
+              "to": null
+            },
+            "contentHash": "sha256:history",
+            "tokenEstimate": 10,
+            "facets": {},
+            "ext": {
+              "ref": "hist://thread-1",
+              "meta": {
+                "source": "history-lib",
+                "revision": 1
+              }
+            }
+          }
+        },
+        {
+          "module": {
+            "id": "scratch",
+            "version": "1",
+            "kind": "scratchpad",
+            "memoryClass": "working",
+            "trustClass": "approved_derived",
+            "privacyClass": "workspace_private",
+            "availability": {
+              "from": null,
+              "to": null
+            },
+            "contentHash": "sha256:scratch",
+            "tokenEstimate": 10,
+            "facets": {},
+            "ext": {
+              "ref": "scratch://x",
+              "meta": {
+                "source": "scratch",
+                "revision": 0
+              }
+            }
+          }
+        }
+      ],
+      "bodies": {
+        "procedures": "Follow the support runbook.",
+        "facts": "Plan prices are listed on the pricing page.",
+        "history": "Earlier turn."
+      }
+    },
+    {
+      "name": "untrusted-reference-and-instruction-refusal",
+      "profile": "ultrarouter",
+      "envelope": {
+        "id": "env-1",
+        "tenant": "tenant-demo",
+        "stage": "answer",
+        "mode": "live",
+        "asOf": "2026-04-01T00:00:00.000Z",
+        "cutoffs": {
+          "knowledge": "2026-04-01T00:00:00.000Z"
+        },
+        "budgets": {},
+        "seed": "seed-demo",
+        "pins": [],
+        "releases": {},
+        "permissionEpoch": "epoch-1"
+      },
+      "contract": {
+        "stage": "answer",
+        "requiredKinds": [],
+        "optionalKinds": [
+          "doc",
+          "rule"
+        ],
+        "forbiddenKinds": [],
+        "budgets": {},
+        "limits": [],
+        "pinPolicy": "none",
+        "slots": [
+          "instruction",
+          "reference",
+          "exemplar"
+        ]
+      },
+      "candidates": [
+        {
+          "module": {
+            "id": "rule-1",
+            "version": "1",
+            "kind": "rule",
+            "memoryClass": "procedural",
+            "trustClass": "authoritative",
+            "privacyClass": "workspace_private",
+            "availability": {
+              "from": null,
+              "to": null
+            },
+            "contentHash": "sha256:rule-1",
+            "tokenEstimate": 10,
+            "facets": {},
+            "slotHint": "instruction"
+          }
+        },
+        {
+          "module": {
+            "id": "doc-1",
+            "version": "1",
+            "kind": "doc",
+            "memoryClass": "semantic",
+            "trustClass": "untrusted",
+            "privacyClass": "workspace_private",
+            "availability": {
+              "from": null,
+              "to": null
+            },
+            "contentHash": "sha256:doc-1",
+            "tokenEstimate": 10,
+            "facets": {}
+          }
+        },
+        {
+          "module": {
+            "id": "doc-2",
+            "version": "1",
+            "kind": "doc",
+            "memoryClass": "semantic",
+            "trustClass": "untrusted",
+            "privacyClass": "workspace_private",
+            "availability": {
+              "from": null,
+              "to": null
+            },
+            "contentHash": "sha256:doc-2",
+            "tokenEstimate": 10,
+            "facets": {}
+          },
+          "slot": "instruction"
+        },
+        {
+          "module": {
+            "id": "doc-3",
+            "version": "1",
+            "kind": "doc",
+            "memoryClass": "semantic",
+            "trustClass": "untrusted",
+            "privacyClass": "workspace_private",
+            "availability": {
+              "from": null,
+              "to": null
+            },
+            "contentHash": "sha256:doc-3",
+            "tokenEstimate": 10,
+            "facets": {},
+            "slotHint": "exemplar"
+          }
+        }
+      ],
+      "bodies": {
+        "rule-1": "Answer in one paragraph.",
+        "doc-1": "Reference: the store opens at 9am.",
+        "doc-3": "Q: hours? A: 9 to 5."
+      }
+    },
+    {
+      "name": "strict-pins-satisfied",
+      "profile": "ultrarouter",
+      "envelope": {
+        "id": "env-1",
+        "tenant": "tenant-demo",
+        "stage": "answer",
+        "mode": "live",
+        "asOf": "2026-04-01T00:00:00.000Z",
+        "cutoffs": {
+          "knowledge": "2026-04-01T00:00:00.000Z"
+        },
+        "budgets": {},
+        "seed": "seed-demo",
+        "pins": [
+          {
+            "id": "policy-1",
+            "kind": "policy",
+            "contentHash": "sha256:policy-1",
+            "purpose": "refund policy"
+          }
+        ],
+        "releases": {},
+        "permissionEpoch": "epoch-1"
+      },
+      "contract": {
+        "stage": "answer",
+        "requiredKinds": [
+          "policy"
+        ],
+        "optionalKinds": [
+          "fact"
+        ],
+        "forbiddenKinds": [],
+        "budgets": {
+          "tokens": 100
+        },
+        "limits": [],
+        "pinPolicy": "strict",
+        "slots": [
+          "instruction",
+          "reference",
+          "exemplar"
+        ]
+      },
+      "candidates": [
+        {
+          "module": {
+            "id": "policy-1",
+            "version": "1",
+            "kind": "policy",
+            "memoryClass": "procedural",
+            "trustClass": "authoritative",
+            "privacyClass": "workspace_private",
+            "availability": {
+              "from": null,
+              "to": null
+            },
+            "contentHash": "sha256:policy-1",
+            "tokenEstimate": 10,
+            "facets": {}
+          }
+        },
+        {
+          "module": {
+            "id": "fact-1",
+            "version": "1",
+            "kind": "fact",
+            "memoryClass": "semantic",
+            "trustClass": "approved_derived",
+            "privacyClass": "workspace_private",
+            "availability": {
+              "from": null,
+              "to": null
+            },
+            "contentHash": "sha256:fact-1",
+            "tokenEstimate": 10,
+            "facets": {}
+          }
+        }
+      ],
+      "bodies": {
+        "policy-1": "Refunds within 14 days.",
+        "fact-1": "Order 1001 shipped."
+      }
+    },
+    {
+      "name": "strict-pin-mismatch-is-fatal",
+      "profile": "ultrarouter",
+      "envelope": {
+        "id": "env-1",
+        "tenant": "tenant-demo",
+        "stage": "answer",
+        "mode": "live",
+        "asOf": "2026-04-01T00:00:00.000Z",
+        "cutoffs": {
+          "knowledge": "2026-04-01T00:00:00.000Z"
+        },
+        "budgets": {},
+        "seed": "seed-demo",
+        "pins": [
+          {
+            "id": "policy-1",
+            "kind": "policy",
+            "contentHash": "sha256:stale",
+            "purpose": "refund policy"
+          }
+        ],
+        "releases": {},
+        "permissionEpoch": "epoch-1"
+      },
+      "contract": {
+        "stage": "answer",
+        "requiredKinds": [
+          "policy"
+        ],
+        "optionalKinds": [],
+        "forbiddenKinds": [],
+        "budgets": {},
+        "limits": [],
+        "pinPolicy": "strict",
+        "slots": [
+          "instruction",
+          "reference",
+          "exemplar"
+        ]
+      },
+      "candidates": [
+        {
+          "module": {
+            "id": "policy-1",
+            "version": "1",
+            "kind": "policy",
+            "memoryClass": "procedural",
+            "trustClass": "authoritative",
+            "privacyClass": "workspace_private",
+            "availability": {
+              "from": null,
+              "to": null
+            },
+            "contentHash": "sha256:policy-1",
+            "tokenEstimate": 10,
+            "facets": {}
+          }
+        }
+      ]
+    },
+    {
+      "name": "required-kind-not-pinned",
+      "profile": "ultrarouter",
+      "envelope": {
+        "id": "env-1",
+        "tenant": "tenant-demo",
+        "stage": "answer",
+        "mode": "live",
+        "asOf": "2026-04-01T00:00:00.000Z",
+        "cutoffs": {
+          "knowledge": "2026-04-01T00:00:00.000Z"
+        },
+        "budgets": {},
+        "seed": "seed-demo",
+        "pins": [],
+        "releases": {},
+        "permissionEpoch": "epoch-1"
+      },
+      "contract": {
+        "stage": "answer",
+        "requiredKinds": [
+          "policy"
+        ],
+        "optionalKinds": [],
+        "forbiddenKinds": [],
+        "budgets": {},
+        "limits": [],
+        "pinPolicy": "strict",
+        "slots": [
+          "instruction",
+          "reference",
+          "exemplar"
+        ]
+      },
+      "candidates": []
+    },
+    {
+      "name": "pin-of-unrequested-kind",
+      "profile": "ultrarouter",
+      "envelope": {
+        "id": "env-1",
+        "tenant": "tenant-demo",
+        "stage": "answer",
+        "mode": "live",
+        "asOf": "2026-04-01T00:00:00.000Z",
+        "cutoffs": {
+          "knowledge": "2026-04-01T00:00:00.000Z"
+        },
+        "budgets": {},
+        "seed": "seed-demo",
+        "pins": [
+          {
+            "id": "x-1",
+            "kind": "secret",
+            "contentHash": "sha256:x-1",
+            "purpose": "not allowed"
+          }
+        ],
+        "releases": {},
+        "permissionEpoch": "epoch-1"
+      },
+      "contract": {
+        "stage": "answer",
+        "requiredKinds": [],
+        "optionalKinds": [
+          "fact"
+        ],
+        "forbiddenKinds": [],
+        "budgets": {},
+        "limits": [],
+        "pinPolicy": "strict",
+        "slots": [
+          "instruction",
+          "reference",
+          "exemplar"
+        ]
+      },
+      "candidates": [
+        {
+          "module": {
+            "id": "x-1",
+            "version": "1",
+            "kind": "secret",
+            "memoryClass": "semantic",
+            "trustClass": "approved_derived",
+            "privacyClass": "workspace_private",
+            "availability": {
+              "from": null,
+              "to": null
+            },
+            "contentHash": "sha256:x-1",
+            "tokenEstimate": 10,
+            "facets": {}
+          }
+        }
+      ]
+    },
+    {
+      "name": "availability-window",
+      "profile": "ultrarouter",
+      "envelope": {
+        "id": "env-1",
+        "tenant": "tenant-demo",
+        "stage": "answer",
+        "mode": "live",
+        "asOf": "2026-04-01T00:00:00.000Z",
+        "cutoffs": {
+          "knowledge": "2026-04-01T00:00:00.000Z"
+        },
+        "budgets": {},
+        "seed": "seed-demo",
+        "pins": [],
+        "releases": {},
+        "permissionEpoch": "epoch-1"
+      },
+      "contract": {
+        "stage": "answer",
+        "requiredKinds": [],
+        "optionalKinds": [
+          "fact"
+        ],
+        "forbiddenKinds": [],
+        "budgets": {},
+        "limits": [],
+        "pinPolicy": "none",
+        "slots": [
+          "instruction",
+          "reference",
+          "exemplar"
+        ]
+      },
+      "candidates": [
+        {
+          "module": {
+            "id": "in-window",
+            "version": "1",
+            "kind": "fact",
+            "memoryClass": "semantic",
+            "trustClass": "approved_derived",
+            "privacyClass": "workspace_private",
+            "availability": {
+              "from": "2026-01-01T00:00:00.000Z",
+              "to": "2026-12-31T00:00:00.000Z"
+            },
+            "contentHash": "sha256:in-window",
+            "tokenEstimate": 10,
+            "facets": {}
+          }
+        },
+        {
+          "module": {
+            "id": "future",
+            "version": "1",
+            "kind": "fact",
+            "memoryClass": "semantic",
+            "trustClass": "approved_derived",
+            "privacyClass": "workspace_private",
+            "availability": {
+              "from": "2026-05-01T00:00:00Z",
+              "to": null
+            },
+            "contentHash": "sha256:future",
+            "tokenEstimate": 10,
+            "facets": {}
+          }
+        },
+        {
+          "module": {
+            "id": "expired",
+            "version": "1",
+            "kind": "fact",
+            "memoryClass": "semantic",
+            "trustClass": "approved_derived",
+            "privacyClass": "workspace_private",
+            "availability": {
+              "from": null,
+              "to": "2026-03-01T00:00:00.000Z"
+            },
+            "contentHash": "sha256:expired",
+            "tokenEstimate": 10,
+            "facets": {}
+          }
+        },
+        {
+          "module": {
+            "id": "undated",
+            "version": "1",
+            "kind": "fact",
+            "memoryClass": "semantic",
+            "trustClass": "approved_derived",
+            "privacyClass": "workspace_private",
+            "availability": {
+              "from": null,
+              "to": null
+            },
+            "contentHash": "sha256:undated",
+            "tokenEstimate": 10,
+            "facets": {}
+          }
+        }
+      ]
+    },
+    {
+      "name": "stage-mismatch-and-planner-bound",
+      "profile": "ultrarouter",
+      "envelope": {
+        "id": "env-1",
+        "tenant": "tenant-demo",
+        "stage": "draft",
+        "mode": "live",
+        "asOf": "2026-04-01T00:00:00.000Z",
+        "cutoffs": {
+          "knowledge": "2026-04-01T00:00:00.000Z"
+        },
+        "budgets": {
+          "plannerDepth": 5,
+          "toolCalls": 3
+        },
+        "seed": "seed-demo",
+        "pins": [],
+        "releases": {},
+        "permissionEpoch": "epoch-1"
+      },
+      "contract": {
+        "stage": "answer",
+        "requiredKinds": [],
+        "optionalKinds": [
+          "fact"
+        ],
+        "forbiddenKinds": [],
+        "budgets": {
+          "plannerDepth": 2,
+          "toolCalls": 3
+        },
+        "limits": [],
+        "pinPolicy": "none",
+        "slots": [
+          "instruction",
+          "reference",
+          "exemplar"
+        ]
+      },
+      "candidates": [
+        {
+          "module": {
+            "id": "fact-1",
+            "version": "1",
+            "kind": "fact",
+            "memoryClass": "semantic",
+            "trustClass": "approved_derived",
+            "privacyClass": "workspace_private",
+            "availability": {
+              "from": null,
+              "to": null
+            },
+            "contentHash": "sha256:fact-1",
+            "tokenEstimate": 10,
+            "facets": {}
+          }
+        }
+      ]
+    },
+    {
+      "name": "limits-by-kind-and-facet",
+      "profile": "ultrarouter",
+      "envelope": {
+        "id": "env-1",
+        "tenant": "tenant-demo",
+        "stage": "answer",
+        "mode": "live",
+        "asOf": "2026-04-01T00:00:00.000Z",
+        "cutoffs": {
+          "knowledge": "2026-04-01T00:00:00.000Z"
+        },
+        "budgets": {},
+        "seed": "seed-demo",
+        "pins": [],
+        "releases": {},
+        "permissionEpoch": "epoch-1"
+      },
+      "contract": {
+        "stage": "answer",
+        "requiredKinds": [],
+        "optionalKinds": [
+          "fact",
+          "example"
+        ],
+        "forbiddenKinds": [],
+        "budgets": {},
+        "limits": [
+          {
+            "kind": "fact",
+            "max": 1,
+            "label": "one fact"
+          },
+          {
+            "facet": "lang",
+            "facetValue": "pt",
+            "max": 1
+          }
+        ],
+        "pinPolicy": "none",
+        "slots": [
+          "instruction",
+          "reference",
+          "exemplar"
+        ]
+      },
+      "candidates": [
+        {
+          "module": {
+            "id": "fact-a",
+            "version": "1",
+            "kind": "fact",
+            "memoryClass": "semantic",
+            "trustClass": "approved_derived",
+            "privacyClass": "workspace_private",
+            "availability": {
+              "from": null,
+              "to": null
+            },
+            "contentHash": "sha256:fact-a",
+            "tokenEstimate": 10,
+            "facets": {}
+          }
+        },
+        {
+          "module": {
+            "id": "fact-b",
+            "version": "1",
+            "kind": "fact",
+            "memoryClass": "semantic",
+            "trustClass": "approved_derived",
+            "privacyClass": "workspace_private",
+            "availability": {
+              "from": null,
+              "to": null
+            },
+            "contentHash": "sha256:fact-b",
+            "tokenEstimate": 10,
+            "facets": {}
+          }
+        },
+        {
+          "module": {
+            "id": "ex-pt-1",
+            "version": "1",
+            "kind": "example",
+            "memoryClass": "episodic",
+            "trustClass": "approved_derived",
+            "privacyClass": "workspace_private",
+            "availability": {
+              "from": null,
+              "to": null
+            },
+            "contentHash": "sha256:ex-pt-1",
+            "tokenEstimate": 10,
+            "facets": {
+              "lang": "pt"
+            }
+          }
+        },
+        {
+          "module": {
+            "id": "ex-pt-2",
+            "version": "1",
+            "kind": "example",
+            "memoryClass": "episodic",
+            "trustClass": "approved_derived",
+            "privacyClass": "workspace_private",
+            "availability": {
+              "from": null,
+              "to": null
+            },
+            "contentHash": "sha256:ex-pt-2",
+            "tokenEstimate": 10,
+            "facets": {
+              "lang": [
+                "pt",
+                "es"
+              ]
+            }
+          }
+        },
+        {
+          "module": {
+            "id": "ex-en",
+            "version": "1",
+            "kind": "example",
+            "memoryClass": "episodic",
+            "trustClass": "approved_derived",
+            "privacyClass": "workspace_private",
+            "availability": {
+              "from": null,
+              "to": null
+            },
+            "contentHash": "sha256:ex-en",
+            "tokenEstimate": 10,
+            "facets": {
+              "lang": "en"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "forbidden-kind",
+      "profile": "ultrarouter",
+      "envelope": {
+        "id": "env-1",
+        "tenant": "tenant-demo",
+        "stage": "answer",
+        "mode": "live",
+        "asOf": "2026-04-01T00:00:00.000Z",
+        "cutoffs": {
+          "knowledge": "2026-04-01T00:00:00.000Z"
+        },
+        "budgets": {},
+        "seed": "seed-demo",
+        "pins": [],
+        "releases": {},
+        "permissionEpoch": "epoch-1"
+      },
+      "contract": {
+        "stage": "answer",
+        "requiredKinds": [],
+        "optionalKinds": [
+          "fact",
+          "secret"
+        ],
+        "forbiddenKinds": [
+          "secret"
+        ],
+        "budgets": {},
+        "limits": [],
+        "pinPolicy": "none",
+        "slots": [
+          "instruction",
+          "reference",
+          "exemplar"
+        ]
+      },
+      "candidates": [
+        {
+          "module": {
+            "id": "s-1",
+            "version": "1",
+            "kind": "secret",
+            "memoryClass": "semantic",
+            "trustClass": "approved_derived",
+            "privacyClass": "workspace_private",
+            "availability": {
+              "from": null,
+              "to": null
+            },
+            "contentHash": "sha256:s-1",
+            "tokenEstimate": 10,
+            "facets": {}
+          }
+        },
+        {
+          "module": {
+            "id": "f-1",
+            "version": "1",
+            "kind": "fact",
+            "memoryClass": "semantic",
+            "trustClass": "approved_derived",
+            "privacyClass": "workspace_private",
+            "availability": {
+              "from": null,
+              "to": null
+            },
+            "contentHash": "sha256:f-1",
+            "tokenEstimate": 10,
+            "facets": {}
+          }
+        }
+      ]
+    },
+    {
+      "name": "unicode-and-number-ext",
+      "profile": "ultrarouter",
+      "envelope": {
+        "id": "env-ünïcode-✓",
+        "tenant": "tenant-demo",
+        "stage": "answer",
+        "mode": "live",
+        "asOf": "2026-04-01T00:00:00.000Z",
+        "cutoffs": {
+          "knowledge": "2026-04-01T00:00:00.000Z"
+        },
+        "budgets": {},
+        "seed": "seed-demo",
+        "pins": [],
+        "releases": {},
+        "permissionEpoch": "epoch-1",
+        "ext": {
+          "10": 1,
+          "2": 2,
+          "b": 0.1,
+          "a": 1e-07,
+          "é": "café",
+          "😀": [
+            1.5,
+            -0.0,
+            1099511627776
+          ]
+        }
+      },
+      "contract": {
+        "stage": "answer",
+        "requiredKinds": [],
+        "optionalKinds": [
+          "note"
+        ],
+        "forbiddenKinds": [],
+        "budgets": {},
+        "limits": [],
+        "pinPolicy": "none",
+        "slots": [
+          "instruction",
+          "reference",
+          "exemplar"
+        ]
+      },
+      "candidates": [
+        {
+          "module": {
+            "id": "note-你好",
+            "version": "1",
+            "kind": "note",
+            "memoryClass": "working",
+            "trustClass": "approved_derived",
+            "privacyClass": "workspace_private",
+            "availability": {
+              "from": null,
+              "to": null
+            },
+            "contentHash": "sha256:note-你好",
+            "tokenEstimate": 10,
+            "facets": {},
+            "ext": {
+              "label": "naïve — “quoted”",
+              "nums": [
+                0.5,
+                100.0,
+                1e+21
+              ],
+              "1": "one",
+              "0": "zero"
+            }
+          }
+        }
+      ],
+      "bodies": {
+        "note-你好": "Unicode body ✓"
+      }
+    },
+    {
+      "name": "empty",
+      "profile": "ultrarouter",
+      "envelope": {
+        "id": "env-1",
+        "tenant": "tenant-demo",
+        "stage": "answer",
+        "mode": "live",
+        "asOf": "2026-04-01T00:00:00.000Z",
+        "cutoffs": {
+          "knowledge": "2026-04-01T00:00:00.000Z"
+        },
+        "budgets": {},
+        "seed": "seed-demo",
+        "pins": [],
+        "releases": {},
+        "permissionEpoch": "epoch-1"
+      },
+      "contract": {
+        "stage": "answer",
+        "requiredKinds": [],
+        "optionalKinds": [],
+        "forbiddenKinds": [],
+        "budgets": {},
+        "limits": [],
+        "pinPolicy": "none",
+        "slots": [
+          "instruction",
+          "reference",
+          "exemplar"
+        ]
+      },
+      "candidates": []
+    },
+    {
+      "name": "greedy-vs-prefix-token-shed",
+      "profile": "ultrarouter",
+      "envelope": {
+        "id": "env-1",
+        "tenant": "tenant-demo",
+        "stage": "answer",
+        "mode": "live",
+        "asOf": "2026-04-01T00:00:00.000Z",
+        "cutoffs": {
+          "knowledge": "2026-04-01T00:00:00.000Z"
+        },
+        "budgets": {
+          "tokens": 30
+        },
+        "seed": "seed-demo",
+        "pins": [],
+        "releases": {},
+        "permissionEpoch": "epoch-1"
+      },
+      "contract": {
+        "stage": "answer",
+        "requiredKinds": [],
+        "optionalKinds": [
+          "a",
+          "b",
+          "c"
+        ],
+        "forbiddenKinds": [],
+        "budgets": {},
+        "limits": [],
+        "pinPolicy": "none",
+        "slots": [
+          "instruction",
+          "reference",
+          "exemplar"
+        ]
+      },
+      "candidates": [
+        {
+          "module": {
+            "id": "big",
+            "version": "1",
+            "kind": "a",
+            "memoryClass": "procedural",
+            "trustClass": "approved_derived",
+            "privacyClass": "workspace_private",
+            "availability": {
+              "from": null,
+              "to": null
+            },
+            "contentHash": "sha256:big",
+            "tokenEstimate": 25,
+            "facets": {}
+          }
+        },
+        {
+          "module": {
+            "id": "mid",
+            "version": "1",
+            "kind": "b",
+            "memoryClass": "semantic",
+            "trustClass": "approved_derived",
+            "privacyClass": "workspace_private",
+            "availability": {
+              "from": null,
+              "to": null
+            },
+            "contentHash": "sha256:mid",
+            "tokenEstimate": 10,
+            "facets": {}
+          }
+        },
+        {
+          "module": {
+            "id": "small",
+            "version": "1",
+            "kind": "c",
+            "memoryClass": "working",
+            "trustClass": "approved_derived",
+            "privacyClass": "workspace_private",
+            "availability": {
+              "from": null,
+              "to": null
+            },
+            "contentHash": "sha256:small",
+            "tokenEstimate": 4,
+            "facets": {}
+          }
+        }
+      ]
+    },
+    {
+      "name": "selection-count-budget",
+      "profile": "selection_count",
+      "envelope": {
+        "id": "env-1",
+        "tenant": "tenant-demo",
+        "stage": "answer",
+        "mode": "live",
+        "asOf": "2026-04-01T00:00:00.000Z",
+        "cutoffs": {
+          "knowledge": "2026-04-01T00:00:00.000Z"
+        },
+        "budgets": {
+          "tokens": 2
+        },
+        "seed": "seed-demo",
+        "pins": [],
+        "releases": {},
+        "permissionEpoch": "epoch-1"
+      },
+      "contract": {
+        "stage": "answer",
+        "requiredKinds": [],
+        "optionalKinds": [
+          "fact",
+          "note",
+          "example"
+        ],
+        "forbiddenKinds": [],
+        "budgets": {
+          "tokens": 3
+        },
+        "limits": [],
+        "pinPolicy": "none",
+        "slots": [
+          "instruction",
+          "reference",
+          "exemplar"
+        ]
+      },
+      "candidates": [
+        {
+          "module": {
+            "id": "n-1",
+            "version": "1",
+            "kind": "note",
+            "memoryClass": "working",
+            "trustClass": "approved_derived",
+            "privacyClass": "workspace_private",
+            "availability": {
+              "from": "2026-01-01T00:00:00.000Z",
+              "to": null
+            },
+            "contentHash": "sha256:n-1",
+            "tokenEstimate": 10,
+            "facets": {}
+          }
+        },
+        {
+          "module": {
+            "id": "f-1",
+            "version": "1",
+            "kind": "fact",
+            "memoryClass": "semantic",
+            "trustClass": "approved_derived",
+            "privacyClass": "workspace_private",
+            "availability": {
+              "from": "2026-01-01T00:00:00.000Z",
+              "to": null
+            },
+            "contentHash": "sha256:f-1",
+            "tokenEstimate": 10,
+            "facets": {}
+          }
+        },
+        {
+          "module": {
+            "id": "f-2",
+            "version": "1",
+            "kind": "fact",
+            "memoryClass": "semantic",
+            "trustClass": "approved_derived",
+            "privacyClass": "workspace_private",
+            "availability": {
+              "from": "2026-01-01T00:00:00.000Z",
+              "to": null
+            },
+            "contentHash": "sha256:f-2",
+            "tokenEstimate": 10,
+            "facets": {}
+          }
+        },
+        {
+          "module": {
+            "id": "e-1",
+            "version": "1",
+            "kind": "example",
+            "memoryClass": "episodic",
+            "trustClass": "approved_derived",
+            "privacyClass": "workspace_private",
+            "availability": {
+              "from": "2026-01-01T00:00:00.000Z",
+              "to": null
+            },
+            "contentHash": "sha256:e-1",
+            "tokenEstimate": 10,
+            "facets": {}
+          }
+        },
+        {
+          "module": {
+            "id": "e-2",
+            "version": "1",
+            "kind": "example",
+            "memoryClass": "episodic",
+            "trustClass": "approved_derived",
+            "privacyClass": "workspace_private",
+            "availability": {
+              "from": "2026-01-01T00:00:00.000Z",
+              "to": null
+            },
+            "contentHash": "sha256:e-2",
+            "tokenEstimate": 10,
+            "facets": {}
+          }
+        }
+      ]
+    },
+    {
+      "name": "selection-undated-live-and-adapter-refusal",
+      "profile": "selection_count",
+      "envelope": {
+        "id": "env-1",
+        "tenant": "tenant-demo",
+        "stage": "answer",
+        "mode": "live",
+        "asOf": "2026-04-01T00:00:00.000Z",
+        "cutoffs": {
+          "knowledge": "2026-04-01T00:00:00.000Z"
+        },
+        "budgets": {},
+        "seed": "seed-demo",
+        "pins": [],
+        "releases": {},
+        "permissionEpoch": "epoch-1"
+      },
+      "contract": {
+        "stage": "answer",
+        "requiredKinds": [],
+        "optionalKinds": [
+          "fact",
+          "note"
+        ],
+        "forbiddenKinds": [],
+        "budgets": {
+          "tokens": 10
+        },
+        "limits": [],
+        "pinPolicy": "none",
+        "slots": [
+          "instruction",
+          "reference",
+          "exemplar"
+        ]
+      },
+      "candidates": [
+        {
+          "module": {
+            "id": "undated",
+            "version": "1",
+            "kind": "fact",
+            "memoryClass": "semantic",
+            "trustClass": "approved_derived",
+            "privacyClass": "workspace_private",
+            "availability": {
+              "from": null,
+              "to": null
+            },
+            "contentHash": "sha256:undated",
+            "tokenEstimate": 10,
+            "facets": {}
+          }
+        },
+        {
+          "module": {
+            "id": "blocked",
+            "version": "1",
+            "kind": "note",
+            "memoryClass": "working",
+            "trustClass": "approved_derived",
+            "privacyClass": "workspace_private",
+            "availability": {
+              "from": "2026-01-01T00:00:00.000Z",
+              "to": null
+            },
+            "contentHash": "sha256:blocked",
+            "tokenEstimate": 10,
+            "facets": {}
+          },
+          "adapterRefusal": {
+            "code": "ACME_CROSS_TENANT",
+            "message": "belongs to another tenant",
+            "reason": "FORBIDDEN_KIND",
+            "detail": "tenant"
+          }
+        },
+        {
+          "module": {
+            "id": "ok",
+            "version": "1",
+            "kind": "note",
+            "memoryClass": "working",
+            "trustClass": "approved_derived",
+            "privacyClass": "workspace_private",
+            "availability": {
+              "from": "2026-01-01T00:00:00.000Z",
+              "to": null
+            },
+            "contentHash": "sha256:ok",
+            "tokenEstimate": 10,
+            "facets": {}
+          }
+        }
+      ]
+    },
+    {
+      "name": "selection-undated-audit-is-fatal",
+      "profile": "selection_count",
+      "envelope": {
+        "id": "env-1",
+        "tenant": "tenant-demo",
+        "stage": "answer",
+        "mode": "audit",
+        "asOf": "2026-04-01T00:00:00.000Z",
+        "cutoffs": {
+          "knowledge": "2026-04-01T00:00:00.000Z"
+        },
+        "budgets": {},
+        "seed": "seed-demo",
+        "pins": [],
+        "releases": {},
+        "permissionEpoch": "epoch-1"
+      },
+      "contract": {
+        "stage": "answer",
+        "requiredKinds": [],
+        "optionalKinds": [
+          "fact"
+        ],
+        "forbiddenKinds": [],
+        "budgets": {
+          "tokens": 10
+        },
+        "limits": [],
+        "pinPolicy": "none",
+        "slots": [
+          "instruction",
+          "reference",
+          "exemplar"
+        ]
+      },
+      "candidates": [
+        {
+          "module": {
+            "id": "undated",
+            "version": "1",
+            "kind": "fact",
+            "memoryClass": "semantic",
+            "trustClass": "approved_derived",
+            "privacyClass": "workspace_private",
+            "availability": {
+              "from": null,
+              "to": null
+            },
+            "contentHash": "sha256:undated",
+            "tokenEstimate": 10,
+            "facets": {}
+          }
+        }
+      ]
+    },
+    {
+      "name": "selection-release-binding-and-authority",
+      "profile": "selection_count",
+      "envelope": {
+        "id": "env-1",
+        "tenant": "tenant-demo",
+        "stage": "answer",
+        "mode": "live",
+        "asOf": "2026-04-01T00:00:00.000Z",
+        "cutoffs": {
+          "knowledge": "2026-04-01T00:00:00.000Z"
+        },
+        "budgets": {},
+        "seed": "seed-demo",
+        "pins": [
+          {
+            "id": "pol-ok",
+            "kind": "policy",
+            "contentHash": "sha256:pol-ok",
+            "purpose": "bound policy"
+          }
+        ],
+        "releases": {
+          "policy": [
+            "2026.1",
+            "2026.2"
+          ]
+        },
+        "permissionEpoch": "epoch-1"
+      },
+      "contract": {
+        "stage": "answer",
+        "requiredKinds": [
+          "policy"
+        ],
+        "optionalKinds": [
+          "policy",
+          "fact"
+        ],
+        "forbiddenKinds": [],
+        "budgets": {
+          "tokens": 10
+        },
+        "limits": [],
+        "pinPolicy": "strict",
+        "slots": [
+          "instruction",
+          "reference",
+          "exemplar"
+        ]
+      },
+      "candidates": [
+        {
+          "module": {
+            "id": "pol-ok",
+            "version": "1",
+            "kind": "policy",
+            "memoryClass": "procedural",
+            "trustClass": "authoritative",
+            "privacyClass": "workspace_private",
+            "availability": {
+              "from": "2026-01-01T00:00:00.000Z",
+              "to": null
+            },
+            "contentHash": "sha256:pol-ok",
+            "tokenEstimate": 10,
+            "facets": {
+              "release": "2026.2"
+            }
+          }
+        },
+        {
+          "module": {
+            "id": "pol-old",
+            "version": "1",
+            "kind": "policy",
+            "memoryClass": "procedural",
+            "trustClass": "authoritative",
+            "privacyClass": "workspace_private",
+            "availability": {
+              "from": "2026-01-01T00:00:00.000Z",
+              "to": null
+            },
+            "contentHash": "sha256:pol-old",
+            "tokenEstimate": 10,
+            "facets": {
+              "release": "2025.9"
+            }
+          }
+        },
+        {
+          "module": {
+            "id": "pol-weak",
+            "version": "1",
+            "kind": "policy",
+            "memoryClass": "procedural",
+            "trustClass": "approved_derived",
+            "privacyClass": "workspace_private",
+            "availability": {
+              "from": "2026-01-01T00:00:00.000Z",
+              "to": null
+            },
+            "contentHash": "sha256:pol-weak",
+            "tokenEstimate": 10,
+            "facets": {
+              "release": "2026.1"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "selection-default-kind-limit-and-ceiling",
+      "profile": "selection_count",
+      "envelope": {
+        "id": "env-1",
+        "tenant": "tenant-demo",
+        "stage": "answer",
+        "mode": "live",
+        "asOf": "2026-04-01T00:00:00.000Z",
+        "cutoffs": {
+          "knowledge": "2026-04-01T00:00:00.000Z"
+        },
+        "budgets": {},
+        "seed": "seed-demo",
+        "pins": [],
+        "releases": {},
+        "permissionEpoch": "epoch-1"
+      },
+      "contract": {
+        "stage": "answer",
+        "requiredKinds": [],
+        "optionalKinds": [
+          "note",
+          "fact"
+        ],
+        "forbiddenKinds": [],
+        "budgets": {
+          "tokens": 20
+        },
+        "limits": [],
+        "pinPolicy": "none",
+        "slots": [
+          "instruction",
+          "reference",
+          "exemplar"
+        ]
+      },
+      "candidates": [
+        {
+          "module": {
+            "id": "n-0",
+            "version": "1",
+            "kind": "note",
+            "memoryClass": "working",
+            "trustClass": "approved_derived",
+            "privacyClass": "workspace_private",
+            "availability": {
+              "from": "2026-01-01T00:00:00.000Z",
+              "to": null
+            },
+            "contentHash": "sha256:n-0",
+            "tokenEstimate": 10,
+            "facets": {}
+          }
+        },
+        {
+          "module": {
+            "id": "n-1",
+            "version": "1",
+            "kind": "note",
+            "memoryClass": "working",
+            "trustClass": "approved_derived",
+            "privacyClass": "workspace_private",
+            "availability": {
+              "from": "2026-01-01T00:00:00.000Z",
+              "to": null
+            },
+            "contentHash": "sha256:n-1",
+            "tokenEstimate": 10,
+            "facets": {}
+          }
+        },
+        {
+          "module": {
+            "id": "n-2",
+            "version": "1",
+            "kind": "note",
+            "memoryClass": "working",
+            "trustClass": "approved_derived",
+            "privacyClass": "workspace_private",
+            "availability": {
+              "from": "2026-01-01T00:00:00.000Z",
+              "to": null
+            },
+            "contentHash": "sha256:n-2",
+            "tokenEstimate": 10,
+            "facets": {}
+          }
+        },
+        {
+          "module": {
+            "id": "n-3",
+            "version": "1",
+            "kind": "note",
+            "memoryClass": "working",
+            "trustClass": "approved_derived",
+            "privacyClass": "workspace_private",
+            "availability": {
+              "from": "2026-01-01T00:00:00.000Z",
+              "to": null
+            },
+            "contentHash": "sha256:n-3",
+            "tokenEstimate": 10,
+            "facets": {}
+          }
+        },
+        {
+          "module": {
+            "id": "f-0",
+            "version": "1",
+            "kind": "fact",
+            "memoryClass": "semantic",
+            "trustClass": "approved_derived",
+            "privacyClass": "workspace_private",
+            "availability": {
+              "from": "2026-01-01T00:00:00.000Z",
+              "to": null
+            },
+            "contentHash": "sha256:f-0",
+            "tokenEstimate": 10,
+            "facets": {}
+          }
+        },
+        {
+          "module": {
+            "id": "f-1",
+            "version": "1",
+            "kind": "fact",
+            "memoryClass": "semantic",
+            "trustClass": "approved_derived",
+            "privacyClass": "workspace_private",
+            "availability": {
+              "from": "2026-01-01T00:00:00.000Z",
+              "to": null
+            },
+            "contentHash": "sha256:f-1",
+            "tokenEstimate": 10,
+            "facets": {}
+          }
+        },
+        {
+          "module": {
+            "id": "f-2",
+            "version": "1",
+            "kind": "fact",
+            "memoryClass": "semantic",
+            "trustClass": "approved_derived",
+            "privacyClass": "workspace_private",
+            "availability": {
+              "from": "2026-01-01T00:00:00.000Z",
+              "to": null
+            },
+            "contentHash": "sha256:f-2",
+            "tokenEstimate": 10,
+            "facets": {}
+          }
+        },
+        {
+          "module": {
+            "id": "f-3",
+            "version": "1",
+            "kind": "fact",
+            "memoryClass": "semantic",
+            "trustClass": "approved_derived",
+            "privacyClass": "workspace_private",
+            "availability": {
+              "from": "2026-01-01T00:00:00.000Z",
+              "to": null
+            },
+            "contentHash": "sha256:f-3",
+            "tokenEstimate": 10,
+            "facets": {}
+          }
+        }
+      ]
+    }
+  ]
+}

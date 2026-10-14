@@ -1,0 +1,13 @@
+{
+  "description": "Canonical JSON of objects whose keys are named like JavaScript prototype members (they are ordinary data keys and must be kept at every depth).",
+  "cases": [
+    {"value": {"__proto__": {"review": "different"}}},
+    {"value": {"a": {"__proto__": {"x": 1}}, "b": 2}},
+    {"value": {"__proto__": null}},
+    {"value": {"__proto__": [1, {"__proto__": "deep"}]}},
+    {"value": {"constructor": 1, "__proto__": 2, "prototype": 3, "toString": 4}},
+    {"value": [{"__proto__": {}}, {}]},
+    {"value": {"Z": 1, "__proto__": 2, "a": 3}},
+    {"value": {"outer": {"__proto__": {"__proto__": {"leaf": true}}}}}
+  ]
+}

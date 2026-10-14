@@ -1,0 +1,181 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "ultrarouter"
+dynamic = ["version"]
+description = "Official Python SDK for ultrarouter: an OpenAI-compatible LLM gateway with routing, evals and an outcome ledger."
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "ultrarouter" }]
+keywords = [
+  "ultrarouter",
+  "llm",
+  "llm-gateway",
+  "ai-gateway",
+  "openai",
+  "openai-compatible",
+  "openrouter",
+  "model-router",
+  "llm-routing",
+  "cost-optimization",
+  "evals",
+  "chat-completions",
+  "embeddings",
+  "streaming",
+  "sdk",
+  "api-client",
+  "python-sdk",
+]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+  "Topic :: Scientific/Engineering :: Artificial Intelligence",
+  "Topic :: Software Development :: Libraries :: Python Modules",
+  "Topic :: Internet :: WWW/HTTP",
+  "Typing :: Typed",
+  "Framework :: AsyncIO",
+  "Framework :: Pydantic :: 2",
+]
+dependencies = [
+  "httpx>=0.27,<1",
+  "pydantic>=2.7,<3",
+  "typing-extensions>=4.12",
+]
+
+[project.optional-dependencies]
+openai = ["openai>=1.55.3"]
+
+[project.urls]
+Homepage = "https://ultrarouter.dev"
+Documentation = "https://github.com/lucastonon/ultrarouter-sdk-python/tree/main/docs"
+Repository = "https://github.com/lucastonon/ultrarouter-sdk-python"
+Issues = "https://github.com/lucastonon/ultrarouter-sdk-python/issues"
+Changelog = "https://github.com/lucastonon/ultrarouter-sdk-python/blob/main/CHANGELOG.md"
+
+[dependency-groups]
+dev = [
+  "pytest>=8.3",
+  "pytest-asyncio>=0.24",
+  "respx>=0.22",
+  "ruff>=0.15",
+  "mypy>=1.15",
+  "pyyaml>=6.0",
+  "types-pyyaml>=6.0",
+  "twine>=6.1",
+  "openai>=1.55.3",
+  "tomli>=2.0; python_version < '3.11'",
+]
+
+[tool.hatch.version]
+path = "src/ultrarouter/_version.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/ultrarouter"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+  "/src",
+  "/tests",
+  "/docs",
+  "/examples",
+  "/scripts",
+  "/openapi",
+  "/README.md",
+  "/AGENTS.md",
+  "/CLAUDE.md",
+  "/CHANGELOG.md",
+  "/CONTRIBUTING.md",
+  "/SECURITY.md",
+  "/LICENSE",
+  "/llms.txt",
+  "/llms-full.txt",
+  "/Makefile",
+]
+exclude = ["**/__pycache__", "**/*.pyc"]
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+testpaths = ["tests"]
+addopts = ["-ra", "--strict-markers", "--strict-config"]
+markers = [
+  "integration: talks to a real ultrarouter gateway (needs ULTRAROUTER_API_KEY and ULTRAROUTER_BASE_URL)",
+]
+filterwarnings = [
+  "error",
+  # Garbage-collection-time socket warnings are timing dependent; closing is tested explicitly.
+  "ignore::ResourceWarning",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+src = ["src", "tests", "scripts", "examples"]
+# Generated files: the specification and the generated references.
+extend-exclude = [
+  "openapi",
+  "docs/api-reference.md",
+  "docs/types-reference.md",
+  "docs/api-coverage.md",
+]
+
+[tool.ruff.lint]
+select = [
+  "E",   # pycodestyle
+  "W",
+  "F",   # pyflakes
+  "I",   # isort
+  "B",   # bugbear
+  "UP",  # pyupgrade
+  "SIM", # simplify
+  "RUF", # ruff-specific
+  "C4",  # comprehensions
+  "PIE",
+  "PT",  # pytest style
+  "RET",
+  "S",   # bandit subset
+]
+ignore = [
+  "S101", # assert is fine in tests and narrow internal invariants
+  "RET505",
+  "RUF001", # intentional unicode in docs/strings
+  "RUF002",
+  "RUF003",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"src/ultrarouter/types/_generated.py" = ["E501", "RUF100"]
+# The re-export module star-imports the generated shapes (the F4 family flags star imports).
+"src/ultrarouter/types/__init__.py" = ["F4"]
+"tests/**" = ["S105", "S106", "S108", "S311", "S603", "S607", "PT011", "PT012", "PT018", "SIM117", "E501"]
+"examples/**" = ["S105", "S106"]
+"scripts/**" = ["S603", "S607", "S404", "E501"]
+
+[tool.ruff.format]
+quote-style = "double"
+
+[tool.mypy]
+python_version = "3.10"
+strict = true
+warn_unreachable = true
+files = ["src/ultrarouter"]
+plugins = ["pydantic.mypy"]
+
+[tool.pydantic-mypy]
+init_forbid_extra = false
+init_typed = true
+warn_required_dynamic_aliases = true

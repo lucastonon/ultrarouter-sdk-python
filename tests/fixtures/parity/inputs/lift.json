@@ -1,0 +1,560 @@
+{
+  "description": "Synthetic chat message lists (and optional segment hints) for from_messages / to_messages.",
+  "samples": [
+    {
+      "name": "single-user",
+      "messages": [
+        {
+          "role": "user",
+          "content": "Hello there"
+        }
+      ]
+    },
+    {
+      "name": "system-and-user",
+      "messages": [
+        {
+          "role": "system",
+          "content": "You are a concise assistant."
+        },
+        {
+          "role": "user",
+          "content": "Summarize the plan."
+        }
+      ]
+    },
+    {
+      "name": "developer-role",
+      "messages": [
+        {
+          "role": "developer",
+          "content": "Use British spelling."
+        },
+        {
+          "role": "user",
+          "content": "Colour or color?"
+        }
+      ]
+    },
+    {
+      "name": "multi-turn-history",
+      "messages": [
+        {
+          "role": "system",
+          "content": "Be brief."
+        },
+        {
+          "role": "user",
+          "content": "What is 2+2?"
+        },
+        {
+          "role": "assistant",
+          "content": "4"
+        },
+        {
+          "role": "user",
+          "content": "And 3+3?"
+        }
+      ]
+    },
+    {
+      "name": "rag-document-tags",
+      "messages": [
+        {
+          "role": "system",
+          "content": "Answer only from the document."
+        },
+        {
+          "role": "user",
+          "content": "<document id=\"policy-7\">\nRefunds are issued within fourteen business days.\n</document>"
+        },
+        {
+          "role": "user",
+          "content": "How long do refunds take?"
+        }
+      ]
+    },
+    {
+      "name": "rag-context-prefix",
+      "messages": [
+        {
+          "role": "user",
+          "content": "Context: The store opens at 9am and closes at 5pm."
+        },
+        {
+          "role": "user",
+          "content": "When does it open?"
+        }
+      ]
+    },
+    {
+      "name": "rag-separator",
+      "messages": [
+        {
+          "role": "user",
+          "content": "Notes\n---\nItem A costs 3 dollars."
+        },
+        {
+          "role": "user",
+          "content": "Price of item A?"
+        }
+      ]
+    },
+    {
+      "name": "rag-portuguese-source",
+      "messages": [
+        {
+          "role": "user",
+          "content": "Fonte: o pedido 1001 foi enviado ontem."
+        },
+        {
+          "role": "user",
+          "content": "Onde está o pedido?"
+        }
+      ]
+    },
+    {
+      "name": "few-shot-markers",
+      "messages": [
+        {
+          "role": "system",
+          "content": "Classify sentiment."
+        },
+        {
+          "role": "user",
+          "content": "Example: I love it -> positive"
+        },
+        {
+          "role": "assistant",
+          "content": "Example: positive"
+        },
+        {
+          "role": "user",
+          "content": "Q: It broke after a day. A:"
+        },
+        {
+          "role": "user",
+          "content": "Classify: great service"
+        }
+      ]
+    },
+    {
+      "name": "few-shot-spanish",
+      "messages": [
+        {
+          "role": "user",
+          "content": "Ejemplo: hola -> saludo"
+        },
+        {
+          "role": "user",
+          "content": "adiós"
+        }
+      ]
+    },
+    {
+      "name": "tool-call-round-trip",
+      "messages": [
+        {
+          "role": "system",
+          "content": "Use tools when needed."
+        },
+        {
+          "role": "user",
+          "content": "Weather in Lisbon?"
+        },
+        {
+          "role": "assistant",
+          "content": null,
+          "tool_calls": [
+            {
+              "id": "call_1",
+              "type": "function",
+              "function": {
+                "name": "get_weather",
+                "arguments": "{\"city\":\"Lisbon\"}"
+              }
+            }
+          ]
+        },
+        {
+          "role": "tool",
+          "tool_call_id": "call_1",
+          "content": "{\"temp_c\":21}"
+        },
+        {
+          "role": "user",
+          "content": "Thanks, and tomorrow?"
+        }
+      ]
+    },
+    {
+      "name": "multipart-content",
+      "messages": [
+        {
+          "role": "system",
+          "content": "Describe images."
+        },
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "text",
+              "text": "What is in this picture?"
+            },
+            {
+              "type": "image_url",
+              "image_url": {
+                "url": "https://example.com/cat.png"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "named-and-extra-keys",
+      "messages": [
+        {
+          "name": "ops-bot",
+          "role": "system",
+          "content": "Be formal.",
+          "x_custom": {
+            "k": 1
+          }
+        },
+        {
+          "role": "user",
+          "name": "alice",
+          "content": "Hi"
+        }
+      ]
+    },
+    {
+      "name": "empty-and-null-content",
+      "messages": [
+        {
+          "role": "system",
+          "content": ""
+        },
+        {
+          "role": "assistant",
+          "content": null
+        },
+        {
+          "role": "user",
+          "content": "Go"
+        }
+      ]
+    },
+    {
+      "name": "unicode-content",
+      "messages": [
+        {
+          "role": "system",
+          "content": "Responda em português. Ação ✓"
+        },
+        {
+          "role": "user",
+          "content": "你好 👋 مرحبا — “quotes”"
+        }
+      ]
+    },
+    {
+      "name": "long-reference",
+      "messages": [
+        {
+          "role": "user",
+          "content": "<context>The quarterly report covers revenue, costs and hiring. The quarterly report covers revenue, costs and hiring. The quarterly report covers revenue, costs and hiring. The quarterly report covers revenue, costs and hiring. The quarterly report covers revenue, costs and hiring. The quarterly report covers revenue, costs and hiring. The quarterly report covers revenue, costs and hiring. The quarterly report covers revenue, costs and hiring. The quarterly report covers revenue, costs and hiring. The quarterly report covers revenue, costs and hiring. The quarterly report covers revenue, costs and hiring. The quarterly report covers revenue, costs and hiring. The quarterly report covers revenue, costs and hiring. The quarterly report covers revenue, costs and hiring. The quarterly report covers revenue, costs and hiring. The quarterly report covers revenue, costs and hiring. The quarterly report covers revenue, costs and hiring. The quarterly report covers revenue, costs and hiring. The quarterly report covers revenue, costs and hiring. The quarterly report covers revenue, costs and hiring. </context>"
+        },
+        {
+          "role": "user",
+          "content": "Summarize the report."
+        }
+      ]
+    },
+    {
+      "name": "hint-whole-message",
+      "messages": [
+        {
+          "role": "user",
+          "content": "Background: our office moved to Porto."
+        },
+        {
+          "role": "user",
+          "content": "Where is the office?"
+        }
+      ],
+      "hints": [
+        {
+          "index": 0,
+          "kind": "reference_context"
+        }
+      ]
+    },
+    {
+      "name": "hint-span",
+      "messages": [
+        {
+          "role": "user",
+          "content": "Instructions first. Then a long quoted passage follows here. Final ask."
+        }
+      ],
+      "hints": [
+        {
+          "index": 0,
+          "kind": "reference_context",
+          "start": 20,
+          "end": 60
+        }
+      ]
+    },
+    {
+      "name": "hint-span-with-protected-number",
+      "messages": [
+        {
+          "role": "user",
+          "content": "Order 12345 shipped on 2026-01-15 to Porto; please confirm the date."
+        }
+      ],
+      "hints": [
+        {
+          "index": 0,
+          "kind": "history",
+          "start": 3,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "name": "hint-invalid-partial",
+      "messages": [
+        {
+          "role": "user",
+          "content": "Some text here."
+        }
+      ],
+      "hints": [
+        {
+          "index": 0,
+          "kind": "history",
+          "start": 2
+        }
+      ]
+    },
+    {
+      "name": "hint-invalid-range",
+      "messages": [
+        {
+          "role": "user",
+          "content": "Short."
+        }
+      ],
+      "hints": [
+        {
+          "index": 0,
+          "kind": "history",
+          "start": 2,
+          "end": 99
+        }
+      ]
+    },
+    {
+      "name": "hint-on-non-string-content",
+      "messages": [
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "text",
+              "text": "multi"
+            }
+          ]
+        }
+      ],
+      "hints": [
+        {
+          "index": 0,
+          "kind": "history",
+          "start": 0,
+          "end": 3
+        }
+      ]
+    },
+    {
+      "name": "assistant-only",
+      "messages": [
+        {
+          "role": "assistant",
+          "content": "I can help with that."
+        }
+      ]
+    },
+    {
+      "name": "unknown-role",
+      "messages": [
+        {
+          "role": "critic",
+          "content": "Not a standard role."
+        },
+        {
+          "role": "user",
+          "content": "ok"
+        }
+      ]
+    },
+    {
+      "name": "emoji-span-boundary",
+      "messages": [
+        {
+          "role": "user",
+          "content": "ab👋cd👍ef some trailing words"
+        }
+      ],
+      "hints": [
+        {
+          "index": 0,
+          "kind": "history",
+          "start": 3,
+          "end": 6
+        }
+      ]
+    },
+    {
+      "name": "hint-span-accented-entity",
+      "messages": [
+        {
+          "role": "user",
+          "content": "Visit Café Lisboa at Rua Augusta; email ops@example.com or https://example.com/menu today."
+        }
+      ],
+      "hints": [
+        {
+          "index": 0,
+          "kind": "reference_context",
+          "start": 8,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "name": "hint-span-line-terminators",
+      "messages": [
+        {
+          "role": "user",
+          "content": "| a | b |\r\n| 1 | 2 | key: value\rnext line ends"
+        }
+      ],
+      "hints": [
+        {
+          "index": 0,
+          "kind": "history",
+          "start": 4,
+          "end": 25
+        }
+      ]
+    },
+    {
+      "name": "hint-span-citations-and-currency",
+      "messages": [
+        {
+          "role": "user",
+          "content": "Per CLÁUSULA 7 and Sección 4.2, the fee is 10 DÓLARES or € 12,50 (art. IV)."
+        }
+      ],
+      "hints": [
+        {
+          "index": 0,
+          "kind": "reference_context",
+          "start": 5,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "name": "hint-span-unicode-word-boundaries",
+      "messages": [
+        {
+          "role": "user",
+          "content": "naïve façade ſtyle Straße 2026-01-15 ORD-4471 ﻿zero-width-nbsp"
+        }
+      ],
+      "hints": [
+        {
+          "index": 0,
+          "kind": "history",
+          "start": 2,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "name": "hint-float-index-and-offsets",
+      "messages": [
+        {
+          "role": "user",
+          "content": "Float offsets are integers in JavaScript."
+        }
+      ],
+      "hints": [
+        {
+          "index": 0.0,
+          "kind": "history",
+          "start": 6.0,
+          "end": 20.0
+        }
+      ]
+    },
+    {
+      "name": "hint-null-offset",
+      "messages": [
+        {
+          "role": "user",
+          "content": "null start counts as present"
+        }
+      ],
+      "hints": [
+        {
+          "index": 0,
+          "kind": "history",
+          "start": null,
+          "end": 5
+        }
+      ]
+    },
+    {
+      "name": "proto-message-key",
+      "messages": [
+        {
+          "role": "user",
+          "__proto__": {
+            "tag": "x"
+          },
+          "content": "hi"
+        }
+      ]
+    },
+    {
+      "name": "proto-keys-in-a-conversation",
+      "messages": [
+        {
+          "role": "system",
+          "content": "Be brief."
+        },
+        {
+          "role": "user",
+          "content": "question",
+          "__proto__": null
+        },
+        {
+          "role": "assistant",
+          "__proto__": {
+            "__proto__": {
+              "deep": 1
+            }
+          },
+          "content": "answer"
+        }
+      ]
+    }
+  ]
+}

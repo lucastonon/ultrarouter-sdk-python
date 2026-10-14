@@ -1,0 +1,104 @@
+name: publish
+
+# Publishes to PyPI with trusted publishing (OIDC): no API token is stored in the repository.
+# A published GitHub release uploads to PyPI. A manual run uploads to TestPyPI by default, or to
+# PyPI when `repository: pypi` is chosen. Configure a trusted publisher for this repository,
+# workflow file `publish.yml` and environment `pypi` (and `testpypi`) on the respective index first.
+# The release leak scan also needs the organisation's extra patterns in the LEAK_PATTERNS_JSON
+# secret; without it nothing is published.
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      repository:
+        description: "Package index to upload to"
+        type: choice
+        options: [testpypi, pypi]
+        default: testpypi
+
+permissions:
+  contents: read
+
+env:
+  UV_FROZEN: "1"
+  UV_PYTHON: "3.12"
+
+jobs:
+  build:
+    name: build and verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0 # the leak scan reads every commit
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
+      - name: Install
+        run: uv sync
+      - name: Release tag matches the package version
+        if: ${{ github.event_name == 'release' }}
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          version="$(uv run python -c 'from ultrarouter import __version__; print(__version__)')"
+          test "$TAG" = "v$version" || { echo "tag $TAG does not match version $version" >&2; exit 1; }
+      - name: Checks
+        run: |
+          uv run ruff check .
+          uv run ruff format --check .
+          uv run mypy
+          uv run python scripts/sync_openapi.py --check
+          uv run python scripts/gen_types.py --check
+          uv run python scripts/gen_docs.py --check
+          uv run pytest
+      - name: Build and validate
+        run: |
+          uv build --out-dir dist
+          uv run twine check --strict dist/*
+      - name: Smoke (Python 3.10 and 3.14)
+        run: bash scripts/smoke.sh
+        env:
+          SKIP_BUILD: "1"
+      - name: Leak scan (working tree, git history, built distributions, extra patterns)
+        env:
+          LEAK_PATTERNS_JSON: ${{ secrets.LEAK_PATTERNS_JSON }}
+        run: |
+          if [ -z "${LEAK_PATTERNS_JSON}" ]; then
+            echo "::error::set the LEAK_PATTERNS_JSON secret: a release is scanned with the extra patterns"
+            exit 1
+          fi
+          printf '%s' "${LEAK_PATTERNS_JSON}" > "${RUNNER_TEMP}/leak-patterns.json"
+          ULTRAROUTER_LEAK_PATTERNS_FILE="${RUNNER_TEMP}/leak-patterns.json" \
+            uv run python scripts/leak_scan.py --dist dist --redact-external
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: dist
+          path: dist/
+          if-no-files-found: error
+
+  publish:
+    name: upload to ${{ github.event_name == 'release' && 'pypi' || inputs.repository }}
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: ${{ github.event_name == 'release' && 'pypi' || inputs.repository }}
+      url: ${{ (github.event_name == 'release' || inputs.repository == 'pypi') && 'https://pypi.org/project/ultrarouter/' || 'https://test.pypi.org/project/ultrarouter/' }}
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: dist
+          path: dist/
+      - name: Upload to TestPyPI
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.repository == 'testpypi' }}
+        uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
+        with:
+          repository-url: https://test.pypi.org/legacy/
+      - name: Upload to PyPI
+        if: ${{ github.event_name == 'release' || inputs.repository == 'pypi' }}
+        uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
