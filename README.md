@@ -227,7 +227,7 @@ honoured), all within the call's total `timeout`. Every non-streaming `POST` car
 
 ## Contributing and security
 
-See [CONTRIBUTING.md](https://github.com/lucastonon/ultrarouter-sdk-python/blob/main/CONTRIBUTING.md) (`make check` runs everything CI runs) and
+See [CONTRIBUTING.md](https://github.com/lucastonon/ultrarouter-sdk-python/blob/main/CONTRIBUTING.md) (`make check` runs the full gate) and
 [SECURITY.md](https://github.com/lucastonon/ultrarouter-sdk-python/blob/main/SECURITY.md) for reporting vulnerabilities. Changes are listed in
 [CHANGELOG.md](https://github.com/lucastonon/ultrarouter-sdk-python/blob/main/CHANGELOG.md).
 

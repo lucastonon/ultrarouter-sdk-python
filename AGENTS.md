@@ -101,7 +101,7 @@ Async: `AsyncUltraRouter` has the same methods; `await` them and use `async with
 
 ```bash
 uv sync                      # creates .venv with dev dependencies
-make check                   # everything CI runs: lint, format, types, tests, docs, build, smoke, leak scan
+make check                   # the full gate: lint, format, types, tests, docs, build, smoke, leak scan
 make test                    # pytest only
 make lint format typecheck   # individual gates
 make generate                # regenerate types, API/types reference, coverage table, llms files
@@ -111,8 +111,9 @@ make leak-scan               # scan the tree, git history and dist/ for secrets 
 make parity-check            # regenerate the parity goldens from the TypeScript SDK and diff (TS_SDK=path)
 ```
 
-CI (`.github/workflows/ci.yml`) runs the same gates on Python 3.10 to 3.14; `publish.yml` uploads
-to PyPI with trusted publishing, only from a published release or a manual run.
+The `ci` workflow (`.github/workflows/ci.yml`, manual dispatch only; `make check` is the gate) runs the
+same gates on Python 3.10 to 3.14; `publish.yml` uploads to PyPI with trusted publishing, only from a
+published release or a manual run.
 
 ### Rules
 

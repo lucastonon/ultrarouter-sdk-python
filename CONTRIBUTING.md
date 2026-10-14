@@ -11,7 +11,7 @@ cross-language parity fixtures.
 git clone https://github.com/lucastonon/ultrarouter-sdk-python.git
 cd ultrarouter-sdk-python
 uv sync          # creates .venv with the package (editable) and the dev tools
-make check       # runs everything CI runs
+make check       # the full gate (the ci workflow runs the same list on manual dispatch)
 ```
 
 ## The checks
@@ -30,11 +30,13 @@ make check       # runs everything CI runs
 | `make check` | all of the above |
 | `make parity-check` | regenerates the parity goldens from the TypeScript SDK (`TS_SDK=path`, built `dist/`) and fails on drift |
 
-CI (`.github/workflows/ci.yml`) runs lint, format, types, the generated-file checks, the tests,
-doctests and examples on Python 3.10, 3.11, 3.12, 3.13 and 3.14, runs the lowest-dependency
-scenarios, then builds, smoke-tests and leak-scans the distributions and the full history. When
-the repository variable `TS_SDK_REPOSITORY` (`owner/name`) is set, a further job builds that
-TypeScript SDK and runs the parity-golden check against it.
+The `ci` workflow (`.github/workflows/ci.yml`) runs lint, format, types, the generated-file checks,
+the tests, doctests and examples on Python 3.10, 3.11, 3.12, 3.13 and 3.14, runs the
+lowest-dependency scenarios, then builds, smoke-tests and leak-scans the distributions and the full
+history. When the repository variable `TS_SDK_REPOSITORY` (`owner/name`) is set, a further job
+builds that TypeScript SDK and runs the parity-golden check against it. The workflow runs on manual
+dispatch only (`gh workflow run ci.yml`): `make check` on the maintainer's machine is the gate
+before every push.
 
 Every third-party action in the workflows is pinned to a full commit SHA with its version in a
 comment (`uses: owner/action@<40-hex sha> # vX.Y.Z`); a repository test enforces it. To update
@@ -57,8 +59,8 @@ JSON file and point the scanner at it with `--patterns-file PATH` or
 `ULTRAROUTER_LEAK_PATTERNS_FILE`; `make check` and `make leak-scan` then apply them, and without
 the variable they run the generic rules only. The format is a JSON array of
 `{"id", "regex", "flags"?, "description"}` objects (`flags` may contain `i`, `m`, `s`, `u`). A
-configured file that is missing or invalid fails the scan. In CI the file comes from the
-`LEAK_PATTERNS_JSON` secret (optional for CI, required by the publish workflow), and
+configured file that is missing or invalid fails the scan. In the workflows the file comes from the
+`LEAK_PATTERNS_JSON` secret (optional for `ci`, required by `publish`), and
 `--redact-external` keeps matches of those rules out of public logs. `scripts/leak_scan_allowlist.txt`
 masks exact substrings (`<path glob>:<substring>  # reason`) and must stay minimal.
 
