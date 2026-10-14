@@ -21,7 +21,7 @@ Every response model lives in :mod:`ultrarouter.types`; the most used ones are r
 """
 
 from . import types
-from ._base_client import RequestOptions
+from ._base_client import APIRequest, RequestOptions
 from ._client import (
     ArtifactScope,
     AsyncArtifactScope,
@@ -153,6 +153,7 @@ __all__ = [
     "REVIEWER_SIGNATURE_HEADER",
     "REVIEWER_TIMESTAMP_HEADER",
     "APIConnectionError",
+    "APIRequest",
     "APIResponseValidationError",
     "APIStatusError",
     "APITimeoutError",

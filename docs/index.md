@@ -24,6 +24,7 @@ mock gateway, so the snippets match the code.
 | [Embeddings](embeddings.md) | `client.embeddings.create`, float and base64 encodings |
 | [Models and key info](models.md) | `client.models.list`, `client.models.retrieve`, `client.key.get` |
 | [OpenAI compatibility](openai-compatibility.md) | `as_openai()`, migrating from the `openai` package |
+| [Native passthrough](passthrough.md) | the official `openai` and `anthropic` SDKs through the gateway: `/v1/responses`, `/v1/messages`, the ur metering headers |
 
 ## ultrarouter surfaces
 

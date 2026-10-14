@@ -18,6 +18,13 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- Native passthrough for the OpenAI Responses API (`POST /v1/responses`) and the Anthropic Messages
+  API (`POST /v1/messages`). The gateway forwards these bodies verbatim and meters the call; point
+  the official `openai` and `anthropic` SDKs at the gateway, or reach the routes from this SDK's raw
+  request surface. New guide: `docs/passthrough.md`.
+- `APIRequest` is now exported from the package: the prepared call passed to a client's
+  `request`, `request_json`, `request_model` and `request_text` methods for endpoints the typed
+  methods do not wrap. A non-`None` `body` is now sent automatically (no need to set `has_body`).
 - `ConfigurationError`, a subclass of `UltraRouterError` raised before any network call when the
   client cannot be constructed because the API key or the gateway base URL is missing. Exported
   from the package.

@@ -124,6 +124,8 @@ __all__ = [
     "ConfirmationStatusAutoAdopt",
     "ContextModuleRefParam",
     "CreateEmbeddingResponse",
+    "CreateMessageParams",
+    "CreateMessageResponse",
     "DiffLengthsParams",
     "DiffStatsParams",
     "Embedding",
@@ -6269,6 +6271,18 @@ class KeyInfoUsage(BaseModel):
     """The workspace's total spend this period."""
 
 
+class CreateMessageParams(TypedDict, total=False):
+    """Anthropic Messages API request, forwarded verbatim to Anthropic. Every field beyond `model` (system, messages, tools, output_config, cache_control, continuation blocks, …) is passed through unchanged. Auth may be the ur key via `Authorization: Bearer` or `x-api-key`; the caller's key is never forwarded upstream (the platform/BYOK key is injected server-side)."""
+
+    model: Required[str]
+    """The Anthropic model id to call (e.g. "claude-opus-5-5"). This exact model is the model called.
+    """
+
+
+class CreateMessageResponse(BaseModel):
+    """The Anthropic Message object, returned byte-for-byte. Usage is metered from `usage` (input_tokens + cache_read_input_tokens + cache_creation_input_tokens + output_tokens); the ur request id and booked cost ride the `X-UR-Request-Id` / `X-UR-Cost-Micro-USD` headers."""
+
+
 class ModelList(BaseModel):
     """Active model catalog."""
 
@@ -7112,6 +7126,7 @@ for _model in (
     KeyInfo,
     KeyInfoLimits,
     KeyInfoUsage,
+    CreateMessageResponse,
     ModelList,
     Model,
     ModelPricing,
@@ -7369,6 +7384,7 @@ OPERATIONS: dict[str, tuple[str, str, str | None, str | None]] = {
     "cancelImport": ("POST", "/v1/imports/{id}/cancel", None, "ImportEnvelope"),
     "listImprovementReads": ("GET", "/v1/improvement-reads", None, "ImprovementReads"),
     "getKey": ("GET", "/v1/key", None, "KeyInfo"),
+    "createMessage": ("POST", "/v1/messages", "CreateMessageParams", "CreateMessageResponse"),
     "listModels": ("GET", "/v1/models", None, "ModelList"),
     "getModel": ("GET", "/v1/models/{id}", None, "ModelDetail"),
     "recordOutcomesBatch": (
@@ -7391,4 +7407,5 @@ OPERATIONS: dict[str, tuple[str, str, str | None, str | None]] = {
         "OutcomeParams",
         "OutcomeResult",
     ),
+    "createResponse": ("POST", "/v1/responses", "CreateMessageParams", "CreateMessageResponse"),
 }

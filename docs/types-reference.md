@@ -1824,6 +1824,22 @@ OpenAI-compatible embeddings response with the ultrarouter `ur` block.
 | `ur` | `EmbeddingUrBlock` | yes | ultrarouter response extension block. |
 | `usage` | `EmbeddingUsage` | yes |  |
 
+### CreateMessageParams
+
+*request shape (TypedDict)*
+
+Anthropic Messages API request, forwarded verbatim to Anthropic. Every field beyond `model` (system, messages, tools, output_config, cache_control, continuation blocks, …) is passed through unchanged. Auth may be the ur key via `Authorization: Bearer` or `x-api-key`; the caller's key is never forwarded upstream (the platform/BYOK key is injected server-side).
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `model` | `Required[str]` | no | The Anthropic model id to call (e.g. "claude-opus-5-5"). This exact model is the model called. |
+
+### CreateMessageResponse
+
+*response model*
+
+The Anthropic Message object, returned byte-for-byte. Usage is metered from `usage` (input_tokens + cache_read_input_tokens + cache_creation_input_tokens + output_tokens); the ur request id and booked cost ride the `X-UR-Request-Id` / `X-UR-Cost-Micro-USD` headers.
+
 ### DiffLengthsParams
 
 *request shape (TypedDict)*

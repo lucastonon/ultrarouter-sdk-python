@@ -32,6 +32,7 @@ patterns and pitfalls.
 - [Embeddings](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/main/docs/embeddings.md): client.embeddings.create, float and base64 encodings
 - [Models and key info](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/main/docs/models.md): client.models.list, client.models.retrieve, client.key.get
 - [OpenAI compatibility](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/main/docs/openai-compatibility.md): as_openai(), migrating from the openai package
+- [Native passthrough](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/main/docs/passthrough.md): the official openai and anthropic SDKs through the gateway: /v1/responses, /v1/messages, the ur metering headers
 
 ## ultrarouter surfaces
 

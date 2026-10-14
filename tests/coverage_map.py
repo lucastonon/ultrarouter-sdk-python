@@ -37,6 +37,20 @@ COVERAGE: dict[str, str] = {
     "listModels": 'client.models.list(provider="openai")',
     "getModel": 'client.models.retrieve("openai/gpt-5.2")',
     "getKey": "client.key.get()",
+    # Native passthrough: the OpenAI Responses and Anthropic Messages APIs, forwarded verbatim.
+    # The body is opaque (CreateMessageResponse is an empty, extra-allowing model), so these go
+    # through the client's raw request surface rather than a typed method.
+    "createResponse": (
+        'client.request_model(ultrarouter.APIRequest("POST", "/v1/responses", '
+        'body={"model": "gpt-6-sol", "input": "Ping the Responses API."}), '
+        "ultrarouter.types.CreateMessageResponse)"
+    ),
+    "createMessage": (
+        'client.request_model(ultrarouter.APIRequest("POST", "/v1/messages", '
+        'body={"model": "claude-opus-5-5", "max_tokens": 64, '
+        '"messages": [{"role": "user", "content": "Ping the Messages API."}]}), '
+        "ultrarouter.types.CreateMessageResponse)"
+    ),
     # Requests
     "submitFeedback": 'client.requests.feedback("req_123", rating=1, tags=["helpful"])',
     "getGeneration": 'client.generation.get("req_123")',

@@ -81,7 +81,30 @@ class RequestOptions(TypedDict, total=False):
 
 @dataclass
 class APIRequest:
-    """One prepared API call (internal)."""
+    """A single prepared call for a client's low-level request surface.
+
+    :class:`~ultrarouter.UltraRouter` and :class:`~ultrarouter.AsyncUltraRouter` expose
+    ``request`` (the raw ``httpx`` response), ``request_json`` (the decoded body), ``request_model``
+    (validated into a typed model) and ``request_text`` for endpoints the typed methods do not wrap
+    — for example the native passthrough routes ``POST /v1/responses`` (OpenAI Responses API) and
+    ``POST /v1/messages`` (Anthropic Messages API). Build one of these and pass it to the method
+    that returns the shape you want. Authentication, the ``User-Agent``, JSON encoding, the per-call
+    deadline, retries and the ``Idempotency-Key`` on a ``POST`` are added for you.
+
+    Attributes:
+        method: HTTP method (``"GET"``, ``"POST"``, ...).
+        path: Request path starting at ``/v1`` (the client's base URL is prepended).
+        query: Query-string parameters; keys whose value is ``None`` are dropped.
+        body: JSON request body. A non-``None`` body is encoded and sent.
+        has_body: Send ``body`` even when it is ``None`` (an explicit empty body); set
+            automatically when ``body`` is not ``None``.
+        content: Raw bytes to send instead of JSON-encoding ``body``.
+        headers: Extra request headers (for example ``X-UR-Call-Type`` on a passthrough call).
+        options: Per-call :class:`RequestOptions` (``timeout``, ``max_retries``,
+            ``idempotency_key``, ``extra_headers``, ``extra_query``).
+        stream: Keep the response body open for incremental reads.
+        accept_not_modified: Treat a ``304`` as a success (conditional requests).
+    """
 
     method: str
     path: str
@@ -93,6 +116,13 @@ class APIRequest:
     options: Mapping[str, Any] = field(default_factory=dict)
     stream: bool = False
     accept_not_modified: bool = False
+
+    def __post_init__(self) -> None:
+        # Direct construction convenience: a non-None body is sent as JSON. ``build()`` already
+        # sets ``has_body`` explicitly (including for a deliberate ``None`` body), so it is a no-op
+        # there; it only helps callers who construct an APIRequest by hand.
+        if self.body is not None and not self.has_body:
+            self.has_body = True
 
 
 def encode_path_segment(segment: str) -> str:

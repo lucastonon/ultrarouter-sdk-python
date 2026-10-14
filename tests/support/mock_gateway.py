@@ -296,6 +296,58 @@ def _embeddings(body: dict[str, Any]) -> tuple[int, Any]:
     }
 
 
+# ─────────────────────────────── native passthrough ───────────────────────────────
+
+
+def _passthrough_headers(request_id: str, cost_micro_usd: int = 120) -> dict[str, str]:
+    """The ur response headers a non-streaming passthrough call returns."""
+    return {"X-UR-Request-Id": request_id, "X-UR-Cost-Micro-USD": str(cost_micro_usd)}
+
+
+def _openai_responses(body: dict[str, Any]) -> tuple[int, Any, dict[str, str]]:
+    """OpenAI Responses passthrough: a verbatim-looking Responses object + the ur headers."""
+    model = str(body.get("model") or "gpt-6-sol")
+    payload = {
+        "id": STATE.next_id("resp"),
+        "object": "response",
+        "created_at": 1_760_000_000,
+        "status": "completed",
+        "model": model,
+        "output": [
+            {
+                "type": "message",
+                "id": STATE.next_id("msg"),
+                "status": "completed",
+                "role": "assistant",
+                "content": [{"type": "output_text", "text": MOCK_REPLY, "annotations": []}],
+            }
+        ],
+        "usage": {"input_tokens": 11, "output_tokens": 7, "total_tokens": 18},
+    }
+    return 200, payload, _passthrough_headers(STATE.next_id("req"))
+
+
+def _anthropic_messages(body: dict[str, Any]) -> tuple[int, Any, dict[str, str]]:
+    """Anthropic Messages passthrough: a verbatim-looking Message object + the ur headers."""
+    model = str(body.get("model") or "claude-opus-5-5")
+    payload = {
+        "id": STATE.next_id("msg"),
+        "type": "message",
+        "role": "assistant",
+        "model": model,
+        "content": [{"type": "text", "text": MOCK_REPLY}],
+        "stop_reason": "end_turn",
+        "stop_sequence": None,
+        "usage": {
+            "input_tokens": 11,
+            "cache_read_input_tokens": 0,
+            "cache_creation_input_tokens": 0,
+            "output_tokens": 7,
+        },
+    }
+    return 200, payload, _passthrough_headers(STATE.next_id("req"))
+
+
 _MODELS = [
     ("openai/gpt-5.2-mini", "GPT-5.2 mini", "openai", 250_000, 2_000_000),
     ("openai/gpt-5.2", "GPT-5.2", "openai", 1_250_000, 10_000_000),
@@ -760,6 +812,10 @@ class Handler(BaseHTTPRequestHandler):
             return 200, _models(query), {}
         if op_id == "getModel":
             return (*_model_detail(unquote(params[0])), {})
+        if op_id == "createResponse":
+            return _openai_responses(body)
+        if op_id == "createMessage":
+            return _anthropic_messages(body)
         if op_id == "preflight":
             return _preflight(body, headers.get("if-none-match"))
         if op_id == "recordReviewerEvents":

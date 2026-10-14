@@ -2,7 +2,7 @@
 
 # API coverage
 
-Every endpoint in `openapi/openapi.yaml` that accepts an API key (76 operations):
+Every endpoint in `openapi/openapi.yaml` that accepts an API key (78 operations):
 the SDK method that calls it, sync and async, and the tests that call it against the mock
 gateway and validate the request body against the specification
 (`tests/test_api_coverage.py`).
@@ -77,6 +77,7 @@ gateway and validate the request body against the specification
 | `POST /v1/imports/{id}/cancel` | `cancelImport` | `client.imports.cancel(...)` | `await client.imports.cancel(...)` | `test_operation_sync[cancelImport]`, `test_operation_async[cancelImport]` |
 | `GET /v1/improvement-reads` | `listImprovementReads` | `client.improvement_reads.list(...)` | `await client.improvement_reads.list(...)` | `test_operation_sync[listImprovementReads]`, `test_operation_async[listImprovementReads]` |
 | `GET /v1/key` | `getKey` | `client.key.get(...)` | `await client.key.get(...)` | `test_operation_sync[getKey]`, `test_operation_async[getKey]` |
+| `POST /v1/messages` | `createMessage` | `client.request_model(...)` | `await client.request_model(...)` | `test_operation_sync[createMessage]`, `test_operation_async[createMessage]` |
 | `GET /v1/models` | `listModels` | `client.models.list(...)` | `await client.models.list(...)` | `test_operation_sync[listModels]`, `test_operation_async[listModels]` |
 | `GET /v1/models/{id}` | `getModel` | `client.models.retrieve(...)` | `await client.models.retrieve(...)` | `test_operation_sync[getModel]`, `test_operation_async[getModel]` |
 | `POST /v1/outcomes/batch` | `recordOutcomesBatch` | `client.outcomes.batch(...)` | `await client.outcomes.batch(...)` | `test_operation_sync[recordOutcomesBatch]`, `test_operation_async[recordOutcomesBatch]` |
@@ -84,6 +85,7 @@ gateway and validate the request body against the specification
 | `POST /v1/preflight` | `preflight` | `client.preflight(...)` | `await client.preflight(...)` | `test_operation_sync[preflight]`, `test_operation_async[preflight]` |
 | `POST /v1/requests/{id}/feedback` | `submitFeedback` | `client.requests.feedback(...)` | `await client.requests.feedback(...)` | `test_operation_sync[submitFeedback]`, `test_operation_async[submitFeedback]` |
 | `POST /v1/requests/{id}/outcomes` | `recordRequestOutcome` | `client.outcomes.record(...)` | `await client.outcomes.record(...)` | `test_operation_sync[recordRequestOutcome]`, `test_operation_async[recordRequestOutcome]` |
+| `POST /v1/responses` | `createResponse` | `client.request_model(...)` | `await client.request_model(...)` | `test_operation_sync[createResponse]`, `test_operation_async[createResponse]` |
 
 ## Not wrapped
 

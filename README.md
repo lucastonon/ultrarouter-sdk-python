@@ -188,6 +188,11 @@ print(reply.choices[0].message.content)
 `AsyncUltraRouter().as_openai()` returns an `openai.AsyncOpenAI`. See
 [OpenAI compatibility](https://github.com/lucastonon/ultrarouter-sdk-python/blob/main/docs/openai-compatibility.md).
 
+For the OpenAI Responses and Anthropic Messages APIs, point the official `openai` and `anthropic`
+SDKs straight at the gateway by changing only the base URL and the key; the gateway forwards the
+body verbatim and meters the call. See
+[Native passthrough](https://github.com/lucastonon/ultrarouter-sdk-python/blob/main/docs/passthrough.md).
+
 ## Errors and retries
 
 Failures raise typed exceptions that all derive from `UltraRouterError` and carry `code`,
