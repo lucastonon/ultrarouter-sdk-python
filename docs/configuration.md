@@ -13,7 +13,7 @@ client = UltraRouter()  # ULTRAROUTER_API_KEY, then UR_API_KEY
 explicit = UltraRouter(api_key="ur_sk_test_example")
 ```
 
-If no key is found, construction fails immediately with an `UltraRouterError` whose `code` is
+If no key is found, construction fails immediately with a `ConfigurationError` whose `code` is
 `missing_api_key`. Keep keys out of source control: read them from the environment or a secret
 manager. A key's scopes decide which endpoints it may call; `client.key.get()` shows them.
 
@@ -26,27 +26,28 @@ print(info.limits.rps_limit, info.usage.key_spent_micro_usd)
 
 ## Base URL and self-hosted gateways
 
-The client talks to `https://api.ultrarouter.dev` unless told otherwise. Use `base_url=` (or
-`ULTRAROUTER_BASE_URL`, then `UR_BASE_URL`) for any other deployment: a self-hosted gateway, a
-staging environment or a local stack.
+The SDK has no default gateway, so you must point it at one: pass `base_url=` or set
+`ULTRAROUTER_BASE_URL` (then `UR_BASE_URL`). It can be a self-hosted gateway, a staging
+environment or a local stack. Constructing a client with no base URL from any source fails
+immediately with a `ConfigurationError` whose `code` is `missing_base_url`.
 
 ```python
 local = UltraRouter(base_url="http://localhost:8080")
-internal = UltraRouter(base_url="https://gateway.internal.example.com/v1")  # "/v1" is accepted
-print(internal.base_url)  # https://gateway.internal.example.com
+internal = UltraRouter(base_url="https://gateway.example.com/v1")  # "/v1" is accepted
+print(internal.base_url)  # https://gateway.example.com
 ```
 
 A trailing slash or `/v1` is removed, because every SDK path already starts with `/v1`.
 
 ### Precedence
 
-Explicit constructor arguments win over environment variables, which win over the built-in
-defaults.
+Explicit constructor arguments win over environment variables. The API key and base URL have no
+default: without one from some source, construction fails with a `ConfigurationError`.
 
 | Setting | Argument | Environment | Default |
 | --- | --- | --- | --- |
 | API key | `api_key` | `ULTRAROUTER_API_KEY`, `UR_API_KEY` | none (required) |
-| Base URL | `base_url` | `ULTRAROUTER_BASE_URL`, `UR_BASE_URL` | `https://api.ultrarouter.dev` |
+| Base URL | `base_url` | `ULTRAROUTER_BASE_URL`, `UR_BASE_URL` | none (required) |
 | Bench tag | `bench` | `UR_BENCH`, `UR_BENCH_RUN`, `UR_BENCH_TRACE` | none |
 
 ## Client defaults and per-call overrides

@@ -6,6 +6,27 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- The gateway base URL is now required. `UltraRouter` and `AsyncUltraRouter` resolve it from the
+  `base_url=` argument, then `ULTRAROUTER_BASE_URL`, then `UR_BASE_URL`; with none set, the
+  constructor raises `ConfigurationError` (`code="missing_base_url"`) whose message names the
+  argument, both environment variables and `http://localhost:8080` as the local-gateway example.
+  There is no hosted gateway to default to.
+- A missing API key now raises the new `ConfigurationError` (`code="missing_api_key"`, unchanged
+  code and message) instead of a bare `UltraRouterError`; `except UltraRouterError` still catches it.
+
+### Added
+
+- `ConfigurationError`, a subclass of `UltraRouterError` raised before any network call when the
+  client cannot be constructed because the API key or the gateway base URL is missing. Exported
+  from the package.
+
+### Removed
+
+- `DEFAULT_BASE_URL`. The SDK no longer ships a default gateway URL; supply one explicitly via
+  `base_url=`, `ULTRAROUTER_BASE_URL` or `UR_BASE_URL`.
+
 ## [0.0.1] - 2026-10-13
 
 First public release.

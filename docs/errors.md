@@ -100,11 +100,17 @@ Some checks happen before anything is sent; they raise with `status == 0`:
 
 | Situation | Exception |
 | --- | --- |
-| no API key configured | `UltraRouterError` with `code="missing_api_key"` |
+| no API key configured | `ConfigurationError` with `code="missing_api_key"` |
+| no base URL configured (there is no default gateway) | `ConfigurationError` with `code="missing_base_url"` |
 | `as_openai()` without the `openai` package | `UltraRouterError` with `code="dependency_missing"` |
 | `render_prompt` missing a required variable | `PromptVariablesMissingError` |
 | invalid arguments (for example `bench.record` without `suite`/`run`, `flywheel.grant` without a cluster key, `LearnedSession.record` without `artifact_key`) | `InvalidRequestError` |
 | an unknown `autopilot` value | `ValueError` |
+
+`ConfigurationError` is a subclass of `UltraRouterError` raised before any network call when the
+client cannot be constructed: the API key or the gateway base URL is missing from the argument and
+from both environment variables. There is no default gateway, so a base URL must come from
+`base_url=`, `ULTRAROUTER_BASE_URL` or `UR_BASE_URL` (for a local gateway, `http://localhost:8080`).
 
 ```python
 from ultrarouter import InvalidRequestError

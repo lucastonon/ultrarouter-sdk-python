@@ -212,7 +212,7 @@ def test_without_autopilot_per_call_router_wins(client_factory: Any, recorder: R
 
 def test_invalid_autopilot_is_rejected() -> None:
     with pytest.raises(ValueError, match="autopilot"):
-        UltraRouter(api_key="k", autopilot="yolo")  # type: ignore[arg-type]
+        UltraRouter(api_key="k", base_url="http://gw", autopilot="yolo")  # type: ignore[arg-type]
 
 
 # ── Bench tagging ──

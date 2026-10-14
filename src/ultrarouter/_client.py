@@ -189,8 +189,9 @@ class UltraRouter(SyncAPIClient):
 
     Args:
         api_key: Your ``ur_sk_...`` key. Defaults to ``ULTRAROUTER_API_KEY`` (or ``UR_API_KEY``).
-        base_url: The gateway URL. Defaults to ``ULTRAROUTER_BASE_URL`` (or ``UR_BASE_URL``),
-            then ``https://api.ultrarouter.dev``. A trailing ``/v1`` is accepted.
+        base_url: The gateway URL. Falls back to ``ULTRAROUTER_BASE_URL`` (or ``UR_BASE_URL``).
+            There is no default gateway: with none from any source the constructor raises
+            :class:`~ultrarouter.ConfigurationError`. A trailing ``/v1`` is accepted.
         default_model: Model used when a call does not pass ``model``.
         defaults: Per-call defaults (``router``, ``compression``, ``call_type``, ``provider``,
             ``max_cost_usd``); an explicit per-call value always wins.

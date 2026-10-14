@@ -7,15 +7,10 @@ from ._version import __version__
 __all__ = [
     "API_KEY_ENV_VARS",
     "BASE_URL_ENV_VARS",
-    "DEFAULT_BASE_URL",
     "DEFAULT_MAX_RETRIES",
     "DEFAULT_TIMEOUT_S",
     "USER_AGENT",
 ]
-
-#: The hosted gateway. Pass ``base_url=`` (or set ``ULTRAROUTER_BASE_URL``) for any other
-#: deployment, such as a self-hosted gateway or a local development stack.
-DEFAULT_BASE_URL = "https://api.ultrarouter.dev"
 
 #: Total time budget for one call, across retries, in seconds.
 DEFAULT_TIMEOUT_S = 600.0

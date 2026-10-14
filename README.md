@@ -4,9 +4,8 @@
 [![Python versions](https://img.shields.io/pypi/pyversions/ultrarouter.svg)](https://pypi.org/project/ultrarouter/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/lucastonon/ultrarouter-sdk-python/blob/main/LICENSE)
 
-The official Python client for [ultrarouter](https://ultrarouter.dev), an OpenAI-compatible LLM
-gateway with model routing, fallbacks, evals, and an outcome ledger that records what happened
-after a model answered.
+The official Python client for ultrarouter, an OpenAI-compatible LLM gateway with model routing,
+fallbacks, evals, and an outcome ledger that records what happened after a model answered.
 
 - **OpenAI-compatible**: `client.chat.completions.create(...)`, `client.embeddings.create(...)`,
   `client.models.list()`, streaming, tools and structured outputs, or hand an existing
@@ -33,11 +32,11 @@ Python 3.10 or newer. Runtime dependencies: `httpx`, `pydantic` (v2) and `typing
 
 ## 60-second quickstart
 
-Set your key and, unless you use the hosted default, your gateway URL:
+Set your key and the URL of the gateway you have access to (there is no default gateway):
 
 ```bash
 export ULTRAROUTER_API_KEY="ur_sk_test_..."
-export ULTRAROUTER_BASE_URL="https://api.ultrarouter.dev"   # or your own gateway
+export ULTRAROUTER_BASE_URL="https://gateway.example.com"   # or http://localhost:8080 for a local gateway
 ```
 
 ```python
@@ -81,7 +80,7 @@ asyncio.run(main())
 | Setting | Constructor argument | Environment variable | Default |
 | --- | --- | --- | --- |
 | API key | `api_key=` | `ULTRAROUTER_API_KEY` (or `UR_API_KEY`) | required |
-| Gateway URL | `base_url=` | `ULTRAROUTER_BASE_URL` (or `UR_BASE_URL`) | `https://api.ultrarouter.dev` |
+| Gateway URL | `base_url=` | `ULTRAROUTER_BASE_URL` (or `UR_BASE_URL`) | required |
 | Default model | `default_model=` | | none |
 | Time budget per call | `timeout=` (seconds) | | `600` |
 | Automatic retries | `max_retries=` | | `2` |
@@ -95,7 +94,7 @@ accepted. See [Configuration](https://github.com/lucastonon/ultrarouter-sdk-pyth
 from ultrarouter import UltraRouter
 
 client = UltraRouter(
-    base_url="https://gateway.internal.example.com",
+    base_url="https://gateway.example.com",
     default_model="openai/gpt-5.2-mini",
     defaults={"call_type": "support-reply", "max_cost_usd": 0.05},
     timeout=60,

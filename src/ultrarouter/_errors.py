@@ -37,6 +37,7 @@ __all__ = [
     "APITimeoutError",
     "AuthenticationError",
     "CapabilityUnsupportedError",
+    "ConfigurationError",
     "ConflictError",
     "ContentFilteredError",
     "ContextLengthError",
@@ -233,6 +234,20 @@ class OutcomeStoreError(UltraRouterError):
     """
 
     default_code = "outcome_store"
+
+
+class ConfigurationError(UltraRouterError):
+    """The client cannot be constructed because required configuration is missing.
+
+    Raised before any network call (``status == 0``) when neither the constructor argument nor
+    any environment variable supplies a value: ``code="missing_api_key"`` when the API key is
+    absent, ``code="missing_base_url"`` when the gateway base URL is absent. There is no default
+    gateway, so a base URL must come from ``base_url=``, ``ULTRAROUTER_BASE_URL`` or
+    ``UR_BASE_URL``. It derives from :class:`UltraRouterError`, so ``except UltraRouterError``
+    catches it too.
+    """
+
+    default_code = "configuration"
 
 
 class APIStatusError(UltraRouterError):

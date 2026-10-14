@@ -38,7 +38,6 @@ from ._config import AUTOPILOT_ROUTER, ResolvedBench, resolve_bench
 from ._constants import (
     API_KEY_ENV_VARS,
     BASE_URL_ENV_VARS,
-    DEFAULT_BASE_URL,
     DEFAULT_MAX_RETRIES,
     DEFAULT_TIMEOUT_S,
     USER_AGENT,
@@ -47,6 +46,7 @@ from ._errors import (
     APIConnectionError,
     APIResponseValidationError,
     APITimeoutError,
+    ConfigurationError,
     UltraRouterError,
     error_from_response,
 )
@@ -125,7 +125,7 @@ def _resolve_api_key(explicit: str | None) -> str:
         value = os.environ.get(name)
         if value:
             return value
-    raise UltraRouterError(
+    raise ConfigurationError(
         "missing API key: pass api_key=... or set the ULTRAROUTER_API_KEY environment variable",
         code="missing_api_key",
     )
@@ -139,7 +139,14 @@ def _resolve_base_url(explicit: str | None) -> str:
             if value:
                 url = value
                 break
-    url = (url or DEFAULT_BASE_URL).rstrip("/")
+    if not url:
+        raise ConfigurationError(
+            "no gateway base URL configured: pass base_url= or set ULTRAROUTER_BASE_URL "
+            "(or UR_BASE_URL). There is no default gateway to fall back to; for a local "
+            "gateway use http://localhost:8080",
+            code="missing_base_url",
+        )
+    url = url.rstrip("/")
     # Accept an OpenAI-style base URL ending in /v1: every SDK path already starts with /v1.
     if url.endswith("/v1"):
         url = url[: -len("/v1")]

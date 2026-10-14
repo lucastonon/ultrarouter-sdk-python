@@ -59,7 +59,7 @@ dependencies = [
 openai = ["openai>=1.55.3"]
 
 [project.urls]
-Homepage = "https://ultrarouter.dev"
+Homepage = "https://github.com/lucastonon/ultrarouter-sdk-python"
 Documentation = "https://github.com/lucastonon/ultrarouter-sdk-python/tree/main/docs"
 Repository = "https://github.com/lucastonon/ultrarouter-sdk-python"
 Issues = "https://github.com/lucastonon/ultrarouter-sdk-python/issues"

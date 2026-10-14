@@ -31,7 +31,7 @@ from ._client import (
     UltraRouter,
 )
 from ._config import AutopilotMode, BenchTag, Defaults
-from ._constants import DEFAULT_BASE_URL, DEFAULT_MAX_RETRIES, DEFAULT_TIMEOUT_S
+from ._constants import DEFAULT_MAX_RETRIES, DEFAULT_TIMEOUT_S
 from ._diff_stats import DiffLengths, DiffStats, diff_stats
 from ._errors import (
     GATEWAY_ERROR_CODES,
@@ -42,6 +42,7 @@ from ._errors import (
     APITimeoutError,
     AuthenticationError,
     CapabilityUnsupportedError,
+    ConfigurationError,
     ConflictError,
     ContentFilteredError,
     ContextLengthError,
@@ -137,7 +138,6 @@ from .types import (
 )
 
 __all__ = [
-    "DEFAULT_BASE_URL",
     "DEFAULT_MAX_RETRIES",
     "DEFAULT_PREFLIGHT_CACHE_SIZE",
     "DEFAULT_TIMEOUT_S",
@@ -168,6 +168,7 @@ __all__ = [
     "CapabilityUnsupportedError",
     "ChatCompletion",
     "ChatCompletionChunk",
+    "ConfigurationError",
     "ConflictError",
     "ContentFilteredError",
     "ContextLengthError",

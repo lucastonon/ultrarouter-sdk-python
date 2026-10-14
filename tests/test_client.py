@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -11,8 +12,8 @@ import pytest
 import ultrarouter
 from conftest import TEST_KEY, MockGateway
 from ultrarouter import (
-    DEFAULT_BASE_URL,
     AsyncUltraRouter,
+    ConfigurationError,
     UltraRouter,
     UltraRouterError,
 )
@@ -21,8 +22,9 @@ MESSAGES = [{"role": "user", "content": "hi"}]
 
 
 def test_missing_api_key_raises_a_clear_error() -> None:
-    with pytest.raises(UltraRouterError) as info:
+    with pytest.raises(ConfigurationError) as info:
         UltraRouter()
+    assert isinstance(info.value, UltraRouterError)  # still catchable as the base class
     assert info.value.code == "missing_api_key"
     assert "ULTRAROUTER_API_KEY" in str(info.value)
 
@@ -56,11 +58,49 @@ def test_explicit_values_beat_the_environment(monkeypatch: pytest.MonkeyPatch) -
         )
 
 
-def test_default_base_url_and_v1_suffix_normalization() -> None:
+def test_missing_base_url_raises_a_configuration_error() -> None:
+    # There is no default gateway: the sync and the async constructor both refuse to build
+    # a client when no base URL is supplied by the argument or either environment variable.
+    for ctor in (UltraRouter, AsyncUltraRouter):
+        with pytest.raises(ConfigurationError) as info:
+            ctor(api_key="k")
+        err = info.value
+        assert isinstance(err, UltraRouterError)  # still catchable as the base class
+        assert err.code == "missing_base_url"
+        assert err.status == 0
+        message = str(err)
+        assert "base_url" in message  # names the argument
+        assert "ULTRAROUTER_BASE_URL" in message and "UR_BASE_URL" in message  # names both vars
+        assert "http://localhost:8080" in message  # the local-gateway example
+
+
+def test_base_url_environment_precedence(monkeypatch: pytest.MonkeyPatch) -> None:
+    # ULTRAROUTER_BASE_URL is honoured before UR_BASE_URL.
+    monkeypatch.setenv("ULTRAROUTER_BASE_URL", "http://primary.example")
+    monkeypatch.setenv("UR_BASE_URL", "http://alias.example")
     with UltraRouter(api_key="k") as client:
-        assert client.base_url == DEFAULT_BASE_URL
+        assert client.base_url == "http://primary.example"
+    monkeypatch.delenv("ULTRAROUTER_BASE_URL")
+    with UltraRouter(api_key="k") as client:
+        assert client.base_url == "http://alias.example"
+
+
+def test_base_url_v1_suffix_and_trailing_slash_are_normalized() -> None:
     with UltraRouter(api_key="k", base_url="https://gw.example.com/v1/") as client:
         assert client.base_url == "https://gw.example.com"
+    with UltraRouter(api_key="k", base_url="https://gw.example.com/") as client:
+        assert client.base_url == "https://gw.example.com"
+
+
+def test_configuration_error_is_exported_and_documented() -> None:
+    assert "ConfigurationError" in ultrarouter.__all__
+    assert ultrarouter.ConfigurationError is ConfigurationError
+    assert issubclass(ConfigurationError, UltraRouterError)
+    errors_doc = (Path(__file__).resolve().parents[1] / "docs" / "errors.md").read_text(
+        encoding="utf-8"
+    )
+    assert "ConfigurationError" in errors_doc
+    assert "missing_base_url" in errors_doc
 
 
 def test_default_headers_and_user_agent(mock_gateway: MockGateway) -> None:

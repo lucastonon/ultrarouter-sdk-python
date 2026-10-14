@@ -58,7 +58,7 @@ print(reply.choices[0].message.content, reply.ur.request_id)
 **Args**
 
 - `api_key`: Your `ur_sk_...` key. Defaults to `ULTRAROUTER_API_KEY` (or `UR_API_KEY`).
-- `base_url`: The gateway URL. Defaults to `ULTRAROUTER_BASE_URL` (or `UR_BASE_URL`), then `https://api.ultrarouter.dev`. A trailing `/v1` is accepted.
+- `base_url`: The gateway URL. Falls back to `ULTRAROUTER_BASE_URL` (or `UR_BASE_URL`). There is no default gateway: with none from any source the constructor raises `ConfigurationError`. A trailing `/v1` is accepted.
 - `default_model`: Model used when a call does not pass `model`.
 - `defaults`: Per-call defaults (`router`, `compression`, `call_type`, `provider`, `max_cost_usd`); an explicit per-call value always wins.
 - `autopilot`: `"audit"`, `"recommend"` or `"auto"`: the routing intent and the ceiling a per-call `router` can lower but never raise.
@@ -1772,6 +1772,7 @@ Base class of every typed response returned by the SDK.
 | `APITimeoutError` | `APIConnectionError` | `timeout` | The request exceeded its total `timeout` budget. Never retried automatically. |
 | `AuthenticationError` | `APIStatusError` | `authentication` | `authentication` (401): the API key is missing, malformed, revoked or unknown. |
 | `CapabilityUnsupportedError` | `APIStatusError` | `capability_unsupported` | `capability_unsupported` (400): the model cannot honour a requested capability. |
+| `ConfigurationError` | `UltraRouterError` | `configuration` | The client cannot be constructed because required configuration is missing. |
 | `ConflictError` | `APIStatusError` | `conflict` | `conflict` (409): an idempotent write collided with a different payload. |
 | `ContentFilteredError` | `APIStatusError` | `content_filtered` | `content_filtered` (400): the provider refused the content (moderation/safety). |
 | `ContextLengthError` | `APIStatusError` | `context_length` | `context_length` (400): prompt plus requested completion exceed the context window. |
@@ -1851,7 +1852,6 @@ Decide how to serve a preflight call from the two-lifetime cache.
 * live part fresh, no cluster key and config part fresh: `fresh` (no network);
 * otherwise: `revalidate` (a cluster key always needs a fresh grant).
 
-- `DEFAULT_BASE_URL` = `'https://api.ultrarouter.dev'`
 - `DEFAULT_MAX_RETRIES` = `2`
 - `DEFAULT_PREFLIGHT_CACHE_SIZE` = `1024`
 - `DEFAULT_TIMEOUT_S` = `600.0`
