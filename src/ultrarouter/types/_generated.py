@@ -5822,6 +5822,12 @@ class GenerationStats(BaseModel):
 class GenerationStatsCost(BaseModel):
     """Cost accounting (money is integer micro-USD)."""
 
+    cost_basis: str | None
+    """Provenance of the cost: `priced` (the offer’s own catalog price), `derived` (a price derived from the logical model it serves), `verified_memory` (answered from verified memory at $0), or `unpriced` (served with no usable price — metered at $0 only where the unpriced-model override is enabled; null on a non-ok row).
+
+    Known values: ``priced``, ``derived``, ``unpriced``, ``verified_memory``.
+    """
+
     total_micro_usd: int
     """Total cost in integer micro-USD."""
 

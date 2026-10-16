@@ -2505,6 +2505,7 @@ Cost accounting (money is integer micro-USD).
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
+| `cost_basis` | `str \| None` | yes | Provenance of the cost: `priced` (the offer’s own catalog price), `derived` (a price derived from the logical model it serves), `verified_memory` (answered from verified memory at $0), or `unpriced` (served with no usable price — metered at $0 only where the unpriced-model override is enabled; null on a non-ok row).  Known values: ``priced``, ``derived``, ``unpriced``, ``verified_memory``. |
 | `total_micro_usd` | `int` | yes | Total cost in integer micro-USD. |
 | `total_usd` | `float` | yes | Total cost in USD (float, for readability). |
 
