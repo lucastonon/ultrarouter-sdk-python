@@ -129,6 +129,8 @@ an API-key SDK cannot call them:
 - `GET /v1/workspaces/{id}/model-policy` (`getModelPolicy`)
 - `PUT /v1/workspaces/{id}/model-policy` (`putModelPolicy`)
 - `POST /v1/workspaces/{id}/model-policy/preview` (`previewModelPolicy`)
+- `GET /v1/workspaces/{id}/passthrough-policy` (`getPassthroughPolicy`)
+- `PUT /v1/workspaces/{id}/passthrough-policy` (`putPassthroughPolicy`)
 - `GET /v1/workspaces/{id}/provider-keys` (`listProviderKeys`)
 - `POST /v1/workspaces/{id}/provider-keys` (`createProviderKey`)
 - `DELETE /v1/workspaces/{id}/provider-keys/{keyId}` (`deleteProviderKey`)
