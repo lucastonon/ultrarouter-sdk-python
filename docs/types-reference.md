@@ -3088,6 +3088,7 @@ The current bounded experiment, or null — benchmarkable is always false.
 | `expires_at` | `str \| None` | yes |  |
 | `id` | `str` | yes |  |
 | `prereg_hash` | `str` | yes |  |
+| `reservations` | `MoatNextExperimentReservations \| None` | no | The atomic per-call reservation ledger: the experiment total + each phase (micro-USD). |
 | `state` | `str` | yes | Known values: ``admitted``, ``refused``, ``candidate_frozen``, ``screening``, ``closed``, ``expired``, ``abandoned``. |
 | `verifier_version` | `str` | yes |  |
 
@@ -3147,6 +3148,36 @@ The experiment budget caps + running spend (micro-USD).
 | `cap_micro_usd` | `int` | yes |  |
 | `screen_subcap_micro_usd` | `int` | yes |  |
 | `spend_micro_usd` | `int` | yes |  |
+
+### MoatNextExperimentReservations
+
+*response model*
+
+The atomic per-call reservation ledger: the experiment total + each phase (micro-USD).
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `ambiguous_micro_usd` | `int` | yes |  |
+| `phases` | `list[MoatNextExperimentReservationsPhase]` | yes |  |
+| `remaining_micro_usd` | `int` | yes |  |
+| `reserved_micro_usd` | `int` | yes |  |
+| `spent_micro_usd` | `int` | yes |  |
+
+### MoatNextExperimentReservationsPhase
+
+*response model*
+
+One phase of the atomic reservation ledger (micro-USD).
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `ambiguous_micro_usd` | `int` | yes | Reserve held for an interrupted/unknown-outcome call, still counted against the cap. |
+| `cap_micro_usd` | `int` | yes |  |
+| `funded` | `bool` | yes | Whether the phase has a funded cap (the prospective-test phase starts unfunded). |
+| `phase` | `str` | yes | Known values: ``screen``, ``test``. |
+| `remaining_micro_usd` | `int` | yes |  |
+| `reserved_micro_usd` | `int` | yes |  |
+| `spent_micro_usd` | `int` | yes |  |
 
 ### MoatNextItem
 

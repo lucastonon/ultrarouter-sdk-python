@@ -213,6 +213,8 @@ __all__ = [
     "MoatNextExperimentAdmissionApplied",
     "MoatNextExperimentAdmissionEvidence",
     "MoatNextExperimentBudget",
+    "MoatNextExperimentReservations",
+    "MoatNextExperimentReservationsPhase",
     "MoatNextItem",
     "MoatNextPrecondition",
     "Model",
@@ -4295,6 +4297,9 @@ class MoatNextExperiment(BaseModel):
 
     prereg_hash: str
 
+    reservations: MoatNextExperimentReservations | None = None
+    """The atomic per-call reservation ledger: the experiment total + each phase (micro-USD)."""
+
     state: str
     """Known values: ``admitted``, ``refused``, ``candidate_frozen``, ``screening``, ``closed``, ``expired``, ``abandoned``.
     """
@@ -4361,6 +4366,41 @@ class MoatNextExperimentBudget(BaseModel):
     screen_subcap_micro_usd: int
 
     spend_micro_usd: int
+
+
+class MoatNextExperimentReservations(BaseModel):
+    """The atomic per-call reservation ledger: the experiment total + each phase (micro-USD)."""
+
+    ambiguous_micro_usd: int
+
+    phases: list[MoatNextExperimentReservationsPhase]
+
+    remaining_micro_usd: int
+
+    reserved_micro_usd: int
+
+    spent_micro_usd: int
+
+
+class MoatNextExperimentReservationsPhase(BaseModel):
+    """One phase of the atomic reservation ledger (micro-USD)."""
+
+    ambiguous_micro_usd: int
+    """Reserve held for an interrupted/unknown-outcome call, still counted against the cap."""
+
+    cap_micro_usd: int
+
+    funded: bool
+    """Whether the phase has a funded cap (the prospective-test phase starts unfunded)."""
+
+    phase: str
+    """Known values: ``screen``, ``test``."""
+
+    remaining_micro_usd: int
+
+    reserved_micro_usd: int
+
+    spent_micro_usd: int
 
 
 class MoatNextItem(BaseModel):
@@ -7198,6 +7238,8 @@ for _model in (
     MoatNextExperimentAdmissionApplied,
     MoatNextExperimentAdmissionEvidence,
     MoatNextExperimentBudget,
+    MoatNextExperimentReservations,
+    MoatNextExperimentReservationsPhase,
     MoatNextItem,
     MoatNextPrecondition,
     OracleRegistration,
