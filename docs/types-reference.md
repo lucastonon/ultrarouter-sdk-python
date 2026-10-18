@@ -2728,7 +2728,19 @@ Create or resume a history import (consent-gated; owner/admin or outcomes:write)
 | `import_id` | `str` | no | Resume an existing import (idempotent per record content hash). |
 | `jsonl` | `str` | no | The uploaded records as JSONL (newline-delimited JSON). Alternative to `records`. |
 | `mode` | `Literal['preview', 'commit']` | no | preview = capability report only (nothing stored); commit = ingest. Defaults to commit. |
-| `records` | `list[Any]` | no | The uploaded records (array form). Intact-trace records may carry request/response bodies — the ONLY import field that does; stored ONLY under corrections_consent, redacted on ingest. |
+| `reason_vocabulary` | `ImportCreateParamsReasonVocabulary` | no | workflow_execution_jsonl only: the typed hold-reason codes this batch’s executions may use (`{ id, codes[] }`). Registered ONCE at the batch creation (insert-only; a resume inherits it). An execution whose terminal names an unregistered code is refused `reason_code_unregistered`. Required for a workflow import (409 `workflow_requires_reason_vocabulary` otherwise). |
+| `records` | `list[Any]` | no | The uploaded records (array form). Intact-trace records may carry request/response bodies — the ONLY import field that does; stored ONLY under corrections_consent, redacted on ingest. A workflow_execution_jsonl record groups the EXISTING gateway request rows its `calls` name into one artifact with one terminal outcome. |
+
+### ImportCreateParamsReasonVocabulary
+
+*request shape (TypedDict)*
+
+workflow_execution_jsonl only: the typed hold-reason codes this batch’s executions may use (`{ id, codes[] }`). Registered ONCE at the batch creation (insert-only; a resume inherits it). An execution whose terminal names an unregistered code is refused `reason_code_unregistered`. Required for a workflow import (409 `workflow_requires_reason_vocabulary` otherwise).
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `codes` | `Required[list[str]]` | no |  |
+| `id` | `Required[str]` | no |  |
 
 ### ImportEnvelope
 
@@ -2790,6 +2802,35 @@ The capability report (may be `{}` while running).
 | `unsupported` | `int \| None` | no |  |
 | `unsupported_fields` | `list[str] \| None` | no |  |
 | `usage_exposure` | `list[UsageExposureRow] \| None` | no | Usage-only: per-model exposure rows. |
+| `workflow` | `ImportReportWorkflow \| None` | no | Workflow (workflow_execution_jsonl) only: the execution counts (delivered / held), the orphan/interrupted calls kept apart, and the per-execution cost reconciliation. |
+
+### ImportReportWorkflow
+
+*response model*
+
+Workflow (workflow_execution_jsonl) only: the execution counts (delivered / held), the orphan/interrupted calls kept apart, and the per-execution cost reconciliation.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `cost_reconciliation` | `list[ImportReportWorkflowCostReconciliationItem]` | yes |  |
+| `delivered` | `int` | yes |  |
+| `executions` | `int` | yes |  |
+| `held` | `int` | yes |  |
+| `orphan_calls` | `int` | yes | Calls not members of a terminal execution (orphan/interrupted) — kept apart, never dropped. |
+
+### ImportReportWorkflowCostReconciliationItem
+
+*response model*
+
+One execution’s cost reconciliation (gateway summed vs the client figure vs the difference).
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `client_cost_micro_usd` | `int \| None` | yes |  |
+| `cost_diff_micro_usd` | `int \| None` | yes |  |
+| `execution_key` | `str` | yes |  |
+| `gateway_cost_micro_usd` | `int` | yes |  |
+| `pending_charges` | `int` | yes |  |
 
 ### ImprovementCollecting
 

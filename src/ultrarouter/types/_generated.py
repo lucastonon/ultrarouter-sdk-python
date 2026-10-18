@@ -184,10 +184,13 @@ __all__ = [
     "HostedPromptVariableParam",
     "Import",
     "ImportCreateParams",
+    "ImportCreateParamsReasonVocabulary",
     "ImportEnvelope",
     "ImportList",
     "ImportParseError",
     "ImportReport",
+    "ImportReportWorkflow",
+    "ImportReportWorkflowCostReconciliationItem",
     "ImprovementCollecting",
     "ImprovementRead",
     "ImprovementReads",
@@ -6033,6 +6036,10 @@ class ImportReport(BaseModel):
     usage_exposure: list[UsageExposureRow] | None = None
     """Usage-only: per-model exposure rows."""
 
+    workflow: ImportReportWorkflow | None = None
+    """Workflow (workflow_execution_jsonl) only: the execution counts (delivered / held), the orphan/interrupted calls kept apart, and the per-execution cost reconciliation.
+    """
+
 
 class ImportParseError(BaseModel):
     """A malformed JSONL line."""
@@ -6054,6 +6061,36 @@ class UsageExposureRow(BaseModel):
     output_tokens: int
 
     requests: int
+
+
+class ImportReportWorkflow(BaseModel):
+    """Workflow (workflow_execution_jsonl) only: the execution counts (delivered / held), the orphan/interrupted calls kept apart, and the per-execution cost reconciliation."""
+
+    cost_reconciliation: list[ImportReportWorkflowCostReconciliationItem]
+
+    delivered: int
+
+    executions: int
+
+    held: int
+
+    orphan_calls: int
+    """Calls not members of a terminal execution (orphan/interrupted) — kept apart, never dropped.
+    """
+
+
+class ImportReportWorkflowCostReconciliationItem(BaseModel):
+    """One execution’s cost reconciliation (gateway summed vs the client figure vs the difference)."""
+
+    client_cost_micro_usd: int | None
+
+    cost_diff_micro_usd: int | None
+
+    execution_key: str
+
+    gateway_cost_micro_usd: int
+
+    pending_charges: int
 
 
 class ImportCreateParams(TypedDict, total=False):
@@ -6078,9 +6115,21 @@ class ImportCreateParams(TypedDict, total=False):
     mode: Literal["preview", "commit"]
     """preview = capability report only (nothing stored); commit = ingest. Defaults to commit."""
 
-    records: list[Any]
-    """The uploaded records (array form). Intact-trace records may carry request/response bodies — the ONLY import field that does; stored ONLY under corrections_consent, redacted on ingest.
+    reason_vocabulary: ImportCreateParamsReasonVocabulary
+    """workflow_execution_jsonl only: the typed hold-reason codes this batch’s executions may use (`{ id, codes[] }`). Registered ONCE at the batch creation (insert-only; a resume inherits it). An execution whose terminal names an unregistered code is refused `reason_code_unregistered`. Required for a workflow import (409 `workflow_requires_reason_vocabulary` otherwise).
     """
+
+    records: list[Any]
+    """The uploaded records (array form). Intact-trace records may carry request/response bodies — the ONLY import field that does; stored ONLY under corrections_consent, redacted on ingest. A workflow_execution_jsonl record groups the EXISTING gateway request rows its `calls` name into one artifact with one terminal outcome.
+    """
+
+
+class ImportCreateParamsReasonVocabulary(TypedDict, total=False):
+    """workflow_execution_jsonl only: the typed hold-reason codes this batch’s executions may use (`{ id, codes[] }`). Registered ONCE at the batch creation (insert-only; a resume inherits it). An execution whose terminal names an unregistered code is refused `reason_code_unregistered`. Required for a workflow import (409 `workflow_requires_reason_vocabulary` otherwise)."""
+
+    codes: Required[list[str]]
+
+    id: Required[str]
 
 
 class ImportEnvelope(BaseModel):
@@ -7123,6 +7172,8 @@ for _model in (
     ImportReport,
     ImportParseError,
     UsageExposureRow,
+    ImportReportWorkflow,
+    ImportReportWorkflowCostReconciliationItem,
     ImportEnvelope,
     ImprovementReads,
     CallTypeImprovementReads,
