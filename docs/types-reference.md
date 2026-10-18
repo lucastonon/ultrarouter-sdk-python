@@ -2368,6 +2368,7 @@ Flywheel status: capture counts + integration health + unavailable learning fiel
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
 | `channels` | `list[FlywheelChannelHealth]` | yes | Channels detected (integration health). |
+| `experiment` | `MoatNextExperiment \| None` | yes | The current bounded experiment, or null — benchmarkable is always false. |
 | `imports` | `FlywheelStatusImports` | yes | History-import integration health. |
 | `learning` | `FlywheelStatusLearning` | yes | Learning fields — explicitly unavailable; a collecting state never implies observed lift. |
 | `object` | `str` | yes | Known values: ``flywheel_status``. |
@@ -3068,9 +3069,84 @@ What your moat needs next — per-unit readiness + the missing-precondition sent
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
+| `experiment` | `MoatNextExperiment \| None` | yes | The current bounded experiment, or null — benchmarkable is always false. |
 | `items` | `list[MoatNextItem]` | yes |  |
 | `object` | `str` | yes | Known values: ``flywheel_moat_next``. |
 | `workspace_id` | `str` | yes |  |
+
+### MoatNextExperiment
+
+*response model*
+
+The current bounded experiment, or null — benchmarkable is always false.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `admission` | `MoatNextExperimentAdmission \| None` | yes | The frozen admission verdict — admitted + the rules applied + the evidence (the owner receipt). |
+| `benchmarkable` | `bool` | yes | Known values: ``False``. |
+| `budget` | `MoatNextExperimentBudget` | yes | The experiment budget caps + running spend (micro-USD). |
+| `expires_at` | `str \| None` | yes |  |
+| `id` | `str` | yes |  |
+| `prereg_hash` | `str` | yes |  |
+| `state` | `str` | yes | Known values: ``admitted``, ``refused``, ``candidate_frozen``, ``screening``, ``closed``, ``expired``, ``abandoned``. |
+| `verifier_version` | `str` | yes |  |
+
+### MoatNextExperimentAdmission
+
+*response model*
+
+The frozen admission verdict — admitted + the rules applied + the evidence (the owner receipt).
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `admitted` | `bool` | yes |  |
+| `applied` | `MoatNextExperimentAdmissionApplied` | yes | The frozen thresholds the admission applied. |
+| `evidence` | `MoatNextExperimentAdmissionEvidence` | yes | The mechanical evidence the admission weighed (verifier verdict + the fit-split counts). |
+| `refusals` | `list[str]` | yes | Every failing admission rule, by name (empty ⇒ admitted). |
+
+### MoatNextExperimentAdmissionApplied
+
+*response model*
+
+The frozen thresholds the admission applied.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `budget_cap_micro_usd` | `int` | yes |  |
+| `expiry_days` | `int` | yes |  |
+| `min_contrast_ideas` | `int` | yes |  |
+| `min_delivered_fit` | `int` | yes |  |
+| `min_held_fit` | `int` | yes |  |
+| `min_resolved_fit` | `int` | yes |  |
+| `screen_subcap_micro_usd` | `int` | yes |  |
+| `verifier_version` | `str` | yes |  |
+
+### MoatNextExperimentAdmissionEvidence
+
+*response model*
+
+The mechanical evidence the admission weighed (verifier verdict + the fit-split counts).
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `contrast_ideas_fit` | `int` | yes |  |
+| `delivered_fit` | `int` | yes |  |
+| `held_fit` | `int` | yes |  |
+| `resolved_fit_executions` | `int` | yes |  |
+| `verifier_refusals` | `list[str]` | yes |  |
+| `verifier_version` | `str` | yes |  |
+
+### MoatNextExperimentBudget
+
+*response model*
+
+The experiment budget caps + running spend (micro-USD).
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `cap_micro_usd` | `int` | yes |  |
+| `screen_subcap_micro_usd` | `int` | yes |  |
+| `spend_micro_usd` | `int` | yes |  |
 
 ### MoatNextItem
 

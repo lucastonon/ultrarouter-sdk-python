@@ -208,6 +208,11 @@ __all__ = [
     "ManifestWireParam",
     "ManifestWireRangeParam",
     "MoatNext",
+    "MoatNextExperiment",
+    "MoatNextExperimentAdmission",
+    "MoatNextExperimentAdmissionApplied",
+    "MoatNextExperimentAdmissionEvidence",
+    "MoatNextExperimentBudget",
     "MoatNextItem",
     "MoatNextPrecondition",
     "Model",
@@ -4260,12 +4265,102 @@ class ExposureGrant(BaseModel):
 class MoatNext(BaseModel):
     """What your moat needs next — per-unit readiness + the missing-precondition sentence."""
 
+    experiment: MoatNextExperiment | None
+    """The current bounded experiment, or null — benchmarkable is always false."""
+
     items: list[MoatNextItem]
 
     object: str
     """Known values: ``flywheel_moat_next``."""
 
     workspace_id: str
+
+
+class MoatNextExperiment(BaseModel):
+    """The current bounded experiment, or null — benchmarkable is always false."""
+
+    admission: MoatNextExperimentAdmission | None
+    """The frozen admission verdict — admitted + the rules applied + the evidence (the owner receipt).
+    """
+
+    benchmarkable: bool
+    """Known values: ``False``."""
+
+    budget: MoatNextExperimentBudget
+    """The experiment budget caps + running spend (micro-USD)."""
+
+    expires_at: str | None
+
+    id: str
+
+    prereg_hash: str
+
+    state: str
+    """Known values: ``admitted``, ``refused``, ``candidate_frozen``, ``screening``, ``closed``, ``expired``, ``abandoned``.
+    """
+
+    verifier_version: str
+
+
+class MoatNextExperimentAdmission(BaseModel):
+    """The frozen admission verdict — admitted + the rules applied + the evidence (the owner receipt)."""
+
+    admitted: bool
+
+    applied: MoatNextExperimentAdmissionApplied
+    """The frozen thresholds the admission applied."""
+
+    evidence: MoatNextExperimentAdmissionEvidence
+    """The mechanical evidence the admission weighed (verifier verdict + the fit-split counts)."""
+
+    refusals: list[str]
+    """Every failing admission rule, by name (empty ⇒ admitted)."""
+
+
+class MoatNextExperimentAdmissionApplied(BaseModel):
+    """The frozen thresholds the admission applied."""
+
+    budget_cap_micro_usd: int
+
+    expiry_days: int
+
+    min_contrast_ideas: int
+
+    min_delivered_fit: int
+
+    min_held_fit: int
+
+    min_resolved_fit: int
+
+    screen_subcap_micro_usd: int
+
+    verifier_version: str
+
+
+class MoatNextExperimentAdmissionEvidence(BaseModel):
+    """The mechanical evidence the admission weighed (verifier verdict + the fit-split counts)."""
+
+    contrast_ideas_fit: int
+
+    delivered_fit: int
+
+    held_fit: int
+
+    resolved_fit_executions: int
+
+    verifier_refusals: list[str]
+
+    verifier_version: str
+
+
+class MoatNextExperimentBudget(BaseModel):
+    """The experiment budget caps + running spend (micro-USD)."""
+
+    cap_micro_usd: int
+
+    screen_subcap_micro_usd: int
+
+    spend_micro_usd: int
 
 
 class MoatNextItem(BaseModel):
@@ -5614,6 +5709,9 @@ class FlywheelStatus(BaseModel):
 
     channels: list[FlywheelChannelHealth]
     """Channels detected (integration health)."""
+
+    experiment: MoatNextExperiment | None
+    """The current bounded experiment, or null — benchmarkable is always false."""
 
     imports: FlywheelStatusImports
     """History-import integration health."""
@@ -7095,6 +7193,11 @@ for _model in (
     Confirmation,
     ExposureGrant,
     MoatNext,
+    MoatNextExperiment,
+    MoatNextExperimentAdmission,
+    MoatNextExperimentAdmissionApplied,
+    MoatNextExperimentAdmissionEvidence,
+    MoatNextExperimentBudget,
     MoatNextItem,
     MoatNextPrecondition,
     OracleRegistration,
