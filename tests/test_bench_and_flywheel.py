@@ -14,13 +14,45 @@ from conftest import TEST_KEY, MockGateway
 from ultrarouter import (
     APITimeoutError,
     AsyncUltraRouter,
+    ConflictError,
     InvalidRequestError,
+    NotFoundError,
     PermissionDeniedError,
     UltraRouter,
     candidate_decision_callback_id,
 )
-from ultrarouter._resources.flywheel import APPCI_SIGNATURE_HEADER, ORACLE_SIGNATURE_HEADER
-from ultrarouter.types import BenchReport, BenchRun, BenchRunTrigger
+from ultrarouter._resources.flywheel import (
+    APPCI_SIGNATURE_HEADER,
+    EXPERIMENT_EXECUTION_HEADER,
+    ORACLE_SIGNATURE_HEADER,
+)
+from ultrarouter.types import (
+    BenchReport,
+    BenchRun,
+    BenchRunTrigger,
+    ExperimentExecution,
+    ExperimentExecutionOutcome,
+    ExperimentScreenEvaluation,
+    ExperimentTestEvaluation,
+)
+
+_OUTCOME_KWARGS: dict[str, Any] = {
+    "terminal": "delivered",
+    "reason_codes": [],
+    "reason_vocab": "ur.experiment.reasons.v1",
+    "receipts": [
+        {
+            "ordinal": 0,
+            "stage": "writer",
+            "call_type": "support-reply",
+            "request_id": "req_1",
+            "extractor_version": "ex.v1",
+            "numbers": {"post_length": 280},
+        }
+    ],
+    "final_content_hash": "0" * 64,
+    "request_ids": ["req_1"],
+}
 
 ORACLE_SECRET = "orsec_mock_signing_secret"
 
@@ -210,6 +242,110 @@ async def test_async_flywheel_reads(mock_gateway: MockGateway) -> None:
     assert all(r is not None for r in results)
     assert mock_gateway.requests[3]["query"] == {"lever_family": "learned_context"}
     assert mock_gateway.requests[4]["query"] == {"workflow": "support"}
+
+
+# ── bounded-experiment run surface ──
+
+
+def test_experiment_run_surface_sync(mock_gateway: MockGateway) -> None:
+    with UltraRouter(api_key=TEST_KEY, base_url=mock_gateway.url) as client:
+        execution = client.flywheel.experiments.enrol(
+            "fxp_1", phase="screen", pair_key="idea-a", slot=0
+        )
+        recorded = client.flywheel.experiments.outcome("fxp_1", "fxe_1", **_OUTCOME_KWARGS)
+        dry = client.flywheel.experiments.outcome("fxp_1", "fxe_1", dry_run=True, **_OUTCOME_KWARGS)
+        screen = client.flywheel.experiments.evaluate_screen("fxp_1")
+        test = client.flywheel.experiments.evaluate_test("fxp_1")
+
+    assert isinstance(execution, ExperimentExecution)
+    # The header a runner sends on every call of the execution.
+    assert EXPERIMENT_EXECUTION_HEADER == "x-ur-experiment-execution"
+    assert isinstance(recorded, ExperimentExecutionOutcome)
+    assert recorded.object == "flywheel_experiment_execution_outcome"
+    assert isinstance(dry, ExperimentExecutionOutcome)
+    assert dry.object == "flywheel_experiment_execution_outcome_dry_run"
+    assert dry.recorded_outcome == "none"
+    assert isinstance(screen, ExperimentScreenEvaluation)
+    assert isinstance(test, ExperimentTestEvaluation)
+
+    reqs = mock_gateway.requests
+    assert reqs[0]["path"] == "/v1/flywheel/experiments/fxp_1/executions"
+    assert reqs[0]["body"] == {"phase": "screen", "pair_key": "idea-a", "slot": 0}
+    # The arm is the gateway's — the SDK never sends it.
+    assert "arm" not in reqs[0]["body"]
+    assert reqs[1]["path"] == "/v1/flywheel/experiments/fxp_1/executions/fxe_1/outcome"
+    assert reqs[1]["query"] == {}, "a record is not a dry run"
+    assert reqs[1]["body"]["terminal"] == "delivered"
+    assert reqs[2]["query"] == {"dry_run": "true"}, "the dry run is a query parameter"
+    assert "dry_run" not in reqs[2]["body"], "dry_run never leaks into the body"
+    assert reqs[3]["path"] == "/v1/flywheel/experiments/fxp_1/screen/evaluate"
+    assert reqs[4]["path"] == "/v1/flywheel/experiments/fxp_1/test/evaluate"
+    # Every write carries an idempotency key (POST).
+    assert all(r["headers"].get("idempotency-key") for r in reqs)
+
+
+async def test_experiment_run_surface_async(mock_gateway: MockGateway) -> None:
+    async with AsyncUltraRouter(api_key=TEST_KEY, base_url=mock_gateway.url) as client:
+        execution = await client.flywheel.experiments.enrol(
+            "fxp_1", phase="test", pair_key="idea-b", slot=1
+        )
+        dry = await client.flywheel.experiments.outcome(
+            "fxp_1", "fxe_2", dry_run=True, **_OUTCOME_KWARGS
+        )
+        recorded = await client.flywheel.experiments.outcome("fxp_1", "fxe_2", **_OUTCOME_KWARGS)
+        screen = await client.flywheel.experiments.evaluate_screen("fxp_1")
+        test = await client.flywheel.experiments.evaluate_test("fxp_1")
+    assert isinstance(execution, ExperimentExecution)
+    assert dry.object == "flywheel_experiment_execution_outcome_dry_run"
+    assert recorded.object == "flywheel_experiment_execution_outcome"
+    assert isinstance(screen, ExperimentScreenEvaluation)
+    assert isinstance(test, ExperimentTestEvaluation)
+
+
+def test_experiment_named_refusals_reach_the_caller(mock_gateway: MockGateway) -> None:
+    # Each run method surfaces the gateway's named refusal on the typed error (code + message).
+    mock_gateway.fail(
+        "/v1/flywheel/experiments/fxp_1/executions",
+        status=409,
+        code="conflict",
+        message="experiment_not_live",
+    )
+    mock_gateway.fail(
+        "/v1/flywheel/experiments/fxp_1/executions/fxe_1/outcome",
+        status=409,
+        code="conflict",
+        message="outcome_conflict: a different outcome is recorded",
+    )
+    mock_gateway.fail(
+        "/v1/flywheel/experiments/fxp_missing/screen/evaluate",
+        status=404,
+        code="not_found",
+        message="experiment_not_found",
+    )
+    mock_gateway.fail(
+        "/v1/flywheel/experiments/fxp_missing/test/evaluate",
+        status=404,
+        code="not_found",
+        message="experiment_not_found",
+    )
+    with UltraRouter(api_key=TEST_KEY, base_url=mock_gateway.url, max_retries=0) as client:
+        with pytest.raises(ConflictError) as enrol_exc:
+            client.flywheel.experiments.enrol("fxp_1", phase="screen", pair_key="p", slot=0)
+        assert enrol_exc.value.code == "conflict"
+        assert "experiment_not_live" in enrol_exc.value.message
+
+        with pytest.raises(ConflictError) as outcome_exc:
+            client.flywheel.experiments.outcome("fxp_1", "fxe_1", **_OUTCOME_KWARGS)
+        assert "outcome_conflict" in outcome_exc.value.message
+
+        with pytest.raises(NotFoundError) as screen_exc:
+            client.flywheel.experiments.evaluate_screen("fxp_missing")
+        assert screen_exc.value.code == "not_found"
+        assert "experiment_not_found" in screen_exc.value.message
+
+        with pytest.raises(NotFoundError) as test_exc:
+            client.flywheel.experiments.evaluate_test("fxp_missing")
+        assert "experiment_not_found" in test_exc.value.message
 
 
 def _allowance() -> dict[str, Any]:

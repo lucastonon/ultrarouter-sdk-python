@@ -2178,6 +2178,545 @@ A pinned scorer instance in the evaluator ruler.
 | `key` | `str` | yes | The stable instance address: the scorer id, or `id#<hash>` when configured. |
 | `weight` | `float` | yes | The instance relative composite weight (the composite normalizes). |
 
+### ExperimentEnrolParams
+
+*request shape (TypedDict)*
+
+Enrol one execution slot — the gateway decides the arm.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `pair_key` | `Required[str]` | no | The pair — one idea family frozen in the preregistration's screen or test split. |
+| `phase` | `Required[Literal['screen', 'test']]` | no | The fundable phase the execution runs in: `screen` (the historical screen pairs) or `test`. |
+| `slot` | `Required[float]` | no | One of the pair’s two slots: 0 or 1 (anything else is refused `slot_invalid`). |
+
+### ExperimentExecution
+
+*response model*
+
+One enrolled experiment execution — ids / arm / hashes only.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `arm` | `str` | yes | Decided by the sealed assignment — never by the caller.  Known values: ``control``, ``treated``. |
+| `assignment_version` | `str` | yes | The sealed assignment rule version. |
+| `candidate_hash` | `str` | yes | The frozen candidate this execution is bound to (every call re-checks it). |
+| `created` | `bool` | yes | False when the same {phase, pair_key, slot} was already enrolled (idempotent). |
+| `created_at` | `str` | yes |  |
+| `execution_id` | `str` | yes | Send as the `X-UR-Experiment-Execution` header on every call of this execution. |
+| `experiment_id` | `str` | yes |  |
+| `object` | `str` | yes | Known values: ``flywheel_experiment_execution``. |
+| `pair_key` | `str` | yes |  |
+| `phase` | `str` | yes | Known values: ``screen``, ``test``. |
+| `slot` | `int` | yes |  |
+
+### ExperimentExecutionOutcome
+
+*response model*
+
+The recorded outcome, or — with `?dry_run=true` — the dry-run answer.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `cost` | `ExperimentExecutionOutcomeCost \| None` | no | The execution’s cost reconciliation — an ambiguous, pending or unexplained one is incomplete. |
+| `created` | `bool \| None` | no | False when the same outcome was already recorded (an idempotent repeat). |
+| `execution_id` | `str` | yes |  |
+| `experiment_id` | `str` | yes |  |
+| `experiment_state` | `str \| None` | no | Known values: ``admitted``, ``refused``, ``candidate_frozen``, ``screening``, ``screen_passed``, ``screen_failed``, ``screen_incomplete``, ``awaiting_test_funding``, ``test_open``, ``test_passed``, ``test_failed``, ``test_incomplete``, ``closed``, ``expired``, ``abandoned``. |
+| `missing_request_ids` | `list[str]` | yes |  |
+| `object` | `str` | yes |  |
+| `outcome_hash` | `str` | yes |  |
+| `status` | `str` | yes | pending_rows: a call’s row has not landed yet — it completes when the rows land. |
+| `trusted_recorded` | `list[str]` | yes | Reason codes the verifier cannot reconstruct — listed, never silently passed. |
+| `detail` | `str \| None` | no |  |
+| `open_holds` | `list[ExperimentExecutionOutcomeOpenHold] \| None` | no | The execution’s holds still reserved or ambiguous. |
+| `recorded_outcome` | `str \| None` | no | Whether an outcome is already recorded and this payload would converge on it or conflict.  Known values: ``none``, ``converges``, ``conflicts``. |
+| `refusal` | `str \| None` | no | The named refusal (e.g. `verifier_mismatch:<gate>`, `receipt_missing:<stage>`), or null. |
+| `unlisted_request_ids` | `list[str] \| None` | no | The execution’s own landed calls the payload does NOT list (e.g. a failed attempt the client lost). |
+
+### ExperimentExecutionOutcomeCost
+
+*response model*
+
+The execution’s cost reconciliation — an ambiguous, pending or unexplained one is incomplete.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `ambiguous_micro_usd` | `int` | yes |  |
+| `complete` | `bool` | yes | True only when every hold is settled, released before dispatch or reconciled, no open hold awaits its row, no unpriced row is unreconciled and the difference is fully explained. |
+| `difference_micro_usd` | `int` | yes | rows_measured − settled — non-zero while a hold is unsettled or ambiguous, or settled at its reserve. |
+| `holds` | `int` | yes |  |
+| `holds_reconciled` | `int` | yes | Holds the owner reconciled (settle, settle_at_reserve or release) — each counts as resolved. |
+| `holds_released_after_dispatch` | `int` | yes | Holds released after their call was sent without a reconciliation — incomplete. |
+| `reserved_micro_usd` | `int` | yes |  |
+| `rowless_resolved_holds` | `int` | yes | Reconciled holds whose request row never landed (a stale claim). |
+| `rows` | `int` | yes |  |
+| `rows_measured_micro_usd` | `int` | yes |  |
+| `rows_unpriced` | `int` | yes |  |
+| `rows_unpriced_unresolved` | `int` | yes | Unpriced rows whose hold the owner has not reconciled — each keeps the cost incomplete. |
+| `settled_micro_usd` | `int` | yes |  |
+| `unexplained_micro_usd` | `int` | yes | The difference NOT accounted for by an owner reconciliation (over the holds the gateway settled) — must be 0. |
+| `unlanded_holds` | `int` | yes | Open holds whose request row has not landed yet. |
+
+### ExperimentExecutionOutcomeOpenHold
+
+*response model*
+
+Response shape `ExperimentExecutionOutcomeOpenHold`.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `amount_micro_usd` | `int` | yes |  |
+| `hold_key` | `str` | yes |  |
+| `state` | `str` | yes | Known values: ``reserved``, ``ambiguous``. |
+
+### ExperimentOutcomeParams
+
+*request shape (TypedDict)*
+
+One live execution outcome — ids, hashes and numbers only, never a body.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `final_content_hash` | `Required[str]` | no | The hash of the final content (the delivered post, or the last draft when held). |
+| `reason_codes` | `Required[list[str]]` | no | The typed reason codes (empty for a clean delivery). |
+| `reason_vocab` | `Required[str]` | no | The reason vocabulary id — must be the frozen verifier’s. |
+| `receipts` | `Required[list[ExperimentReceiptParams]]` | no |  |
+| `request_ids` | `Required[list[str]]` | no | Every gateway request id the execution made — members and failed attempts alike. |
+| `terminal` | `Required[Literal['delivered', 'held']]` | no |  |
+
+### ExperimentReceiptParams
+
+*request shape (TypedDict)*
+
+One member-call receipt — numbers, hashes and ids only, never a body.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `call_type` | `Required[str]` | no |  |
+| `extractor_version` | `Required[str]` | no | The receipt-extraction recipe version — must be the experiment verifier’s. |
+| `numbers` | `Required[dict[str, float]]` | no | The stage-aware body-free numbers (e.g. `post_length`, `line_count`, `distinct`, `usefulness`). |
+| `ordinal` | `Required[int]` | no | The call’s position in the execution. |
+| `parsed_hash` | `str \| None` | no |  |
+| `quote_ids` | `list[str]` | no |  |
+| `request_id` | `Required[str]` | no | The gateway request id of this member call (must be listed in `request_ids`). |
+| `response_hash` | `str \| None` | no |  |
+| `response_len` | `int` | no |  |
+| `stage` | `Required[str]` | no | The stage (as the call declared it in `X-UR-Trace`). |
+| `system_hash` | `str \| None` | no |  |
+| `system_len` | `int` | no |  |
+| `user_hash` | `str \| None` | no |  |
+| `user_len` | `int` | no |  |
+
+### ExperimentScreenEvaluation
+
+*response model*
+
+The screen after an explicit evaluation (counts only until the verdict).
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `computed` | `bool` | yes | True only for the ONE call that computed and stored the verdict. |
+| `experiment_id` | `str` | yes |  |
+| `experiment_state` | `str` | yes | Known values: ``admitted``, ``refused``, ``candidate_frozen``, ``screening``, ``screen_passed``, ``screen_failed``, ``screen_incomplete``, ``awaiting_test_funding``, ``test_open``, ``test_passed``, ``test_failed``, ``test_incomplete``, ``closed``, ``expired``, ``abandoned``. |
+| `object` | `str` | yes | Known values: ``flywheel_experiment_screen_evaluation``. |
+| `screen` | `ExperimentScreenEvaluationScreen` | yes | The screen: barrier counts (no peeking) and, once computed, the verdict. |
+
+### ExperimentScreenEvaluationScreen
+
+*response model*
+
+The screen: barrier counts (no peeking) and, once computed, the verdict.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `executions` | `list[ExperimentScreenEvaluationScreenExecution]` | yes |  |
+| `progress` | `ExperimentScreenEvaluationScreenProgress` | yes | The screen completion-barrier counts (complete / incomplete only — no per-arm outcome). |
+| `verdict` | `ExperimentScreenEvaluationScreenVerdict \| None` | yes | Null until the completion barrier is met and the verdict is stored. |
+
+### ExperimentScreenEvaluationScreenExecution
+
+*response model*
+
+One enrolled screen execution — ids, arm and standing only.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `arm` | `str` | yes | Known values: ``control``, ``treated``. |
+| `execution_id` | `str` | yes |  |
+| `pair_key` | `str` | yes |  |
+| `slot` | `int` | yes |  |
+| `status` | `str` | yes | no_outcome: none recorded yet; pending_rows: recorded, a call’s row has not landed; cost_unsettled: a hold is still reserved or ambiguous; invalid: the recorded outcome fails now that its rows landed; complete.  Known values: ``no_outcome``, ``pending_rows``, ``cost_unsettled``, ``invalid``, ``complete``. |
+
+### ExperimentScreenEvaluationScreenProgress
+
+*response model*
+
+The screen completion-barrier counts (complete / incomplete only — no per-arm outcome).
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `cap_stopped` | `bool` | yes | True once a call of the phase was refused for want of money — incomplete forever. |
+| `executions_complete` | `int` | yes |  |
+| `executions_cost_unsettled` | `int` | yes |  |
+| `executions_enrolled` | `int` | yes |  |
+| `executions_incomplete` | `int` | yes |  |
+| `executions_invalid` | `int` | yes |  |
+| `executions_pending_rows` | `int` | yes |  |
+| `holds_ambiguous` | `int` | yes |  |
+| `holds_reserved` | `int` | yes |  |
+| `judgements_recorded` | `int` | yes |  |
+| `judges_required` | `int` | yes |  |
+| `outcomes_recorded` | `int` | yes |  |
+| `pairs_complete` | `int` | yes |  |
+| `pairs_total` | `int` | yes |  |
+
+### ExperimentScreenEvaluationScreenVerdict
+
+*response model*
+
+Null until the completion barrier is met and the verdict is stored.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `candidate_hash` | `str` | yes |  |
+| `clauses` | `list[ExperimentScreenEvaluationScreenVerdictClause]` | yes | Every clause with its counts (empty when incomplete — nothing is analysed). |
+| `created_at` | `str` | yes |  |
+| `failing_clauses` | `list[str]` | yes | Every failing clause (screen_fail); empty otherwise. |
+| `incomplete_reasons` | `list[str]` | yes | Why the screen can never complete (screen_incomplete): cap_stop, candidate_withdrawn, outcome_invalid:<execution>:<refusal>, pair_arms_not_opposite:<pair>, judging_not_preregistered, judgement_manifest_mismatch:<judge>. |
+| `inputs` | `ExperimentScreenEvaluationScreenVerdictInputs` | yes | The verdict inputs: each execution’s identity, arm, standing, outcome hash and cost reconciliation, the output manifest, and each judgement’s hash and reviewed manifest. |
+| `inputs_hash` | `str` | yes |  |
+| `prereg_hash` | `str` | yes |  |
+| `progress` | `ExperimentScreenEvaluationScreenProgress` | yes | The screen completion-barrier counts (complete / incomplete only — no per-arm outcome). |
+| `rule` | `ExperimentScreenEvaluationScreenVerdictRule` | yes | The frozen rule the verdict applied. |
+| `rule_version` | `str` | yes |  |
+| `verdict` | `str` | yes | Known values: ``screen_pass``, ``screen_fail``, ``screen_incomplete``. |
+
+### ExperimentScreenEvaluationScreenVerdictClause
+
+*response model*
+
+One screen-rule clause and its counts.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `clause` | `str` | yes | Known values: ``a_feature_moved``, ``b_first_pass_rescue``, ``c_no_net_delivery_loss``, ``d_no_serious_treated_defect``, ``e_judges_no_degradation``. |
+| `detail` | `ExperimentScreenEvaluationScreenVerdictClauseDetail` | yes | The clause counts (each clause fills its own members; never a body). |
+| `holds` | `bool` | yes |  |
+
+### ExperimentScreenEvaluationScreenVerdictClauseDetail
+
+*response model*
+
+The clause counts (each clause fills its own members; never a body).
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `control_delivered` | `int \| None` | no |  |
+| `features` | `list[ExperimentScreenEvaluationScreenVerdictClauseDetailFeature] \| None` | no | (a) each predicted feature, on the treated vs the control first drafts. |
+| `min_margin` | `int \| None` | no |  |
+| `min_rescues` | `int \| None` | no |  |
+| `rescues` | `int \| None` | no |  |
+| `treated_delivered` | `int \| None` | no |  |
+| `treated_deliveries_judge_flagged` | `int \| None` | no |  |
+| `treated_deliveries_with_unsupported_claim` | `int \| None` | no |  |
+| `verdicts` | `list[ExperimentScreenEvaluationScreenVerdictClauseDetailVerdict] \| None` | no | (e) each preregistered judge’s verdict. |
+
+### ExperimentScreenEvaluationScreenVerdictClauseDetailFeature
+
+*response model*
+
+Response shape `ExperimentScreenEvaluationScreenVerdictClauseDetailFeature`.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `attribute` | `str` | yes |  |
+| `control_first_drafts_with_value` | `int \| None` | no |  |
+| `first_drafts_unmeasured` | `int \| None` | no |  |
+| `focus_value` | `str` | yes |  |
+| `measurable` | `bool` | yes |  |
+| `moved` | `bool \| None` | no |  |
+| `reason` | `str \| None` | no |  |
+| `treated_first_drafts_with_value` | `int \| None` | no |  |
+
+### ExperimentScreenEvaluationScreenVerdictClauseDetailVerdict
+
+*response model*
+
+Response shape `ExperimentScreenEvaluationScreenVerdictClauseDetailVerdict`.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `judge` | `str` | yes |  |
+| `verdict` | `str \| None` | yes | Known values: ``no_evident_degradation``, ``evident_degradation``. |
+
+### ExperimentScreenEvaluationScreenVerdictInputs
+
+*response model*
+
+The verdict inputs: each execution’s identity, arm, standing, outcome hash and cost reconciliation, the output manifest, and each judgement’s hash and reviewed manifest.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `candidate_withdrawn` | `bool` | yes |  |
+| `cap_stopped` | `bool` | yes |  |
+| `executions` | `list[ExperimentScreenEvaluationScreenVerdictInputsExecution]` | yes |  |
+| `judgements` | `list[ExperimentScreenEvaluationScreenVerdictInputsJudgement]` | yes |  |
+| `observations` | `list[ExperimentScreenEvaluationScreenVerdictInputsObservation]` | yes |  |
+| `output_manifest_hash` | `str \| None` | yes | The content address of the screen’s output manifest (every screen execution’s final-content hash). |
+| `pairs` | `list[str]` | yes |  |
+| `phase_holds` | `ExperimentScreenEvaluationScreenVerdictInputsPhaseHolds` | yes |  |
+
+### ExperimentScreenEvaluationScreenVerdictInputsExecution
+
+*response model*
+
+Response shape `ExperimentScreenEvaluationScreenVerdictInputsExecution`.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `arm` | `str` | yes | Known values: ``control``, ``treated``. |
+| `cost` | `ExperimentExecutionOutcomeCost \| None` | yes |  |
+| `execution_id` | `str` | yes |  |
+| `outcome_hash` | `str \| None` | yes |  |
+| `pair_key` | `str` | yes |  |
+| `slot` | `int` | yes |  |
+| `state` | `str` | yes | no_outcome: none recorded yet; pending_rows: recorded, a call’s row has not landed; cost_unsettled: a hold is still reserved or ambiguous; invalid: the recorded outcome fails now that its rows landed; complete.  Known values: ``no_outcome``, ``pending_rows``, ``cost_unsettled``, ``invalid``, ``complete``. |
+
+### ExperimentScreenEvaluationScreenVerdictInputsJudgement
+
+*response model*
+
+Response shape `ExperimentScreenEvaluationScreenVerdictInputsJudgement`.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `judge` | `str` | yes |  |
+| `judgement_hash` | `str` | yes |  |
+| `manifest_hash` | `str` | yes | The output manifest the judge reviewed. |
+
+### ExperimentScreenEvaluationScreenVerdictInputsObservation
+
+*response model*
+
+Response shape `ExperimentScreenEvaluationScreenVerdictInputsObservation`.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `attribute` | `str` | yes |  |
+| `focus_value` | `str` | yes |  |
+
+### ExperimentScreenEvaluationScreenVerdictInputsPhaseHolds
+
+*response model*
+
+Response shape `ExperimentScreenEvaluationScreenVerdictInputsPhaseHolds`.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `ambiguous` | `int` | yes |  |
+| `reserved` | `int` | yes |  |
+
+### ExperimentScreenEvaluationScreenVerdictRule
+
+*response model*
+
+The frozen rule the verdict applied.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `feature_min_margin` | `int` | yes |  |
+| `min_first_pass_rescues` | `int` | yes |  |
+| `unsupported_claim_codes` | `list[str]` | yes |  |
+
+### ExperimentTestEvaluation
+
+*response model*
+
+The test after an explicit evaluation (counts only until the verdict).
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `computed` | `bool` | yes | True only for the ONE call that computed and stored the decision. |
+| `experiment_id` | `str` | yes |  |
+| `experiment_state` | `str` | yes | Known values: ``admitted``, ``refused``, ``candidate_frozen``, ``screening``, ``screen_passed``, ``screen_failed``, ``screen_incomplete``, ``awaiting_test_funding``, ``test_open``, ``test_passed``, ``test_failed``, ``test_incomplete``, ``closed``, ``expired``, ``abandoned``. |
+| `object` | `str` | yes | Known values: ``flywheel_experiment_test_evaluation``. |
+| `test` | `ExperimentTestEvaluationTest` | yes | The prospective test: barrier counts (no peeking) and, once computed, the decision. |
+
+### ExperimentTestEvaluationTest
+
+*response model*
+
+The prospective test: barrier counts (no peeking) and, once computed, the decision.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `executions` | `list[ExperimentScreenEvaluationScreenExecution]` | yes |  |
+| `manifest_committed` | `bool` | yes |  |
+| `manifest_hash` | `str \| None` | yes |  |
+| `n` | `int` | yes |  |
+| `progress` | `ExperimentTestEvaluationTestProgress` | yes | The test completion-barrier counts (no per-arm outcome before the verdict). |
+| `verdict` | `ExperimentTestEvaluationTestVerdict \| None` | yes | Null until the completion barrier is met and the decision is stored. |
+
+### ExperimentTestEvaluationTestProgress
+
+*response model*
+
+The test completion-barrier counts (no per-arm outcome before the verdict).
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `cap_stopped` | `bool` | yes |  |
+| `executions_complete` | `int` | yes |  |
+| `executions_cost_unsettled` | `int` | yes |  |
+| `executions_enrolled` | `int` | yes |  |
+| `executions_incomplete` | `int` | yes |  |
+| `executions_invalid` | `int` | yes |  |
+| `executions_pending_rows` | `int` | yes |  |
+| `holds_ambiguous` | `int` | yes |  |
+| `holds_reserved` | `int` | yes |  |
+| `judgements_recorded` | `int` | yes |  |
+| `judges_required` | `int` | yes |  |
+| `n` | `int` | yes |  |
+| `outcomes_recorded` | `int` | yes |  |
+| `pairs_complete` | `int` | yes |  |
+| `pairs_total` | `int` | yes |  |
+
+### ExperimentTestEvaluationTestVerdict
+
+*response model*
+
+Null until the completion barrier is met and the decision is stored.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `candidate_hash` | `str` | yes |  |
+| `claim_text` | `str \| None` | yes | The frozen claim text (a pass only) — never more than it is licensed to say. |
+| `created_at` | `str` | yes |  |
+| `economics` | `ExperimentTestEvaluationTestVerdictEconomics \| None` | yes |  |
+| `economics_permutations` | `int` | yes |  |
+| `economics_seed` | `int` | yes |  |
+| `failing_parts` | `list[str]` | yes | Every failing part (test_failed); empty otherwise. |
+| `goodhart` | `ExperimentTestEvaluationTestVerdictGoodhart \| None` | yes |  |
+| `incomplete_reasons` | `list[str]` | yes | Why it can never complete (test_incomplete); else empty. |
+| `inputs_hash` | `str` | yes |  |
+| `prereg_hash` | `str` | yes |  |
+| `primary` | `ExperimentTestEvaluationTestVerdictPrimary \| None` | yes |  |
+| `progress` | `ExperimentTestEvaluationTestProgress` | yes | The test completion-barrier counts (no per-arm outcome before the verdict). |
+| `quality` | `ExperimentTestEvaluationTestVerdictQuality \| None` | yes |  |
+| `rule` | `ExperimentTestEvaluationTestVerdictRule` | yes |  |
+| `rule_version` | `str` | yes |  |
+| `verdict` | `str` | yes | Known values: ``test_passed``, ``test_failed``, ``test_incomplete``. |
+
+### ExperimentTestEvaluationTestVerdictEconomics
+
+*response model*
+
+Response shape `ExperimentTestEvaluationTestVerdictEconomics`.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `control_cost_micro_usd` | `int` | yes |  |
+| `control_deliveries` | `int` | yes |  |
+| `inconclusive` | `bool` | yes |  |
+| `min_ratio` | `float` | yes |  |
+| `pass` | `bool` | yes |  |
+| `permutation_p_value` | `float \| None` | yes |  |
+| `permutations` | `int` | yes |  |
+| `ratio` | `float \| None` | yes |  |
+| `seed` | `int` | yes |  |
+| `treated_cost_micro_usd` | `int` | yes |  |
+| `treated_deliveries` | `int` | yes |  |
+
+### ExperimentTestEvaluationTestVerdictGoodhart
+
+*response model*
+
+Response shape `ExperimentTestEvaluationTestVerdictGoodhart`.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `arms` | `list[ExperimentTestEvaluationTestVerdictGoodhartArm]` | yes |  |
+
+### ExperimentTestEvaluationTestVerdictGoodhartArm
+
+*response model*
+
+Response shape `ExperimentTestEvaluationTestVerdictGoodhartArm`.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `arm` | `str` | yes | Known values: ``control``, ``treated``. |
+| `first_draft_cited_quotes_band` | `dict[str, int]` | yes |  |
+| `first_draft_length_band` | `dict[str, int]` | yes |  |
+| `repair_count` | `dict[str, int]` | yes |  |
+| `stranger_usefulness` | `dict[str, int]` | yes |  |
+
+### ExperimentTestEvaluationTestVerdictPrimary
+
+*response model*
+
+Response shape `ExperimentTestEvaluationTestVerdictPrimary`.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `alpha` | `float` | yes |  |
+| `control_delivered` | `int` | yes |  |
+| `losses` | `int` | yes |  |
+| `p_value` | `float` | yes |  |
+| `pairs_analysed` | `int` | yes |  |
+| `pass` | `bool` | yes |  |
+| `treated_delivered` | `int` | yes |  |
+| `wins` | `int` | yes |  |
+
+### ExperimentTestEvaluationTestVerdictQuality
+
+*response model*
+
+Response shape `ExperimentTestEvaluationTestVerdictQuality`.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `min_delta` | `float` | yes |  |
+| `pass` | `bool` | yes |  |
+| `per_judge` | `list[ExperimentTestEvaluationTestVerdictQualityPerJudgeItem]` | yes |  |
+
+### ExperimentTestEvaluationTestVerdictQualityPerJudgeItem
+
+*response model*
+
+Response shape `ExperimentTestEvaluationTestVerdictQualityPerJudgeItem`.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `clears` | `bool` | yes |  |
+| `control_deliveries` | `int` | yes |  |
+| `control_publishable` | `int` | yes |  |
+| `control_publishable_rate` | `float \| None` | yes |  |
+| `delta` | `float \| None` | yes |  |
+| `judge` | `str` | yes |  |
+| `recorded` | `bool` | yes |  |
+| `serious_treated_defects` | `int` | yes |  |
+| `treated_deliveries` | `int` | yes |  |
+| `treated_publishable` | `int` | yes |  |
+| `treated_publishable_rate` | `float \| None` | yes |  |
+
+### ExperimentTestEvaluationTestVerdictRule
+
+*response model*
+
+Response shape `ExperimentTestEvaluationTestVerdictRule`.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `alpha` | `float` | yes |  |
+| `economics_min_ratio` | `float` | yes |  |
+| `economics_permutations` | `int` | yes |  |
+| `economics_seed` | `int` | yes |  |
+| `n` | `int` | yes |  |
+| `quality_min_delta` | `float` | yes |  |
+| `version` | `str` | yes |  |
+
 ### ExposureGrant
 
 *response model*

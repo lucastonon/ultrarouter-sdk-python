@@ -109,7 +109,7 @@ from ._queue import (
     OutcomeStore,
     ReviewerFlushReport,
 )
-from ._resources.flywheel import candidate_decision_callback_id
+from ._resources.flywheel import EXPERIMENT_EXECUTION_HEADER, candidate_decision_callback_id
 from ._signing import (
     REVIEWER_SIGNATURE_HEADER,
     REVIEWER_TIMESTAMP_HEADER,
@@ -141,6 +141,7 @@ __all__ = [
     "DEFAULT_MAX_RETRIES",
     "DEFAULT_PREFLIGHT_CACHE_SIZE",
     "DEFAULT_TIMEOUT_S",
+    "EXPERIMENT_EXECUTION_HEADER",
     "GATEWAY_ERROR_CODES",
     "GATEWAY_ERROR_TAXONOMY",
     "LEARNED_MESSAGE_ROLE",

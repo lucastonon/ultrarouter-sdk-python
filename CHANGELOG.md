@@ -18,6 +18,20 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- The bounded-experiment RUN surface under `client.flywheel.experiments` (sync and async), for a key
+  with the `flywheel:experiment:run` scope: `enrol(experiment_id, phase=, pair_key=, slot=)` enrols
+  one execution slot (the gateway decides the arm, never the caller; a repeat of the same tuple
+  returns the same execution, so a resume is safe), `outcome(experiment_id, execution_id, ...,
+  dry_run=False)` records the one body-free terminal outcome and, with `dry_run=True`, sends
+  `?dry_run=true` and returns the dry-run answer with nothing written (both shapes are the
+  `ExperimentExecutionOutcome` model, discriminated by `object` — the generator merges the response
+  `oneOf`), and `evaluate_screen` / `evaluate_test` run the screen / prospective-test evaluation
+  explicitly. Named refusals (`experiment_not_live`, `phase_not_open`, `outcome_conflict`,
+  `receipt_missing:<stage>`, …) reach the caller on the typed error. `EXPERIMENT_EXECUTION_HEADER`
+  (`x-ur-experiment-execution`) is exported for the header every call of a run carries. The
+  owner-session operations (holds, reconcile, judgements, acknowledge, test fund / manifest) stay
+  unmapped — an API key cannot call them. New guide section: "Running a bounded experiment" in
+  `docs/flywheel.md`.
 - Native passthrough for the OpenAI Responses API (`POST /v1/responses`) and the Anthropic Messages
   API (`POST /v1/messages`). The gateway forwards these bodies verbatim and meters the call; point
   the official `openai` and `anthropic` SDKs at the gateway, or reach the routes from this SDK's raw

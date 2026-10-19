@@ -1558,6 +1558,112 @@ client.flywheel.source_checks.grade(
 
 Answer every probe (`resolved_true` / `resolved_false`); graded once.
 
+### client.flywheel.experiments
+
+`client.flywheel.experiments`: the bounded-experiment RUN surface.
+
+For a runner holding a key with the `flywheel:experiment:run` scope (never implied by
+`gateway:invoke`). Enrol each execution before its first call, send the returned
+`execution_id` as the `EXPERIMENT_EXECUTION_HEADER` header on every call of the run
+(`POST /v1/messages`, `POST /v1/responses`), then record its one terminal outcome (dry-run
+it first) and ask for the screen or test evaluation. The owner-session operations (holds,
+reconcile, judgements, acknowledge, test fund / manifest) are not on an API key, so they are
+not mapped here.
+
+#### client.flywheel.experiments.enrol
+
+```python
+client.flywheel.experiments.enrol(
+    experiment_id: str,
+    *,
+    phase: ExperimentPhase,
+    pair_key: str,
+    slot: int,
+    options: RequestOptions | None = None,
+) -> ExperimentExecution
+```
+
+Enrol one execution slot of a candidate-frozen experiment (the gateway decides the arm).
+
+The gateway — never the caller — picks the arm from its sealed assignment. A repeat of the
+same `{phase, pair_key, slot}` returns the same execution (`created=False`), so a resume
+re-enrols the identical tuple safely; never change the slot to work around a failure. The
+client's standard retry (retryable statuses only, one idempotency key across attempts) is
+therefore safe here: the gateway, not the SDK, makes enrolment idempotent.
+
+**Args**
+
+- `experiment_id`: The experiment id.
+- `phase`: `screen` or `test`.
+- `pair_key`: The pair (one idea family frozen in the preregistration split).
+- `slot`: The pair's slot, `0` or `1` (anything else is refused `slot_invalid`).
+- `options`: Per-call request options.
+
+#### client.flywheel.experiments.outcome
+
+```python
+client.flywheel.experiments.outcome(
+    experiment_id: str,
+    execution_id: str,
+    *,
+    terminal: ExperimentTerminal,
+    reason_codes: Sequence[str],
+    reason_vocab: str,
+    receipts: Sequence[ExperimentReceiptParams | Mapping[str, Any]],
+    final_content_hash: str,
+    request_ids: Sequence[str],
+    dry_run: bool = False,
+    options: RequestOptions | None = None,
+) -> ExperimentExecutionOutcome
+```
+
+Record the one terminal outcome of an enrolled execution (ids, hashes and numbers only).
+
+Idempotent on the execution. With `dry_run=True` the same validation runs against the
+current rows and holds and the answer is returned with NOTHING written. The two responses
+are one model: `object` discriminates a recorded outcome
+(`flywheel_experiment_execution_outcome`, with `cost`, `created` and
+`experiment_state`) from a dry run (`flywheel_experiment_execution_outcome_dry_run`,
+with `refusal`, `recorded_outcome`, `unlisted_request_ids` and `open_holds`);
+`status` is `refused` only on a dry run that names its `refusal`.
+
+**Args**
+
+- `experiment_id`: The experiment id.
+- `execution_id`: The enrolled execution id.
+- `terminal`: `delivered` or `held`.
+- `reason_codes`: The typed reason codes (empty for a clean delivery).
+- `reason_vocab`: The reason vocabulary id — must be the frozen verifier's.
+- `receipts`: One body-free receipt per member call.
+- `final_content_hash`: The hash of the final content.
+- `request_ids`: Every gateway request id the execution made.
+- `dry_run`: Validate only; send `?dry_run=true` and write nothing.
+- `options`: Per-call request options.
+
+#### client.flywheel.experiments.evaluate_screen
+
+```python
+client.flywheel.experiments.evaluate_screen(
+    experiment_id: str,
+    *,
+    options: RequestOptions | None = None,
+) -> ExperimentScreenEvaluation
+```
+
+Evaluate the screen explicitly (idempotent): counts first, then the verdict.
+
+#### client.flywheel.experiments.evaluate_test
+
+```python
+client.flywheel.experiments.evaluate_test(
+    experiment_id: str,
+    *,
+    options: RequestOptions | None = None,
+) -> ExperimentTestEvaluation
+```
+
+Evaluate the test explicitly (idempotent): counts first, then the decision.
+
 ### client.reviewer
 
 `client.reviewer`: the signed, durable reviewer-decision adapter.
@@ -1915,6 +2021,7 @@ class (400, 401, 403, 404, 409, 429, 5xx), then to `APIStatusError`.
 
 The canonical HTTP status of a gateway error code and whether it is safe to retry.
 
+- `EXPERIMENT_EXECUTION_HEADER` = `'x-ur-experiment-execution'`
 - `Feedback`: response model; see the [types reference](types-reference.md#feedback).
 ### FileOutcomeStore
 

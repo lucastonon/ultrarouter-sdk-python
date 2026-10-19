@@ -2665,6 +2665,67 @@ rollout = client.flywheel.candidates.rollout(
 print(rollout.unlocked, [b.reason for b in rollout.blockers], rollout.pressed)
 ```
 
+## Running a bounded experiment
+
+A bounded experiment is a preregistered, candidate-frozen comparison a workspace owner sets up: a
+fixed set of idea families (pairs), each with two slots the gateway assigns to opposite arms
+(`control` and `treated`). A runner — a key with the `flywheel:experiment:run` scope (never implied
+by `gateway:invoke`) — drives each execution with `client.flywheel.experiments`. Enrol an execution
+before its first call, send the returned `execution_id` as the `EXPERIMENT_EXECUTION_HEADER` header
+on every call of the run (each with a fresh trace attempt), then dry-run and record the one terminal
+outcome and ask for the evaluation. The gateway decides the arm, never the caller; a repeat of the
+same `{phase, pair_key, slot}` returns the same execution, so a resume re-enrols the identical tuple
+safely — never change the slot to work around a failure.
+
+```python
+from ultrarouter import EXPERIMENT_EXECUTION_HEADER
+
+execution = client.flywheel.experiments.enrol("fxp_1", phase="screen", pair_key="idea-a", slot=0)
+# Carry this header on every call of the execution (POST /v1/messages, POST /v1/responses):
+call_headers = {EXPERIMENT_EXECUTION_HEADER: execution.execution_id}
+print(execution.arm, execution.created, call_headers)
+
+outcome_fields = dict(
+    terminal="delivered",
+    reason_codes=[],
+    reason_vocab="ur.experiment.reasons.v1",
+    receipts=[
+        {
+            "ordinal": 0,
+            "stage": "writer",
+            "call_type": "support-reply",
+            "request_id": "req_...",
+            "extractor_version": "ex.v1",
+            "numbers": {"post_length": 280},
+        }
+    ],
+    final_content_hash="0" * 64,
+    request_ids=["req_..."],
+)
+
+# Dry-run first: the same validation, nothing written. The dry-run shape carries `refusal`.
+dry = client.flywheel.experiments.outcome(
+    "fxp_1", execution.execution_id, dry_run=True, **outcome_fields
+)
+print(dry.object, dry.status, dry.refusal, dry.recorded_outcome)
+if dry.status != "refused":
+    recorded = client.flywheel.experiments.outcome(
+        "fxp_1", execution.execution_id, **outcome_fields
+    )
+    print(recorded.object, recorded.status)
+
+# Re-evaluate the screen (idempotent; the verdict is computed once, only at the barrier).
+screen = client.flywheel.experiments.evaluate_screen("fxp_1")
+print(screen.object, screen.computed, screen.experiment_state)
+```
+
+Named refusals reach you on the typed error: branch on `exc.code` and read the specific reason
+(`experiment_not_live`, `phase_not_open`, `phase_unfunded`, `pair_not_in_manifest`,
+`outcome_conflict`, `receipt_missing:<stage>`, `membership_incomplete`, …) in `exc.message`. The same
+reasons come back on an outcome dry run as its `refusal`, so you can see what recording would do
+before writing anything. The owner-session parts (funding a phase, holds and reconciliation,
+judgements, acknowledgement) are not on an API key and are not part of this resource.
+
 ## Learning plans and prompt candidates
 
 ```python

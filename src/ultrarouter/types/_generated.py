@@ -146,6 +146,39 @@ __all__ = [
     "EvalRunSpecProfileEvaluatorSuite",
     "EvalRunSpecProfileEvaluatorSuiteJudge",
     "EvalRunSpecProfileEvaluatorSuiteScorerInstance",
+    "ExperimentEnrolParams",
+    "ExperimentExecution",
+    "ExperimentExecutionOutcome",
+    "ExperimentExecutionOutcomeCost",
+    "ExperimentExecutionOutcomeOpenHold",
+    "ExperimentOutcomeParams",
+    "ExperimentReceiptParams",
+    "ExperimentScreenEvaluation",
+    "ExperimentScreenEvaluationScreen",
+    "ExperimentScreenEvaluationScreenExecution",
+    "ExperimentScreenEvaluationScreenProgress",
+    "ExperimentScreenEvaluationScreenVerdict",
+    "ExperimentScreenEvaluationScreenVerdictClause",
+    "ExperimentScreenEvaluationScreenVerdictClauseDetail",
+    "ExperimentScreenEvaluationScreenVerdictClauseDetailFeature",
+    "ExperimentScreenEvaluationScreenVerdictClauseDetailVerdict",
+    "ExperimentScreenEvaluationScreenVerdictInputs",
+    "ExperimentScreenEvaluationScreenVerdictInputsExecution",
+    "ExperimentScreenEvaluationScreenVerdictInputsJudgement",
+    "ExperimentScreenEvaluationScreenVerdictInputsObservation",
+    "ExperimentScreenEvaluationScreenVerdictInputsPhaseHolds",
+    "ExperimentScreenEvaluationScreenVerdictRule",
+    "ExperimentTestEvaluation",
+    "ExperimentTestEvaluationTest",
+    "ExperimentTestEvaluationTestProgress",
+    "ExperimentTestEvaluationTestVerdict",
+    "ExperimentTestEvaluationTestVerdictEconomics",
+    "ExperimentTestEvaluationTestVerdictGoodhart",
+    "ExperimentTestEvaluationTestVerdictGoodhartArm",
+    "ExperimentTestEvaluationTestVerdictPrimary",
+    "ExperimentTestEvaluationTestVerdictQuality",
+    "ExperimentTestEvaluationTestVerdictQualityPerJudgeItem",
+    "ExperimentTestEvaluationTestVerdictRule",
     "ExposureGrant",
     "ExposureGrantParams",
     "Feedback",
@@ -4222,6 +4255,723 @@ class Confirmation(BaseModel):
     """The lifecycle: open | adopted | rolled_back | invalidated | closed."""
 
 
+class ExperimentEnrolParams(TypedDict, total=False):
+    """Enrol one execution slot — the gateway decides the arm."""
+
+    pair_key: Required[str]
+    """The pair — one idea family frozen in the preregistration's screen or test split."""
+
+    phase: Required[Literal["screen", "test"]]
+    """The fundable phase the execution runs in: `screen` (the historical screen pairs) or `test`.
+    """
+
+    slot: Required[float]
+    """One of the pair’s two slots: 0 or 1 (anything else is refused `slot_invalid`)."""
+
+
+class ExperimentExecution(BaseModel):
+    """One enrolled experiment execution — ids / arm / hashes only."""
+
+    arm: str
+    """Decided by the sealed assignment — never by the caller.
+
+    Known values: ``control``, ``treated``.
+    """
+
+    assignment_version: str
+    """The sealed assignment rule version."""
+
+    candidate_hash: str
+    """The frozen candidate this execution is bound to (every call re-checks it)."""
+
+    created: bool
+    """False when the same {phase, pair_key, slot} was already enrolled (idempotent)."""
+
+    created_at: str
+
+    execution_id: str
+    """Send as the `X-UR-Experiment-Execution` header on every call of this execution."""
+
+    experiment_id: str
+
+    object: str
+    """Known values: ``flywheel_experiment_execution``."""
+
+    pair_key: str
+
+    phase: str
+    """Known values: ``screen``, ``test``."""
+
+    slot: int
+
+
+class ExperimentOutcomeParams(TypedDict, total=False):
+    """One live execution outcome — ids, hashes and numbers only, never a body."""
+
+    final_content_hash: Required[str]
+    """The hash of the final content (the delivered post, or the last draft when held)."""
+
+    reason_codes: Required[list[str]]
+    """The typed reason codes (empty for a clean delivery)."""
+
+    reason_vocab: Required[str]
+    """The reason vocabulary id — must be the frozen verifier’s."""
+
+    receipts: Required[list[ExperimentReceiptParams]]
+
+    request_ids: Required[list[str]]
+    """Every gateway request id the execution made — members and failed attempts alike."""
+
+    terminal: Required[Literal["delivered", "held"]]
+
+
+class ExperimentReceiptParams(TypedDict, total=False):
+    """One member-call receipt — numbers, hashes and ids only, never a body."""
+
+    call_type: Required[str]
+
+    extractor_version: Required[str]
+    """The receipt-extraction recipe version — must be the experiment verifier’s."""
+
+    numbers: Required[dict[str, float]]
+    """The stage-aware body-free numbers (e.g. `post_length`, `line_count`, `distinct`, `usefulness`).
+    """
+
+    ordinal: Required[int]
+    """The call’s position in the execution."""
+
+    parsed_hash: str | None
+
+    quote_ids: list[str]
+
+    request_id: Required[str]
+    """The gateway request id of this member call (must be listed in `request_ids`)."""
+
+    response_hash: str | None
+
+    response_len: int
+
+    stage: Required[str]
+    """The stage (as the call declared it in `X-UR-Trace`)."""
+
+    system_hash: str | None
+
+    system_len: int
+
+    user_hash: str | None
+
+    user_len: int
+
+
+class ExperimentExecutionOutcome(BaseModel):
+    """The recorded outcome, or — with `?dry_run=true` — the dry-run answer."""
+
+    cost: ExperimentExecutionOutcomeCost | None = None
+    """The execution’s cost reconciliation — an ambiguous, pending or unexplained one is incomplete.
+    """
+
+    created: bool | None = None
+    """False when the same outcome was already recorded (an idempotent repeat)."""
+
+    execution_id: str
+
+    experiment_id: str
+
+    experiment_state: str | None = None
+    """Known values: ``admitted``, ``refused``, ``candidate_frozen``, ``screening``, ``screen_passed``, ``screen_failed``, ``screen_incomplete``, ``awaiting_test_funding``, ``test_open``, ``test_passed``, ``test_failed``, ``test_incomplete``, ``closed``, ``expired``, ``abandoned``.
+    """
+
+    missing_request_ids: list[str]
+
+    object: str
+
+    outcome_hash: str
+
+    status: str
+    """pending_rows: a call’s row has not landed yet — it completes when the rows land."""
+
+    trusted_recorded: list[str]
+    """Reason codes the verifier cannot reconstruct — listed, never silently passed."""
+
+    detail: str | None = None
+
+    open_holds: list[ExperimentExecutionOutcomeOpenHold] | None = None
+    """The execution’s holds still reserved or ambiguous."""
+
+    recorded_outcome: str | None = None
+    """Whether an outcome is already recorded and this payload would converge on it or conflict.
+
+    Known values: ``none``, ``converges``, ``conflicts``.
+    """
+
+    refusal: str | None = None
+    """The named refusal (e.g. `verifier_mismatch:<gate>`, `receipt_missing:<stage>`), or null."""
+
+    unlisted_request_ids: list[str] | None = None
+    """The execution’s own landed calls the payload does NOT list (e.g. a failed attempt the client lost).
+    """
+
+
+class ExperimentExecutionOutcomeCost(BaseModel):
+    """The execution’s cost reconciliation — an ambiguous, pending or unexplained one is incomplete."""
+
+    ambiguous_micro_usd: int
+
+    complete: bool
+    """True only when every hold is settled, released before dispatch or reconciled, no open hold awaits its row, no unpriced row is unreconciled and the difference is fully explained.
+    """
+
+    difference_micro_usd: int
+    """rows_measured − settled — non-zero while a hold is unsettled or ambiguous, or settled at its reserve.
+    """
+
+    holds: int
+
+    holds_reconciled: int
+    """Holds the owner reconciled (settle, settle_at_reserve or release) — each counts as resolved.
+    """
+
+    holds_released_after_dispatch: int
+    """Holds released after their call was sent without a reconciliation — incomplete."""
+
+    reserved_micro_usd: int
+
+    rowless_resolved_holds: int
+    """Reconciled holds whose request row never landed (a stale claim)."""
+
+    rows: int
+
+    rows_measured_micro_usd: int
+
+    rows_unpriced: int
+
+    rows_unpriced_unresolved: int
+    """Unpriced rows whose hold the owner has not reconciled — each keeps the cost incomplete."""
+
+    settled_micro_usd: int
+
+    unexplained_micro_usd: int
+    """The difference NOT accounted for by an owner reconciliation (over the holds the gateway settled) — must be 0.
+    """
+
+    unlanded_holds: int
+    """Open holds whose request row has not landed yet."""
+
+
+class ExperimentExecutionOutcomeOpenHold(BaseModel):
+    """Response shape ``ExperimentExecutionOutcomeOpenHold``."""
+
+    amount_micro_usd: int
+
+    hold_key: str
+
+    state: str
+    """Known values: ``reserved``, ``ambiguous``."""
+
+
+class ExperimentScreenEvaluation(BaseModel):
+    """The screen after an explicit evaluation (counts only until the verdict)."""
+
+    computed: bool
+    """True only for the ONE call that computed and stored the verdict."""
+
+    experiment_id: str
+
+    experiment_state: str
+    """Known values: ``admitted``, ``refused``, ``candidate_frozen``, ``screening``, ``screen_passed``, ``screen_failed``, ``screen_incomplete``, ``awaiting_test_funding``, ``test_open``, ``test_passed``, ``test_failed``, ``test_incomplete``, ``closed``, ``expired``, ``abandoned``.
+    """
+
+    object: str
+    """Known values: ``flywheel_experiment_screen_evaluation``."""
+
+    screen: ExperimentScreenEvaluationScreen
+    """The screen: barrier counts (no peeking) and, once computed, the verdict."""
+
+
+class ExperimentScreenEvaluationScreen(BaseModel):
+    """The screen: barrier counts (no peeking) and, once computed, the verdict."""
+
+    executions: list[ExperimentScreenEvaluationScreenExecution]
+
+    progress: ExperimentScreenEvaluationScreenProgress
+    """The screen completion-barrier counts (complete / incomplete only — no per-arm outcome)."""
+
+    verdict: ExperimentScreenEvaluationScreenVerdict | None
+    """Null until the completion barrier is met and the verdict is stored."""
+
+
+class ExperimentScreenEvaluationScreenExecution(BaseModel):
+    """One enrolled screen execution — ids, arm and standing only."""
+
+    arm: str
+    """Known values: ``control``, ``treated``."""
+
+    execution_id: str
+
+    pair_key: str
+
+    slot: int
+
+    status: str
+    """no_outcome: none recorded yet; pending_rows: recorded, a call’s row has not landed; cost_unsettled: a hold is still reserved or ambiguous; invalid: the recorded outcome fails now that its rows landed; complete.
+
+    Known values: ``no_outcome``, ``pending_rows``, ``cost_unsettled``, ``invalid``, ``complete``.
+    """
+
+
+class ExperimentScreenEvaluationScreenProgress(BaseModel):
+    """The screen completion-barrier counts (complete / incomplete only — no per-arm outcome)."""
+
+    cap_stopped: bool
+    """True once a call of the phase was refused for want of money — incomplete forever."""
+
+    executions_complete: int
+
+    executions_cost_unsettled: int
+
+    executions_enrolled: int
+
+    executions_incomplete: int
+
+    executions_invalid: int
+
+    executions_pending_rows: int
+
+    holds_ambiguous: int
+
+    holds_reserved: int
+
+    judgements_recorded: int
+
+    judges_required: int
+
+    outcomes_recorded: int
+
+    pairs_complete: int
+
+    pairs_total: int
+
+
+class ExperimentScreenEvaluationScreenVerdict(BaseModel):
+    """Null until the completion barrier is met and the verdict is stored."""
+
+    candidate_hash: str
+
+    clauses: list[ExperimentScreenEvaluationScreenVerdictClause]
+    """Every clause with its counts (empty when incomplete — nothing is analysed)."""
+
+    created_at: str
+
+    failing_clauses: list[str]
+    """Every failing clause (screen_fail); empty otherwise."""
+
+    incomplete_reasons: list[str]
+    """Why the screen can never complete (screen_incomplete): cap_stop, candidate_withdrawn, outcome_invalid:<execution>:<refusal>, pair_arms_not_opposite:<pair>, judging_not_preregistered, judgement_manifest_mismatch:<judge>.
+    """
+
+    inputs: ExperimentScreenEvaluationScreenVerdictInputs
+    """The verdict inputs: each execution’s identity, arm, standing, outcome hash and cost reconciliation, the output manifest, and each judgement’s hash and reviewed manifest.
+    """
+
+    inputs_hash: str
+
+    prereg_hash: str
+
+    progress: ExperimentScreenEvaluationScreenProgress
+    """The screen completion-barrier counts (complete / incomplete only — no per-arm outcome)."""
+
+    rule: ExperimentScreenEvaluationScreenVerdictRule
+    """The frozen rule the verdict applied."""
+
+    rule_version: str
+
+    verdict: str
+    """Known values: ``screen_pass``, ``screen_fail``, ``screen_incomplete``."""
+
+
+class ExperimentScreenEvaluationScreenVerdictClause(BaseModel):
+    """One screen-rule clause and its counts."""
+
+    clause: str
+    """Known values: ``a_feature_moved``, ``b_first_pass_rescue``, ``c_no_net_delivery_loss``, ``d_no_serious_treated_defect``, ``e_judges_no_degradation``.
+    """
+
+    detail: ExperimentScreenEvaluationScreenVerdictClauseDetail
+    """The clause counts (each clause fills its own members; never a body)."""
+
+    holds: bool
+
+
+class ExperimentScreenEvaluationScreenVerdictClauseDetail(BaseModel):
+    """The clause counts (each clause fills its own members; never a body)."""
+
+    control_delivered: int | None = None
+
+    features: list[ExperimentScreenEvaluationScreenVerdictClauseDetailFeature] | None = None
+    """(a) each predicted feature, on the treated vs the control first drafts."""
+
+    min_margin: int | None = None
+
+    min_rescues: int | None = None
+
+    rescues: int | None = None
+
+    treated_delivered: int | None = None
+
+    treated_deliveries_judge_flagged: int | None = None
+
+    treated_deliveries_with_unsupported_claim: int | None = None
+
+    verdicts: list[ExperimentScreenEvaluationScreenVerdictClauseDetailVerdict] | None = None
+    """(e) each preregistered judge’s verdict."""
+
+
+class ExperimentScreenEvaluationScreenVerdictClauseDetailFeature(BaseModel):
+    """Response shape ``ExperimentScreenEvaluationScreenVerdictClauseDetailFeature``."""
+
+    attribute: str
+
+    control_first_drafts_with_value: int | None = None
+
+    first_drafts_unmeasured: int | None = None
+
+    focus_value: str
+
+    measurable: bool
+
+    moved: bool | None = None
+
+    reason: str | None = None
+
+    treated_first_drafts_with_value: int | None = None
+
+
+class ExperimentScreenEvaluationScreenVerdictClauseDetailVerdict(BaseModel):
+    """Response shape ``ExperimentScreenEvaluationScreenVerdictClauseDetailVerdict``."""
+
+    judge: str
+
+    verdict: str | None
+    """Known values: ``no_evident_degradation``, ``evident_degradation``."""
+
+
+class ExperimentScreenEvaluationScreenVerdictInputs(BaseModel):
+    """The verdict inputs: each execution’s identity, arm, standing, outcome hash and cost reconciliation, the output manifest, and each judgement’s hash and reviewed manifest."""
+
+    candidate_withdrawn: bool
+
+    cap_stopped: bool
+
+    executions: list[ExperimentScreenEvaluationScreenVerdictInputsExecution]
+
+    judgements: list[ExperimentScreenEvaluationScreenVerdictInputsJudgement]
+
+    observations: list[ExperimentScreenEvaluationScreenVerdictInputsObservation]
+
+    output_manifest_hash: str | None
+    """The content address of the screen’s output manifest (every screen execution’s final-content hash).
+    """
+
+    pairs: list[str]
+
+    phase_holds: ExperimentScreenEvaluationScreenVerdictInputsPhaseHolds
+
+
+class ExperimentScreenEvaluationScreenVerdictInputsExecution(BaseModel):
+    """Response shape ``ExperimentScreenEvaluationScreenVerdictInputsExecution``."""
+
+    arm: str
+    """Known values: ``control``, ``treated``."""
+
+    cost: ExperimentExecutionOutcomeCost | None
+
+    execution_id: str
+
+    outcome_hash: str | None
+
+    pair_key: str
+
+    slot: int
+
+    state: str
+    """no_outcome: none recorded yet; pending_rows: recorded, a call’s row has not landed; cost_unsettled: a hold is still reserved or ambiguous; invalid: the recorded outcome fails now that its rows landed; complete.
+
+    Known values: ``no_outcome``, ``pending_rows``, ``cost_unsettled``, ``invalid``, ``complete``.
+    """
+
+
+class ExperimentScreenEvaluationScreenVerdictInputsJudgement(BaseModel):
+    """Response shape ``ExperimentScreenEvaluationScreenVerdictInputsJudgement``."""
+
+    judge: str
+
+    judgement_hash: str
+
+    manifest_hash: str
+    """The output manifest the judge reviewed."""
+
+
+class ExperimentScreenEvaluationScreenVerdictInputsObservation(BaseModel):
+    """Response shape ``ExperimentScreenEvaluationScreenVerdictInputsObservation``."""
+
+    attribute: str
+
+    focus_value: str
+
+
+class ExperimentScreenEvaluationScreenVerdictInputsPhaseHolds(BaseModel):
+    """Response shape ``ExperimentScreenEvaluationScreenVerdictInputsPhaseHolds``."""
+
+    ambiguous: int
+
+    reserved: int
+
+
+class ExperimentScreenEvaluationScreenVerdictRule(BaseModel):
+    """The frozen rule the verdict applied."""
+
+    feature_min_margin: int
+
+    min_first_pass_rescues: int
+
+    unsupported_claim_codes: list[str]
+
+
+class ExperimentTestEvaluation(BaseModel):
+    """The test after an explicit evaluation (counts only until the verdict)."""
+
+    computed: bool
+    """True only for the ONE call that computed and stored the decision."""
+
+    experiment_id: str
+
+    experiment_state: str
+    """Known values: ``admitted``, ``refused``, ``candidate_frozen``, ``screening``, ``screen_passed``, ``screen_failed``, ``screen_incomplete``, ``awaiting_test_funding``, ``test_open``, ``test_passed``, ``test_failed``, ``test_incomplete``, ``closed``, ``expired``, ``abandoned``.
+    """
+
+    object: str
+    """Known values: ``flywheel_experiment_test_evaluation``."""
+
+    test: ExperimentTestEvaluationTest
+    """The prospective test: barrier counts (no peeking) and, once computed, the decision."""
+
+
+class ExperimentTestEvaluationTest(BaseModel):
+    """The prospective test: barrier counts (no peeking) and, once computed, the decision."""
+
+    executions: list[ExperimentScreenEvaluationScreenExecution]
+
+    manifest_committed: bool
+
+    manifest_hash: str | None
+
+    n: int
+
+    progress: ExperimentTestEvaluationTestProgress
+    """The test completion-barrier counts (no per-arm outcome before the verdict)."""
+
+    verdict: ExperimentTestEvaluationTestVerdict | None
+    """Null until the completion barrier is met and the decision is stored."""
+
+
+class ExperimentTestEvaluationTestProgress(BaseModel):
+    """The test completion-barrier counts (no per-arm outcome before the verdict)."""
+
+    cap_stopped: bool
+
+    executions_complete: int
+
+    executions_cost_unsettled: int
+
+    executions_enrolled: int
+
+    executions_incomplete: int
+
+    executions_invalid: int
+
+    executions_pending_rows: int
+
+    holds_ambiguous: int
+
+    holds_reserved: int
+
+    judgements_recorded: int
+
+    judges_required: int
+
+    n: int
+
+    outcomes_recorded: int
+
+    pairs_complete: int
+
+    pairs_total: int
+
+
+class ExperimentTestEvaluationTestVerdict(BaseModel):
+    """Null until the completion barrier is met and the decision is stored."""
+
+    candidate_hash: str
+
+    claim_text: str | None
+    """The frozen claim text (a pass only) — never more than it is licensed to say."""
+
+    created_at: str
+
+    economics: ExperimentTestEvaluationTestVerdictEconomics | None
+
+    economics_permutations: int
+
+    economics_seed: int
+
+    failing_parts: list[str]
+    """Every failing part (test_failed); empty otherwise."""
+
+    goodhart: ExperimentTestEvaluationTestVerdictGoodhart | None
+
+    incomplete_reasons: list[str]
+    """Why it can never complete (test_incomplete); else empty."""
+
+    inputs_hash: str
+
+    prereg_hash: str
+
+    primary: ExperimentTestEvaluationTestVerdictPrimary | None
+
+    progress: ExperimentTestEvaluationTestProgress
+    """The test completion-barrier counts (no per-arm outcome before the verdict)."""
+
+    quality: ExperimentTestEvaluationTestVerdictQuality | None
+
+    rule: ExperimentTestEvaluationTestVerdictRule
+
+    rule_version: str
+
+    verdict: str
+    """Known values: ``test_passed``, ``test_failed``, ``test_incomplete``."""
+
+
+class ExperimentTestEvaluationTestVerdictEconomics(BaseModel):
+    """Response shape ``ExperimentTestEvaluationTestVerdictEconomics``."""
+
+    control_cost_micro_usd: int
+
+    control_deliveries: int
+
+    inconclusive: bool
+
+    min_ratio: float
+
+    pass_: bool = Field(..., alias="pass")
+
+    permutation_p_value: float | None
+
+    permutations: int
+
+    ratio: float | None
+
+    seed: int
+
+    treated_cost_micro_usd: int
+
+    treated_deliveries: int
+
+
+class ExperimentTestEvaluationTestVerdictGoodhart(BaseModel):
+    """Response shape ``ExperimentTestEvaluationTestVerdictGoodhart``."""
+
+    arms: list[ExperimentTestEvaluationTestVerdictGoodhartArm]
+
+
+class ExperimentTestEvaluationTestVerdictGoodhartArm(BaseModel):
+    """Response shape ``ExperimentTestEvaluationTestVerdictGoodhartArm``."""
+
+    arm: str
+    """Known values: ``control``, ``treated``."""
+
+    first_draft_cited_quotes_band: dict[str, int]
+
+    first_draft_length_band: dict[str, int]
+
+    repair_count: dict[str, int]
+
+    stranger_usefulness: dict[str, int]
+
+
+class ExperimentTestEvaluationTestVerdictPrimary(BaseModel):
+    """Response shape ``ExperimentTestEvaluationTestVerdictPrimary``."""
+
+    alpha: float
+
+    control_delivered: int
+
+    losses: int
+
+    p_value: float
+
+    pairs_analysed: int
+
+    pass_: bool = Field(..., alias="pass")
+
+    treated_delivered: int
+
+    wins: int
+
+
+class ExperimentTestEvaluationTestVerdictQuality(BaseModel):
+    """Response shape ``ExperimentTestEvaluationTestVerdictQuality``."""
+
+    min_delta: float
+
+    pass_: bool = Field(..., alias="pass")
+
+    per_judge: list[ExperimentTestEvaluationTestVerdictQualityPerJudgeItem]
+
+
+class ExperimentTestEvaluationTestVerdictQualityPerJudgeItem(BaseModel):
+    """Response shape ``ExperimentTestEvaluationTestVerdictQualityPerJudgeItem``."""
+
+    clears: bool
+
+    control_deliveries: int
+
+    control_publishable: int
+
+    control_publishable_rate: float | None
+
+    delta: float | None
+
+    judge: str
+
+    recorded: bool
+
+    serious_treated_defects: int
+
+    treated_deliveries: int
+
+    treated_publishable: int
+
+    treated_publishable_rate: float | None
+
+
+class ExperimentTestEvaluationTestVerdictRule(BaseModel):
+    """Response shape ``ExperimentTestEvaluationTestVerdictRule``."""
+
+    alpha: float
+
+    economics_min_ratio: float
+
+    economics_permutations: int
+
+    economics_seed: int
+
+    n: int
+
+    quality_min_delta: float
+
+    version: str
+
+
 class ExposureGrantParams(TypedDict, total=False):
     """Mint the deterministic exposure grant for a non-proxied call (never cached)."""
 
@@ -7231,6 +7981,36 @@ for _model in (
     CandidateRolloutBlocker,
     ConfirmationList,
     Confirmation,
+    ExperimentExecution,
+    ExperimentExecutionOutcome,
+    ExperimentExecutionOutcomeCost,
+    ExperimentExecutionOutcomeOpenHold,
+    ExperimentScreenEvaluation,
+    ExperimentScreenEvaluationScreen,
+    ExperimentScreenEvaluationScreenExecution,
+    ExperimentScreenEvaluationScreenProgress,
+    ExperimentScreenEvaluationScreenVerdict,
+    ExperimentScreenEvaluationScreenVerdictClause,
+    ExperimentScreenEvaluationScreenVerdictClauseDetail,
+    ExperimentScreenEvaluationScreenVerdictClauseDetailFeature,
+    ExperimentScreenEvaluationScreenVerdictClauseDetailVerdict,
+    ExperimentScreenEvaluationScreenVerdictInputs,
+    ExperimentScreenEvaluationScreenVerdictInputsExecution,
+    ExperimentScreenEvaluationScreenVerdictInputsJudgement,
+    ExperimentScreenEvaluationScreenVerdictInputsObservation,
+    ExperimentScreenEvaluationScreenVerdictInputsPhaseHolds,
+    ExperimentScreenEvaluationScreenVerdictRule,
+    ExperimentTestEvaluation,
+    ExperimentTestEvaluationTest,
+    ExperimentTestEvaluationTestProgress,
+    ExperimentTestEvaluationTestVerdict,
+    ExperimentTestEvaluationTestVerdictEconomics,
+    ExperimentTestEvaluationTestVerdictGoodhart,
+    ExperimentTestEvaluationTestVerdictGoodhartArm,
+    ExperimentTestEvaluationTestVerdictPrimary,
+    ExperimentTestEvaluationTestVerdictQuality,
+    ExperimentTestEvaluationTestVerdictQualityPerJudgeItem,
+    ExperimentTestEvaluationTestVerdictRule,
     ExposureGrant,
     MoatNext,
     MoatNextExperiment,
@@ -7503,6 +8283,30 @@ OPERATIONS: dict[str, tuple[str, str, str | None, str | None]] = {
         "CandidateRolloutResult",
     ),
     "listConfirmations": ("GET", "/v1/flywheel/confirmations", None, "ConfirmationList"),
+    "enrolFlywheelExperimentExecution": (
+        "POST",
+        "/v1/flywheel/experiments/{id}/executions",
+        "ExperimentEnrolParams",
+        "ExperimentExecution",
+    ),
+    "recordFlywheelExperimentExecutionOutcome": (
+        "POST",
+        "/v1/flywheel/experiments/{id}/executions/{execution_id}/outcome",
+        "ExperimentOutcomeParams",
+        "ExperimentExecutionOutcome",
+    ),
+    "evaluateFlywheelExperimentScreen": (
+        "POST",
+        "/v1/flywheel/experiments/{id}/screen/evaluate",
+        None,
+        "ExperimentScreenEvaluation",
+    ),
+    "evaluateFlywheelExperimentTest": (
+        "POST",
+        "/v1/flywheel/experiments/{id}/test/evaluate",
+        None,
+        "ExperimentTestEvaluation",
+    ),
     "mintExposureGrant": ("POST", "/v1/flywheel/grants", "ExposureGrantParams", "ExposureGrant"),
     "getMoatNext": ("GET", "/v1/flywheel/moat-next", None, "MoatNext"),
     "registerOracle": (

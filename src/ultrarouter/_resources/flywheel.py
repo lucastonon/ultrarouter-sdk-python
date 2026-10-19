@@ -21,6 +21,11 @@ from ..types import (
     CandidateRolloutResult,
     ConfirmationList,
     ConfirmationStatus,
+    ExperimentExecution,
+    ExperimentExecutionOutcome,
+    ExperimentReceiptParams,
+    ExperimentScreenEvaluation,
+    ExperimentTestEvaluation,
     ExposureGrant,
     FlywheelCandidateList,
     FlywheelStatus,
@@ -49,18 +54,24 @@ from ._base import AsyncAPIResource, SyncAPIResource, build, seg
 __all__ = [
     "APPCI_SIGNATURE_HEADER",
     "APPCI_TIMESTAMP_HEADER",
+    "EXPERIMENT_EXECUTION_HEADER",
     "ORACLE_SIGNATURE_HEADER",
     "ORACLE_TIMESTAMP_HEADER",
     "AsyncCandidates",
+    "AsyncExperiments",
     "AsyncFlywheel",
     "AsyncOracles",
     "AsyncSourceChecks",
     "Candidates",
+    "Experiments",
     "Flywheel",
     "Oracles",
     "SourceChecks",
     "candidate_decision_callback_id",
 ]
+
+#: The request header every call of an enrolled execution carries (its ``execution_id``).
+EXPERIMENT_EXECUTION_HEADER = "x-ur-experiment-execution"
 
 #: Header carrying the candidate-decision signature (keyed by the API key).
 APPCI_SIGNATURE_HEADER = "x-ur-appci-signature"
@@ -77,6 +88,27 @@ _ROLLOUT_SCHEMA = "ur.flywheel.rollout.request.v1"
 Decision = Literal["accept", "reject", "revert"]
 Surface = Literal["pull_request", "dashboard", "cli"]
 OracleKind = Literal["label_set", "schema_rules", "test_endpoint", "reconciliation", "customer_ci"]
+ExperimentPhase = Literal["screen", "test"]
+ExperimentTerminal = Literal["delivered", "held"]
+
+
+def _experiment_outcome_body(
+    *,
+    terminal: ExperimentTerminal,
+    reason_codes: Sequence[str],
+    reason_vocab: str,
+    receipts: Sequence[ExperimentReceiptParams | Mapping[str, Any]],
+    final_content_hash: str,
+    request_ids: Sequence[str],
+) -> dict[str, Any]:
+    return {
+        "terminal": terminal,
+        "reason_codes": list(reason_codes),
+        "reason_vocab": reason_vocab,
+        "receipts": [dict(r) for r in receipts],
+        "final_content_hash": final_content_hash,
+        "request_ids": list(request_ids),
+    }
 
 
 def candidate_decision_callback_id(
@@ -449,6 +481,135 @@ class SourceChecks(SyncAPIResource):
         )
 
 
+class Experiments(SyncAPIResource):
+    """``client.flywheel.experiments``: the bounded-experiment RUN surface.
+
+    For a runner holding a key with the ``flywheel:experiment:run`` scope (never implied by
+    ``gateway:invoke``). Enrol each execution before its first call, send the returned
+    ``execution_id`` as the :data:`EXPERIMENT_EXECUTION_HEADER` header on every call of the run
+    (``POST /v1/messages``, ``POST /v1/responses``), then record its one terminal outcome (dry-run
+    it first) and ask for the screen or test evaluation. The owner-session operations (holds,
+    reconcile, judgements, acknowledge, test fund / manifest) are not on an API key, so they are
+    not mapped here.
+    """
+
+    def enrol(
+        self,
+        experiment_id: str,
+        *,
+        phase: ExperimentPhase,
+        pair_key: str,
+        slot: int,
+        options: RequestOptions | None = None,
+    ) -> ExperimentExecution:
+        """Enrol one execution slot of a candidate-frozen experiment (the gateway decides the arm).
+
+        The gateway — never the caller — picks the arm from its sealed assignment. A repeat of the
+        same ``{phase, pair_key, slot}`` returns the same execution (``created=False``), so a resume
+        re-enrols the identical tuple safely; never change the slot to work around a failure. The
+        client's standard retry (retryable statuses only, one idempotency key across attempts) is
+        therefore safe here: the gateway, not the SDK, makes enrolment idempotent.
+
+        Args:
+            experiment_id: The experiment id.
+            phase: ``screen`` or ``test``.
+            pair_key: The pair (one idea family frozen in the preregistration split).
+            slot: The pair's slot, ``0`` or ``1`` (anything else is refused ``slot_invalid``).
+            options: Per-call request options.
+        """
+        body = {"phase": phase, "pair_key": pair_key, "slot": slot}
+        return self._client.request_model(
+            build(
+                "POST",
+                f"/v1/flywheel/experiments/{seg(experiment_id)}/executions",
+                body=body,
+                options=options,
+            ),
+            ExperimentExecution,
+        )
+
+    def outcome(
+        self,
+        experiment_id: str,
+        execution_id: str,
+        *,
+        terminal: ExperimentTerminal,
+        reason_codes: Sequence[str],
+        reason_vocab: str,
+        receipts: Sequence[ExperimentReceiptParams | Mapping[str, Any]],
+        final_content_hash: str,
+        request_ids: Sequence[str],
+        dry_run: bool = False,
+        options: RequestOptions | None = None,
+    ) -> ExperimentExecutionOutcome:
+        """Record the one terminal outcome of an enrolled execution (ids, hashes and numbers only).
+
+        Idempotent on the execution. With ``dry_run=True`` the same validation runs against the
+        current rows and holds and the answer is returned with NOTHING written. The two responses
+        are one model: ``object`` discriminates a recorded outcome
+        (``flywheel_experiment_execution_outcome``, with ``cost``, ``created`` and
+        ``experiment_state``) from a dry run (``flywheel_experiment_execution_outcome_dry_run``,
+        with ``refusal``, ``recorded_outcome``, ``unlisted_request_ids`` and ``open_holds``);
+        ``status`` is ``refused`` only on a dry run that names its ``refusal``.
+
+        Args:
+            experiment_id: The experiment id.
+            execution_id: The enrolled execution id.
+            terminal: ``delivered`` or ``held``.
+            reason_codes: The typed reason codes (empty for a clean delivery).
+            reason_vocab: The reason vocabulary id — must be the frozen verifier's.
+            receipts: One body-free receipt per member call.
+            final_content_hash: The hash of the final content.
+            request_ids: Every gateway request id the execution made.
+            dry_run: Validate only; send ``?dry_run=true`` and write nothing.
+            options: Per-call request options.
+        """
+        body = _experiment_outcome_body(
+            terminal=terminal,
+            reason_codes=reason_codes,
+            reason_vocab=reason_vocab,
+            receipts=receipts,
+            final_content_hash=final_content_hash,
+            request_ids=request_ids,
+        )
+        return self._client.request_model(
+            build(
+                "POST",
+                f"/v1/flywheel/experiments/{seg(experiment_id)}/executions/{seg(execution_id)}/outcome",
+                query={"dry_run": True} if dry_run else None,
+                body=body,
+                options=options,
+            ),
+            ExperimentExecutionOutcome,
+        )
+
+    def evaluate_screen(
+        self, experiment_id: str, *, options: RequestOptions | None = None
+    ) -> ExperimentScreenEvaluation:
+        """Evaluate the screen explicitly (idempotent): counts first, then the verdict."""
+        return self._client.request_model(
+            build(
+                "POST",
+                f"/v1/flywheel/experiments/{seg(experiment_id)}/screen/evaluate",
+                options=options,
+            ),
+            ExperimentScreenEvaluation,
+        )
+
+    def evaluate_test(
+        self, experiment_id: str, *, options: RequestOptions | None = None
+    ) -> ExperimentTestEvaluation:
+        """Evaluate the test explicitly (idempotent): counts first, then the decision."""
+        return self._client.request_model(
+            build(
+                "POST",
+                f"/v1/flywheel/experiments/{seg(experiment_id)}/test/evaluate",
+                options=options,
+            ),
+            ExperimentTestEvaluation,
+        )
+
+
 class Flywheel(SyncAPIResource):
     """``client.flywheel``: the learning loop built on your outcomes."""
 
@@ -460,6 +621,8 @@ class Flywheel(SyncAPIResource):
         """Your registered checks."""
         self.source_checks = SourceChecks(client)
         """Verdict-source qualification checks."""
+        self.experiments = Experiments(client)
+        """The bounded-experiment run surface."""
 
     def status(self, *, options: RequestOptions | None = None) -> FlywheelStatus:
         """Usage, channel health, imports and the learning block (``GET /v1/flywheel/status``)."""
@@ -776,6 +939,91 @@ class AsyncSourceChecks(AsyncAPIResource):
         )
 
 
+class AsyncExperiments(AsyncAPIResource):
+    """``client.flywheel.experiments`` on the async client; see :class:`Experiments`."""
+
+    async def enrol(
+        self,
+        experiment_id: str,
+        *,
+        phase: ExperimentPhase,
+        pair_key: str,
+        slot: int,
+        options: RequestOptions | None = None,
+    ) -> ExperimentExecution:
+        """Enrol one execution slot; async twin of :meth:`Experiments.enrol`."""
+        body = {"phase": phase, "pair_key": pair_key, "slot": slot}
+        return await self._client.request_model(
+            build(
+                "POST",
+                f"/v1/flywheel/experiments/{seg(experiment_id)}/executions",
+                body=body,
+                options=options,
+            ),
+            ExperimentExecution,
+        )
+
+    async def outcome(
+        self,
+        experiment_id: str,
+        execution_id: str,
+        *,
+        terminal: ExperimentTerminal,
+        reason_codes: Sequence[str],
+        reason_vocab: str,
+        receipts: Sequence[ExperimentReceiptParams | Mapping[str, Any]],
+        final_content_hash: str,
+        request_ids: Sequence[str],
+        dry_run: bool = False,
+        options: RequestOptions | None = None,
+    ) -> ExperimentExecutionOutcome:
+        """Record the terminal outcome; async twin of :meth:`Experiments.outcome`."""
+        body = _experiment_outcome_body(
+            terminal=terminal,
+            reason_codes=reason_codes,
+            reason_vocab=reason_vocab,
+            receipts=receipts,
+            final_content_hash=final_content_hash,
+            request_ids=request_ids,
+        )
+        return await self._client.request_model(
+            build(
+                "POST",
+                f"/v1/flywheel/experiments/{seg(experiment_id)}/executions/{seg(execution_id)}/outcome",
+                query={"dry_run": True} if dry_run else None,
+                body=body,
+                options=options,
+            ),
+            ExperimentExecutionOutcome,
+        )
+
+    async def evaluate_screen(
+        self, experiment_id: str, *, options: RequestOptions | None = None
+    ) -> ExperimentScreenEvaluation:
+        """Evaluate the screen; async twin of :meth:`Experiments.evaluate_screen`."""
+        return await self._client.request_model(
+            build(
+                "POST",
+                f"/v1/flywheel/experiments/{seg(experiment_id)}/screen/evaluate",
+                options=options,
+            ),
+            ExperimentScreenEvaluation,
+        )
+
+    async def evaluate_test(
+        self, experiment_id: str, *, options: RequestOptions | None = None
+    ) -> ExperimentTestEvaluation:
+        """Evaluate the prospective test; async twin of :meth:`Experiments.evaluate_test`."""
+        return await self._client.request_model(
+            build(
+                "POST",
+                f"/v1/flywheel/experiments/{seg(experiment_id)}/test/evaluate",
+                options=options,
+            ),
+            ExperimentTestEvaluation,
+        )
+
+
 class AsyncFlywheel(AsyncAPIResource):
     """``client.flywheel`` on :class:`~ultrarouter.AsyncUltraRouter`."""
 
@@ -787,6 +1035,8 @@ class AsyncFlywheel(AsyncAPIResource):
         """Your registered checks."""
         self.source_checks = AsyncSourceChecks(client)
         """Verdict-source qualification checks."""
+        self.experiments = AsyncExperiments(client)
+        """The bounded-experiment run surface."""
 
     async def status(self, *, options: RequestOptions | None = None) -> FlywheelStatus:
         """Flywheel status; async twin of :meth:`Flywheel.status`."""

@@ -49,6 +49,10 @@ gateway and validate the request body against the specification
 | `POST /v1/flywheel/candidates/{ref}/decisions` | `recordCandidateDecision` | `client.flywheel.candidates.decide(...)` | `await client.flywheel.candidates.decide(...)` | `test_operation_sync[recordCandidateDecision]`, `test_operation_async[recordCandidateDecision]` |
 | `POST /v1/flywheel/candidates/{ref}/rollout` | `evaluateCandidateRollout` | `client.flywheel.candidates.rollout(...)` | `await client.flywheel.candidates.rollout(...)` | `test_operation_sync[evaluateCandidateRollout]`, `test_operation_async[evaluateCandidateRollout]` |
 | `GET /v1/flywheel/confirmations` | `listConfirmations` | `client.flywheel.confirmations(...)` | `await client.flywheel.confirmations(...)` | `test_operation_sync[listConfirmations]`, `test_operation_async[listConfirmations]` |
+| `POST /v1/flywheel/experiments/{id}/executions` | `enrolFlywheelExperimentExecution` | `client.flywheel.experiments.enrol(...)` | `await client.flywheel.experiments.enrol(...)` | `test_operation_sync[enrolFlywheelExperimentExecution]`, `test_operation_async[enrolFlywheelExperimentExecution]` |
+| `POST /v1/flywheel/experiments/{id}/executions/{execution_id}/outcome` | `recordFlywheelExperimentExecutionOutcome` | `client.flywheel.experiments.outcome(...)` | `await client.flywheel.experiments.outcome(...)` | `test_operation_sync[recordFlywheelExperimentExecutionOutcome]`, `test_operation_async[recordFlywheelExperimentExecutionOutcome]` |
+| `POST /v1/flywheel/experiments/{id}/screen/evaluate` | `evaluateFlywheelExperimentScreen` | `client.flywheel.experiments.evaluate_screen(...)` | `await client.flywheel.experiments.evaluate_screen(...)` | `test_operation_sync[evaluateFlywheelExperimentScreen]`, `test_operation_async[evaluateFlywheelExperimentScreen]` |
+| `POST /v1/flywheel/experiments/{id}/test/evaluate` | `evaluateFlywheelExperimentTest` | `client.flywheel.experiments.evaluate_test(...)` | `await client.flywheel.experiments.evaluate_test(...)` | `test_operation_sync[evaluateFlywheelExperimentTest]`, `test_operation_async[evaluateFlywheelExperimentTest]` |
 | `POST /v1/flywheel/grants` | `mintExposureGrant` | `client.flywheel.grant(...)` | `await client.flywheel.grant(...)` | `test_operation_sync[mintExposureGrant]`, `test_operation_async[mintExposureGrant]` |
 | `GET /v1/flywheel/moat-next` | `getMoatNext` | `client.flywheel.moat_next(...)` | `await client.flywheel.moat_next(...)` | `test_operation_sync[getMoatNext]`, `test_operation_async[getMoatNext]` |
 | `POST /v1/flywheel/oracles` | `registerOracle` | `client.flywheel.oracles.register(...)` | `await client.flywheel.oracles.register(...)` | `test_operation_sync[registerOracle]`, `test_operation_async[registerOracle]` |
@@ -92,14 +96,6 @@ gateway and validate the request body against the specification
 | Endpoint | Operation | Reason |
 | --- | --- | --- |
 | `GET /v1/echo` | `echo` | Diagnostic auth echo; client.key.get() verifies a key and returns more. |
-| `POST /v1/flywheel/experiments/{id}/executions` | `enrolFlywheelExperimentExecution` | Bounded-experiment run surface; the prospective-test phase is still being added. The run
-methods (enrol, outcome with its dry run, evaluate) ship together once it is complete. |
-| `POST /v1/flywheel/experiments/{id}/screen/evaluate` | `evaluateFlywheelExperimentScreen` | Bounded-experiment run surface; the prospective-test phase is still being added. The run
-methods (enrol, outcome with its dry run, evaluate) ship together once it is complete. |
-| `POST /v1/flywheel/experiments/{id}/test/evaluate` | `evaluateFlywheelExperimentTest` | Bounded-experiment run surface; the prospective-test phase is still being added. The run
-methods (enrol, outcome with its dry run, evaluate) ship together once it is complete. |
-| `POST /v1/flywheel/experiments/{id}/executions/{execution_id}/outcome` | `recordFlywheelExperimentExecutionOutcome` | Bounded-experiment run surface; the prospective-test phase is still being added. The run
-methods (enrol, outcome with its dry run, evaluate) ship together once it is complete. |
 
 ## Endpoints that do not accept an API key
 

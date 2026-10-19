@@ -50,22 +50,6 @@ HTTP_METHODS = ("get", "post", "put", "patch", "delete")
 #: (also rendered into docs/api-coverage.md by scripts/gen_coverage.py).
 EXCLUDED_OPERATIONS: dict[str, str] = {
     "echo": "Diagnostic auth echo; use client.key.retrieve() to check a key.",
-    "enrolFlywheelExperimentExecution": (
-        "Bounded-experiment run surface; the prospective-test phase is still being added. The run "
-        "methods (enrol, outcome with its dry run, evaluate) ship together once it is complete."
-    ),
-    "recordFlywheelExperimentExecutionOutcome": (
-        "Bounded-experiment run surface; the prospective-test phase is still being added. The run "
-        "methods (enrol, outcome with its dry run, evaluate) ship together once it is complete."
-    ),
-    "evaluateFlywheelExperimentScreen": (
-        "Bounded-experiment run surface; the prospective-test phase is still being added. The run "
-        "methods (enrol, outcome with its dry run, evaluate) ship together once it is complete."
-    ),
-    "evaluateFlywheelExperimentTest": (
-        "Bounded-experiment run surface; the prospective-test phase is still being added. The run "
-        "methods (enrol, outcome with its dry run, evaluate) ship together once it is complete."
-    ),
 }
 
 #: Public names for component schemas (component name -> class name). Unlisted components keep
@@ -162,6 +146,10 @@ RESPONSE_NAMES: dict[str, str] = {
     "issueVerdictSourceCheck": "VerdictSourceCheck",
     "gradeVerdictSourceCheck": "VerdictSourceCheckResult",
     "listVerdictSources": "VerdictSourceList",
+    "enrolFlywheelExperimentExecution": "ExperimentExecution",
+    "recordFlywheelExperimentExecutionOutcome": "ExperimentExecutionOutcome",
+    "evaluateFlywheelExperimentScreen": "ExperimentScreenEvaluation",
+    "evaluateFlywheelExperimentTest": "ExperimentTestEvaluation",
 }
 
 #: Names for inline (non-component) request bodies, keyed by operationId.
@@ -180,6 +168,8 @@ PARAMS_NAMES: dict[str, str] = {
     "submitOracleVerdicts": "OracleVerdictsParams",
     "issueVerdictSourceCheck": "VerdictSourceCheckParams",
     "gradeVerdictSourceCheck": "VerdictSourceGradeParams",
+    "enrolFlywheelExperimentExecution": "ExperimentEnrolParams",
+    "recordFlywheelExperimentExecutionOutcome": "ExperimentOutcomeParams",
 }
 
 #: Renames for automatically-derived nested class names (auto name -> public name).
@@ -265,6 +255,7 @@ NESTED_NAMES: dict[str, str] = {
     "VerdictSourceCheckProbe": "VerdictSourceProbe",
     "VerdictSourceGradeParamsVerdict": "VerdictSourceVerdictParams",
     "VerdictSourceListItem": "VerdictSource",
+    "ExperimentOutcomeParamsReceipt": "ExperimentReceiptParams",
 }
 
 #: Response models whose name ends up used by several operations are generated once.

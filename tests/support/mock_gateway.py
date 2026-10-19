@@ -759,7 +759,8 @@ class Handler(BaseHTTPRequestHandler):
                     break
             else:
                 return None
-        status, payload = _error(code, f"scripted failure ({code})", status)
+        message = failure.get("message") or f"scripted failure ({code})"
+        status, payload = _error(code, str(message), status)
         headers = {"retry-after": str(failure["retry_after"])} if "retry_after" in failure else {}
         return status, payload, headers
 
@@ -837,6 +838,27 @@ class Handler(BaseHTTPRequestHandler):
         if op_id == "getBenchRunReport" and query.get("format") in ("md", "bundle"):
             text = "# Bench report\n\nMock report for " + unquote(params[0]) + "\n"
             return 200, text, {"content-type": "text/markdown; charset=utf-8"}
+        if op_id == "recordFlywheelExperimentExecutionOutcome" and query.get("dry_run") == "true":
+            # The generic sampler always picks the first oneOf branch (the recorded shape); answer
+            # the dry-run branch explicitly so the ?dry_run=true path is exercised end to end.
+            return (
+                200,
+                {
+                    "object": "flywheel_experiment_execution_outcome_dry_run",
+                    "experiment_id": unquote(params[0]),
+                    "execution_id": unquote(params[1]),
+                    "status": "complete",
+                    "refusal": None,
+                    "detail": None,
+                    "recorded_outcome": "none",
+                    "outcome_hash": "0" * 64,
+                    "trusted_recorded": [],
+                    "missing_request_ids": [],
+                    "unlisted_request_ids": [],
+                    "open_holds": [],
+                },
+                {},
+            )
         status, payload = _synthesize(op, params)
         self._shape(op_id, payload, params, body)
         return status, payload, {}

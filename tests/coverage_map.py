@@ -162,6 +162,18 @@ COVERAGE: dict[str, str] = {
     "listLearningPlans": "client.flywheel.plans()",
     "listPromptCandidates": "client.flywheel.prompt_candidates()",
     "listVerdictSources": "client.flywheel.sources()",
+    "enrolFlywheelExperimentExecution": (
+        'client.flywheel.experiments.enrol("fxp_1", phase="screen", pair_key="idea-a", slot=0)'
+    ),
+    "recordFlywheelExperimentExecutionOutcome": (
+        'client.flywheel.experiments.outcome("fxp_1", "fxe_1", terminal="delivered", '
+        'reason_codes=[], reason_vocab="ur.experiment.reasons.v1", receipts=[{"ordinal": 0, '
+        '"stage": "writer", "call_type": "support-reply", "request_id": "req_1", '
+        '"extractor_version": "ex.v1", "numbers": {"post_length": 280}}], '
+        'final_content_hash="0" * 64, request_ids=["req_1"])'
+    ),
+    "evaluateFlywheelExperimentScreen": 'client.flywheel.experiments.evaluate_screen("fxp_1")',
+    "evaluateFlywheelExperimentTest": 'client.flywheel.experiments.evaluate_test("fxp_1")',
     "issueVerdictSourceCheck": 'client.flywheel.source_checks.issue(call_type_id="ct_123")',
     "gradeVerdictSourceCheck": (
         'client.flywheel.source_checks.grade("vsc_123", verdicts=[{"probe_id": "p1", '
@@ -199,20 +211,4 @@ COVERAGE: dict[str, str] = {
 #: Operations reachable with an API key that the SDK deliberately does not wrap.
 EXCLUDED: dict[str, str] = {
     "echo": "Diagnostic auth echo; client.key.get() verifies a key and returns more.",
-    "enrolFlywheelExperimentExecution": (
-        "Bounded-experiment run surface; the prospective-test phase is still being added. The run\n"
-        "methods (enrol, outcome with its dry run, evaluate) ship together once it is complete."
-    ),
-    "recordFlywheelExperimentExecutionOutcome": (
-        "Bounded-experiment run surface; the prospective-test phase is still being added. The run\n"
-        "methods (enrol, outcome with its dry run, evaluate) ship together once it is complete."
-    ),
-    "evaluateFlywheelExperimentScreen": (
-        "Bounded-experiment run surface; the prospective-test phase is still being added. The run\n"
-        "methods (enrol, outcome with its dry run, evaluate) ship together once it is complete."
-    ),
-    "evaluateFlywheelExperimentTest": (
-        "Bounded-experiment run surface; the prospective-test phase is still being added. The run\n"
-        "methods (enrol, outcome with its dry run, evaluate) ship together once it is complete."
-    ),
 }
