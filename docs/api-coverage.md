@@ -126,6 +126,7 @@ an API-key SDK cannot call them:
 - `POST /v1/flywheel/oracles/{id}/rotate-secret` (`rotateOracleSecret`)
 - `POST /v1/flywheel/plan/{id}/confirm` (`confirmLearningPlan`)
 - `POST /v1/flywheel/plan/{id}/review` (`reviewLearningPlan`)
+- `POST /v1/flywheel/plans` (`proposeLearningPlan`)
 - `POST /v1/flywheel/prompt-candidates/{runId}/decision` (`decidePromptCandidate`)
 - `POST /v1/flywheel/source-audits` (`openVerdictSourceAudit`)
 - `POST /v1/flywheel/source-audits/{id}/grade` (`gradeVerdictSourceAudit`)
