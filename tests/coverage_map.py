@@ -199,4 +199,8 @@ COVERAGE: dict[str, str] = {
 #: Operations reachable with an API key that the SDK deliberately does not wrap.
 EXCLUDED: dict[str, str] = {
     "echo": "Diagnostic auth echo; client.key.get() verifies a key and returns more.",
+    "enrolFlywheelExperimentExecution": (
+        "Bounded-experiment run surface; its outcome route is not in the spec yet. The run methods ship\n"
+        "together once both operations exist."
+    ),
 }

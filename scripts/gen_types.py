@@ -50,6 +50,10 @@ HTTP_METHODS = ("get", "post", "put", "patch", "delete")
 #: (also rendered into docs/api-coverage.md by scripts/gen_coverage.py).
 EXCLUDED_OPERATIONS: dict[str, str] = {
     "echo": "Diagnostic auth echo; use client.key.retrieve() to check a key.",
+    "enrolFlywheelExperimentExecution": (
+        "Bounded-experiment run surface; its outcome route is not in the spec yet. The run methods ship "
+        "together once both operations exist."
+    ),
 }
 
 #: Public names for component schemas (component name -> class name). Unlisted components keep

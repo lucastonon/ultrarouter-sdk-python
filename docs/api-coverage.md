@@ -2,7 +2,7 @@
 
 # API coverage
 
-Every endpoint in `openapi/openapi.yaml` that accepts an API key (78 operations):
+Every endpoint in `openapi/openapi.yaml` that accepts an API key (79 operations):
 the SDK method that calls it, sync and async, and the tests that call it against the mock
 gateway and validate the request body against the specification
 (`tests/test_api_coverage.py`).
@@ -92,6 +92,8 @@ gateway and validate the request body against the specification
 | Endpoint | Operation | Reason |
 | --- | --- | --- |
 | `GET /v1/echo` | `echo` | Diagnostic auth echo; client.key.get() verifies a key and returns more. |
+| `POST /v1/flywheel/experiments/{id}/executions` | `enrolFlywheelExperimentExecution` | Bounded-experiment run surface; its outcome route is not in the spec yet. The run methods ship
+together once both operations exist. |
 
 ## Endpoints that do not accept an API key
 
@@ -110,6 +112,7 @@ an API-key SDK cannot call them:
 - `GET /v1/flywheel/experiments/{id}` (`getFlywheelExperiment`)
 - `POST /v1/flywheel/experiments/{id}/abandon` (`abandonFlywheelExperiment`)
 - `POST /v1/flywheel/experiments/{id}/admit` (`admitFlywheelExperiment`)
+- `POST /v1/flywheel/experiments/{id}/produce` (`produceFlywheelExperimentCandidate`)
 - `GET /v1/flywheel/knowledge/export` (`exportKnowledgeBundle`)
 - `POST /v1/flywheel/oracles/{id}/rotate-secret` (`rotateOracleSecret`)
 - `POST /v1/flywheel/plan/{id}/confirm` (`confirmLearningPlan`)
