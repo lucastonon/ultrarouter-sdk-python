@@ -200,11 +200,15 @@ COVERAGE: dict[str, str] = {
 EXCLUDED: dict[str, str] = {
     "echo": "Diagnostic auth echo; client.key.get() verifies a key and returns more.",
     "enrolFlywheelExperimentExecution": (
-        "Bounded-experiment run surface; the screen evaluation and the outcome dry run are still being\n"
-        "added. The run methods ship together once the surface is complete."
+        "Bounded-experiment run surface; the prospective-test phase is still being added. The run\n"
+        "methods (enrol, outcome with its dry run, evaluate) ship together once it is complete."
     ),
     "recordFlywheelExperimentExecutionOutcome": (
-        "Bounded-experiment run surface; the screen evaluation and the outcome dry run are still being\n"
-        "added. The run methods ship together once the surface is complete."
+        "Bounded-experiment run surface; the prospective-test phase is still being added. The run\n"
+        "methods (enrol, outcome with its dry run, evaluate) ship together once it is complete."
+    ),
+    "evaluateFlywheelExperimentScreen": (
+        "Bounded-experiment run surface; the prospective-test phase is still being added. The run\n"
+        "methods (enrol, outcome with its dry run, evaluate) ship together once it is complete."
     ),
 }

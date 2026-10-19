@@ -2,7 +2,7 @@
 
 # API coverage
 
-Every endpoint in `openapi/openapi.yaml` that accepts an API key (80 operations):
+Every endpoint in `openapi/openapi.yaml` that accepts an API key (81 operations):
 the SDK method that calls it, sync and async, and the tests that call it against the mock
 gateway and validate the request body against the specification
 (`tests/test_api_coverage.py`).
@@ -92,10 +92,12 @@ gateway and validate the request body against the specification
 | Endpoint | Operation | Reason |
 | --- | --- | --- |
 | `GET /v1/echo` | `echo` | Diagnostic auth echo; client.key.get() verifies a key and returns more. |
-| `POST /v1/flywheel/experiments/{id}/executions` | `enrolFlywheelExperimentExecution` | Bounded-experiment run surface; the screen evaluation and the outcome dry run are still being
-added. The run methods ship together once the surface is complete. |
-| `POST /v1/flywheel/experiments/{id}/executions/{execution_id}/outcome` | `recordFlywheelExperimentExecutionOutcome` | Bounded-experiment run surface; the screen evaluation and the outcome dry run are still being
-added. The run methods ship together once the surface is complete. |
+| `POST /v1/flywheel/experiments/{id}/executions` | `enrolFlywheelExperimentExecution` | Bounded-experiment run surface; the prospective-test phase is still being added. The run
+methods (enrol, outcome with its dry run, evaluate) ship together once it is complete. |
+| `POST /v1/flywheel/experiments/{id}/screen/evaluate` | `evaluateFlywheelExperimentScreen` | Bounded-experiment run surface; the prospective-test phase is still being added. The run
+methods (enrol, outcome with its dry run, evaluate) ship together once it is complete. |
+| `POST /v1/flywheel/experiments/{id}/executions/{execution_id}/outcome` | `recordFlywheelExperimentExecutionOutcome` | Bounded-experiment run surface; the prospective-test phase is still being added. The run
+methods (enrol, outcome with its dry run, evaluate) ship together once it is complete. |
 
 ## Endpoints that do not accept an API key
 
@@ -114,6 +116,8 @@ an API-key SDK cannot call them:
 - `GET /v1/flywheel/experiments/{id}` (`getFlywheelExperiment`)
 - `POST /v1/flywheel/experiments/{id}/abandon` (`abandonFlywheelExperiment`)
 - `POST /v1/flywheel/experiments/{id}/admit` (`admitFlywheelExperiment`)
+- `GET /v1/flywheel/experiments/{id}/holds` (`listFlywheelExperimentHolds`)
+- `POST /v1/flywheel/experiments/{id}/holds/reconcile` (`reconcileFlywheelExperimentHold`)
 - `POST /v1/flywheel/experiments/{id}/produce` (`produceFlywheelExperimentCandidate`)
 - `POST /v1/flywheel/experiments/{id}/screen/acknowledge` (`acknowledgeFlywheelExperimentScreen`)
 - `POST /v1/flywheel/experiments/{id}/screen/judgements` (`recordFlywheelExperimentScreenJudgement`)
