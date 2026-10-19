@@ -62,6 +62,10 @@ EXCLUDED_OPERATIONS: dict[str, str] = {
         "Bounded-experiment run surface; the prospective-test phase is still being added. The run "
         "methods (enrol, outcome with its dry run, evaluate) ship together once it is complete."
     ),
+    "evaluateFlywheelExperimentTest": (
+        "Bounded-experiment run surface; the prospective-test phase is still being added. The run "
+        "methods (enrol, outcome with its dry run, evaluate) ship together once it is complete."
+    ),
 }
 
 #: Public names for component schemas (component name -> class name). Unlisted components keep

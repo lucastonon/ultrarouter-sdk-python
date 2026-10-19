@@ -211,4 +211,8 @@ EXCLUDED: dict[str, str] = {
         "Bounded-experiment run surface; the prospective-test phase is still being added. The run\n"
         "methods (enrol, outcome with its dry run, evaluate) ship together once it is complete."
     ),
+    "evaluateFlywheelExperimentTest": (
+        "Bounded-experiment run surface; the prospective-test phase is still being added. The run\n"
+        "methods (enrol, outcome with its dry run, evaluate) ship together once it is complete."
+    ),
 }
