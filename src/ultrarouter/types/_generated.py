@@ -4301,7 +4301,7 @@ class MoatNextExperiment(BaseModel):
     """The atomic per-call reservation ledger: the experiment total + each phase (micro-USD)."""
 
     state: str
-    """Known values: ``admitted``, ``refused``, ``candidate_frozen``, ``screening``, ``closed``, ``expired``, ``abandoned``.
+    """Known values: ``admitted``, ``refused``, ``candidate_frozen``, ``screening``, ``screen_passed``, ``screen_failed``, ``screen_incomplete``, ``awaiting_test_funding``, ``closed``, ``expired``, ``abandoned``.
     """
 
     verifier_version: str

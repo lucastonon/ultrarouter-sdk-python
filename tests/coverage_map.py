@@ -200,7 +200,11 @@ COVERAGE: dict[str, str] = {
 EXCLUDED: dict[str, str] = {
     "echo": "Diagnostic auth echo; client.key.get() verifies a key and returns more.",
     "enrolFlywheelExperimentExecution": (
-        "Bounded-experiment run surface; its outcome route is not in the spec yet. The run methods ship\n"
-        "together once both operations exist."
+        "Bounded-experiment run surface; the screen evaluation and the outcome dry run are still being\n"
+        "added. The run methods ship together once the surface is complete."
+    ),
+    "recordFlywheelExperimentExecutionOutcome": (
+        "Bounded-experiment run surface; the screen evaluation and the outcome dry run are still being\n"
+        "added. The run methods ship together once the surface is complete."
     ),
 }

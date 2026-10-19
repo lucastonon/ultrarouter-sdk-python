@@ -51,8 +51,12 @@ HTTP_METHODS = ("get", "post", "put", "patch", "delete")
 EXCLUDED_OPERATIONS: dict[str, str] = {
     "echo": "Diagnostic auth echo; use client.key.retrieve() to check a key.",
     "enrolFlywheelExperimentExecution": (
-        "Bounded-experiment run surface; its outcome route is not in the spec yet. The run methods ship "
-        "together once both operations exist."
+        "Bounded-experiment run surface; the screen evaluation and the outcome dry run are still being "
+        "added. The run methods ship together once the surface is complete."
+    ),
+    "recordFlywheelExperimentExecutionOutcome": (
+        "Bounded-experiment run surface; the screen evaluation and the outcome dry run are still being "
+        "added. The run methods ship together once the surface is complete."
     ),
 }
 

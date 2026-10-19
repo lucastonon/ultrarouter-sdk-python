@@ -3089,7 +3089,7 @@ The current bounded experiment, or null — benchmarkable is always false.
 | `id` | `str` | yes |  |
 | `prereg_hash` | `str` | yes |  |
 | `reservations` | `MoatNextExperimentReservations \| None` | no | The atomic per-call reservation ledger: the experiment total + each phase (micro-USD). |
-| `state` | `str` | yes | Known values: ``admitted``, ``refused``, ``candidate_frozen``, ``screening``, ``closed``, ``expired``, ``abandoned``. |
+| `state` | `str` | yes | Known values: ``admitted``, ``refused``, ``candidate_frozen``, ``screening``, ``screen_passed``, ``screen_failed``, ``screen_incomplete``, ``awaiting_test_funding``, ``closed``, ``expired``, ``abandoned``. |
 | `verifier_version` | `str` | yes |  |
 
 ### MoatNextExperimentAdmission
