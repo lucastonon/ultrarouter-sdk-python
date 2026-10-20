@@ -57,7 +57,8 @@ MOCK_LOG="$(mktemp)"
 MOCK_PID=$!
 disown "$MOCK_PID"
 trap 'kill "$MOCK_PID" 2>/dev/null || true; rm -f "$MOCK_LOG"' EXIT
-for _ in $(seq 1 50); do
+# Up to 30 s: on a saturated host the interpreter start alone exceeded the old 5 s window (2026-10-20).
+for _ in $(seq 1 300); do
   [[ -s "$MOCK_LOG" ]] && break
   sleep 0.1
 done
