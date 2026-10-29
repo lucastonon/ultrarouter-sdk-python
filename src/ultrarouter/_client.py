@@ -65,6 +65,7 @@ from ._resources.embeddings import (
     Models,
 )
 from ._resources.flywheel import AsyncFlywheel, Flywheel
+from ._resources.knowledge import AsyncKnowledge, Knowledge
 from ._resources.learning import AsyncLearning, Learning
 from ._resources.ledger import (
     Archetype,
@@ -307,6 +308,8 @@ class UltraRouter(SyncAPIClient):
         """Status, grants, candidates, oracles, plans and verdict sources."""
         self.reviewer = Reviewer(self)
         """Signed reviewer decisions."""
+        self.knowledge = Knowledge(self)
+        """Read-only stored lessons and safe fact summaries."""
         self.learning = Learning(self)
         """Per-call-type learning: status, enable/pause/resume/disable, versions, evaluations."""
 
@@ -820,6 +823,8 @@ class AsyncUltraRouter(AsyncAPIClient):
         """Status, grants, candidates, oracles, plans and verdict sources."""
         self.reviewer = AsyncReviewer(self)
         """Signed reviewer decisions."""
+        self.knowledge = AsyncKnowledge(self)
+        """Read-only stored lessons and safe fact summaries."""
         self.learning = AsyncLearning(self)
         """Per-call-type learning: status, enable/pause/resume/disable, versions, evaluations."""
 

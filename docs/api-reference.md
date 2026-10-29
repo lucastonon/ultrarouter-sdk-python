@@ -1964,6 +1964,43 @@ client.reviewer.health(*, options: RequestOptions | None = None) -> ReviewerHeal
 
 Integration health: event counts, dead letters, backfills and the next repair action.
 
+### client.knowledge
+
+Browse/search stored lessons and safe fact summaries with config:read or config:write.
+
+#### client.knowledge.list
+
+```python
+client.knowledge.list(
+    *,
+    q: str | None = None,
+    kind: Literal['lesson', 'fact'] | None = None,
+    call_type_id: str | None = None,
+    version_id: str | None = None,
+    include_history: bool | None = None,
+    limit: int | None = None,
+    cursor: str | None = None,
+    options: RequestOptions | None = None,
+) -> CompanyKnowledgeList
+```
+
+Read one bounded page; omit q to browse and pass next_cursor with the same filters.
+
+Current items can include candidates; active is separate. Raw source transcripts are
+excluded. The gateway applies consent and workspace permissions to every request.
+
+#### client.knowledge.get
+
+```python
+client.knowledge.get(
+    item_id: str,
+    *,
+    options: RequestOptions | None = None,
+) -> CompanyKnowledgeDetail
+```
+
+Read a namespaced id from list(); reserved export and malformed ids are refused.
+
 ### client.learning
 
 `client.learning`: inspect and control learning for one call type at a time.

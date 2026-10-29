@@ -55,6 +55,9 @@ COVERAGE: dict[str, str] = {
     "submitFeedback": 'client.requests.feedback("req_123", rating=1, tags=["helpful"])',
     "getGeneration": 'client.generation.get("req_123")',
     "getAuditReadiness": "client.autopilot.status()",
+    # Company knowledge (content export is session-only, not an API-key method)
+    "listCompanyKnowledge": 'client.knowledge.list(q="capacity", limit=10)',
+    "readCompanyKnowledge": 'client.knowledge.get("lesson:epb_example:L1")',
     # Call types
     "listCallTypes": "client.call_types.list()",
     "createCallType": (

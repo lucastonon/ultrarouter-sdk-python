@@ -1407,6 +1407,18 @@ class Handler(BaseHTTPRequestHandler):
         body: dict[str, Any],
     ) -> tuple[int, Any, dict[str, str]]:
         api_key = headers.get("authorization", "")[len("Bearer ") :]
+        if op_id in ("listCompanyKnowledge", "readCompanyKnowledge"):
+            page = json.loads(
+                (
+                    Path(__file__).resolve().parents[1] / "fixtures" / "company-knowledge.json"
+                ).read_text()
+            )
+            if op_id == "listCompanyKnowledge":
+                return 200, page, {}
+            item = next(
+                (item for item in page["data"] if item["id"] == unquote(params[0])), page["data"][0]
+            )
+            return 200, {"object": "knowledge_item", "item": item}, {}
         if op_id == "createCallType":
             status, payload = _synthesize(op, [])
             with STATE.lock:

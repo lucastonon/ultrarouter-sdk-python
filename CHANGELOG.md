@@ -6,6 +6,10 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+- Read-only company knowledge browsing/search and detail, with typed results, cursors and
+  namespaced item IDs. Examples inspect state and provenance without model calls. Content export
+  remains a separate owner/admin session operation; malformed and reserved export IDs fail locally.
+
 - Preview installation commands and documentation links select `feat/learning-loop`, so they
   resolve the 0.1.0 learning client instead of the older default branch.
 

@@ -115,6 +115,13 @@ __all__ = [
     "ChatContentPartParam",
     "ChatMessageParam",
     "ClaimParams",
+    "CompanyKnowledgeDetail",
+    "CompanyKnowledgeItem",
+    "CompanyKnowledgeItemEvidenceItem",
+    "CompanyKnowledgeItemMeta",
+    "CompanyKnowledgeItemMetaAdmission",
+    "CompanyKnowledgeItemMetaScopeItem",
+    "CompanyKnowledgeList",
     "CompressionParam",
     "Confirmation",
     "ConfirmationLift",
@@ -8308,6 +8315,174 @@ class KeyInfoUsage(BaseModel):
     """The workspace's total spend this period."""
 
 
+class CompanyKnowledgeList(BaseModel):
+    """Response shape ``CompanyKnowledgeList``."""
+
+    data: list[CompanyKnowledgeItem]
+
+    has_more: bool
+
+    next_cursor: str | None
+
+    object: str
+    """Known values: ``list``."""
+
+    snapshot_at: str
+
+
+class CompanyKnowledgeItem(BaseModel):
+    """Response shape ``CompanyKnowledgeItem``."""
+
+    active: bool
+    """For lessons, belongs to the incumbent version and is not retired. Does not claim every request serves it.
+    """
+
+    call_type_id: str | None
+
+    content_hash: str
+
+    created_at: str
+
+    current: bool
+    """In the current knowledge view; candidates can be current without being active."""
+
+    evidence: list[CompanyKnowledgeItemEvidenceItem] | None = None
+
+    evidence_count: int | None = None
+
+    evidence_truncated: bool | None = None
+    """At most 100 citation metadata entries are returned per lesson."""
+
+    harmful: float | None = None
+
+    helpful: float | None = None
+
+    id: str
+
+    kind: str
+
+    lesson_id: str | None = None
+
+    meta: CompanyKnowledgeItemMeta | None = None
+
+    parent_version_id: str | None = None
+
+    recipe: str | None = None
+
+    retired: bool | None = None
+
+    retired_reason: str | None = None
+
+    state: str
+
+    text: str | None = None
+
+    version: int | None = None
+
+    version_id: str | None = None
+
+    clusters: float | None = None
+
+    content_projection: str | None = None
+    """Raw fact bodies, correction exemplars and source transcripts are excluded.
+
+    Known values: ``derived_statistics``.
+    """
+
+    description: str | None = None
+    """Derived type description, not customer source text."""
+
+    evidence_tier: str | None = None
+
+    fact_id: str | None = None
+
+    fact_kind: str | None = None
+
+    interval: list[float] | None = None
+
+    lineage: list[CompanyKnowledgeItemEvidenceItem] | None = None
+
+    n: float | None = None
+
+    rate: float | None = None
+
+    scope: dict[str, str] | None = None
+
+    superseded_by: str | None = None
+
+    window_end: str | None = None
+
+    window_start: str | None = None
+
+
+class CompanyKnowledgeItemEvidenceItem(BaseModel):
+    """Response shape ``CompanyKnowledgeItemEvidenceItem``."""
+
+    availability: str
+    """Known values: ``available``, ``unavailable``, ``not_checked``."""
+
+    id: str
+
+    kind: str
+
+    outcome: str | None
+    """Known values: ``pass``, ``fail``."""
+
+    verified_at: str | None
+
+
+class CompanyKnowledgeItemMeta(BaseModel):
+    """Response shape ``CompanyKnowledgeItemMeta``."""
+
+    admission: CompanyKnowledgeItemMetaAdmission | None = None
+
+    capabilityUnknown: bool | None = None
+
+    conditions: list[str] | None = None
+
+    exceptions: list[str] | None = None
+
+    kind: str | None = None
+    """Known values: ``general``, ``tool_fact``, ``procedure``."""
+
+    requiredTools: list[str] | None = None
+
+    schema_: str | None = Field(None, alias="schema")
+    """Known values: ``ela1``."""
+
+    scope: list[CompanyKnowledgeItemMetaScopeItem] | None = None
+
+    supersedes: list[str] | None = None
+
+
+class CompanyKnowledgeItemMetaAdmission(BaseModel):
+    """Response shape ``CompanyKnowledgeItemMetaAdmission``."""
+
+    disposition: str
+
+    policy: str
+
+
+class CompanyKnowledgeItemMetaScopeItem(BaseModel):
+    """Response shape ``CompanyKnowledgeItemMetaScopeItem``."""
+
+    fingerprints: list[str]
+
+    protocol: str
+    """Known values: ``native``, ``text_api``."""
+
+    tool: str
+
+
+class CompanyKnowledgeDetail(BaseModel):
+    """Response shape ``CompanyKnowledgeDetail``."""
+
+    item: CompanyKnowledgeItem
+
+    object: str
+    """Known values: ``knowledge_item``."""
+
+
 class CreateMessageParams(TypedDict, total=False):
     """Anthropic Messages API request, forwarded verbatim to Anthropic. Every field beyond `model` (system, messages, tools, output_config, cache_control, continuation blocks, …) is passed through unchanged. Auth may be the ur key via `Authorization: Bearer` or `x-api-key`; the caller's key is never forwarded upstream (the platform/BYOK key is injected server-side)."""
 
@@ -9381,6 +9556,13 @@ for _model in (
     KeyInfo,
     KeyInfoLimits,
     KeyInfoUsage,
+    CompanyKnowledgeList,
+    CompanyKnowledgeItem,
+    CompanyKnowledgeItemEvidenceItem,
+    CompanyKnowledgeItemMeta,
+    CompanyKnowledgeItemMetaAdmission,
+    CompanyKnowledgeItemMetaScopeItem,
+    CompanyKnowledgeDetail,
     CreateMessageResponse,
     ModelList,
     Model,
@@ -9738,6 +9920,8 @@ OPERATIONS: dict[str, tuple[str, str, str | None, str | None]] = {
     "cancelImport": ("POST", "/v1/imports/{id}/cancel", None, "ImportEnvelope"),
     "listImprovementReads": ("GET", "/v1/improvement-reads", None, "ImprovementReads"),
     "getKey": ("GET", "/v1/key", None, "KeyInfo"),
+    "listCompanyKnowledge": ("GET", "/v1/knowledge", None, "CompanyKnowledgeList"),
+    "readCompanyKnowledge": ("GET", "/v1/knowledge/{id}", None, "CompanyKnowledgeDetail"),
     "createMessage": ("POST", "/v1/messages", "CreateMessageParams", "CreateMessageResponse"),
     "listModels": ("GET", "/v1/models", None, "ModelList"),
     "getModel": ("GET", "/v1/models/{id}", None, "ModelDetail"),

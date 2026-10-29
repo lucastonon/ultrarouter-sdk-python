@@ -2,7 +2,7 @@
 
 # API coverage
 
-Every endpoint in `openapi/openapi.yaml` that accepts an API key (100 operations):
+Every endpoint in `openapi/openapi.yaml` that accepts an API key (102 operations):
 the SDK method that calls it, sync and async, and the tests that call it against the mock
 gateway and validate the request body against the specification
 (`tests/test_api_coverage.py`).
@@ -97,6 +97,8 @@ gateway and validate the request body against the specification
 | `POST /v1/imports/{id}/cancel` | `cancelImport` | `client.imports.cancel(...)` | `await client.imports.cancel(...)` | `test_operation_sync[cancelImport]`, `test_operation_async[cancelImport]` |
 | `GET /v1/improvement-reads` | `listImprovementReads` | `client.improvement_reads.list(...)` | `await client.improvement_reads.list(...)` | `test_operation_sync[listImprovementReads]`, `test_operation_async[listImprovementReads]` |
 | `GET /v1/key` | `getKey` | `client.key.get(...)` | `await client.key.get(...)` | `test_operation_sync[getKey]`, `test_operation_async[getKey]` |
+| `GET /v1/knowledge` | `listCompanyKnowledge` | `client.knowledge.list(...)` | `await client.knowledge.list(...)` | `test_operation_sync[listCompanyKnowledge]`, `test_operation_async[listCompanyKnowledge]` |
+| `GET /v1/knowledge/{id}` | `readCompanyKnowledge` | `client.knowledge.get(...)` | `await client.knowledge.get(...)` | `test_operation_sync[readCompanyKnowledge]`, `test_operation_async[readCompanyKnowledge]` |
 | `POST /v1/messages` | `createMessage` | `client.request_model(...)` | `await client.request_model(...)` | `test_operation_sync[createMessage]`, `test_operation_async[createMessage]` |
 | `GET /v1/models` | `listModels` | `client.models.list(...)` | `await client.models.list(...)` | `test_operation_sync[listModels]`, `test_operation_async[listModels]` |
 | `GET /v1/models/{id}` | `getModel` | `client.models.retrieve(...)` | `await client.models.retrieve(...)` | `test_operation_sync[getModel]`, `test_operation_async[getModel]` |
@@ -150,6 +152,7 @@ an API-key SDK cannot call them:
 - `POST /v1/flywheel/source-audits` (`openVerdictSourceAudit`)
 - `POST /v1/flywheel/source-audits/{id}/grade` (`gradeVerdictSourceAudit`)
 - `POST /v1/invitations/accept` (`acceptInvitation`)
+- `GET /v1/knowledge/export` (`exportCompanyKnowledge`)
 - `POST /v1/workspaces` (`createWorkspace`)
 - `DELETE /v1/workspaces/{id}` (`deleteWorkspace`)
 - `PATCH /v1/workspaces/{id}` (`renameWorkspace`)

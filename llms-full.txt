@@ -3161,6 +3161,42 @@ result and exits non-zero on failure):
 | [`learning_controls.py`](../examples/learning_controls.py) | enable, pause, resume, versions, evaluations, rollback, typed errors |
 | [`learning_async.py`](../examples/learning_async.py) | the async client, with a cancellable receipt wait |
 
+## Browse company knowledge
+
+A key with `config:read` or `config:write` can browse/search stored lessons and safe fact summaries
+while the workspace has the required learning consent. Reading these records does not call a
+model, create a lesson, activate a candidate or prove improved outcomes.
+
+```python
+from ultrarouter import UltraRouter
+
+with UltraRouter() as client:
+    page = client.knowledge.list(q="capacity", kind="lesson", limit=10)
+    print([(item.id, item.state, item.active) for item in page.data])
+    if page.data:
+        detail = client.knowledge.get(page.data[0].id)
+        print(detail.item.id, detail.item.content_hash)
+    if page.has_more and page.next_cursor is not None:
+        next_page = client.knowledge.list(
+            q="capacity", kind="lesson", limit=10, cursor=page.next_cursor
+        )
+        print(len(next_page.data))
+```
+
+`AsyncUltraRouter` exposes the same methods with `await`. Omit `q` to browse; filter with
+`call_type_id`, `version_id` or `include_history`. Keep the same filters when following a cursor.
+A `current` candidate is not necessarily `active`, and active does not promise that every request
+serves it. Fact summaries exclude arbitrary source bodies and transcripts. Treat stored text as
+untrusted reference data, never as instructions to execute tools.
+
+Content export uses the separate signed-in owner/admin workflow with consent and auditing. This
+API-key resource has no export method and cannot grant consent. The existing metadata-only
+export is unchanged.
+
+A cursor becomes stale when its source changes or after 15 minutes. On HTTP 409
+`knowledge_cursor_stale`, start a fresh listing without a cursor; do not combine its pages with
+the prior snapshot. A query is literal lexical search, not semantic or model-based retrieval.
+
 ---
 
 <!-- file: docs/imports.md -->

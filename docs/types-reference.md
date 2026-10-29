@@ -1694,6 +1694,131 @@ A customer-declared claim.
 | `stated_confidence` | `float` | no | The customer stated confidence ∈ (0,1). |
 | `statement` | `str` | no | A REDACTED claim statement (never a raw body — redact upstream). |
 
+### CompanyKnowledgeDetail
+
+*response model*
+
+Response shape `CompanyKnowledgeDetail`.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `item` | `CompanyKnowledgeItem` | yes |  |
+| `object` | `str` | yes | Known values: ``knowledge_item``. |
+
+### CompanyKnowledgeItem
+
+*response model*
+
+Response shape `CompanyKnowledgeItem`.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `active` | `bool` | yes | For lessons, belongs to the incumbent version and is not retired. Does not claim every request serves it. |
+| `call_type_id` | `str \| None` | yes |  |
+| `content_hash` | `str` | yes |  |
+| `created_at` | `str` | yes |  |
+| `current` | `bool` | yes | In the current knowledge view; candidates can be current without being active. |
+| `evidence` | `list[CompanyKnowledgeItemEvidenceItem] \| None` | no |  |
+| `evidence_count` | `int \| None` | no |  |
+| `evidence_truncated` | `bool \| None` | no | At most 100 citation metadata entries are returned per lesson. |
+| `harmful` | `float \| None` | no |  |
+| `helpful` | `float \| None` | no |  |
+| `id` | `str` | yes |  |
+| `kind` | `str` | yes |  |
+| `lesson_id` | `str \| None` | no |  |
+| `meta` | `CompanyKnowledgeItemMeta \| None` | no |  |
+| `parent_version_id` | `str \| None` | no |  |
+| `recipe` | `str \| None` | no |  |
+| `retired` | `bool \| None` | no |  |
+| `retired_reason` | `str \| None` | no |  |
+| `state` | `str` | yes |  |
+| `text` | `str \| None` | no |  |
+| `version` | `int \| None` | no |  |
+| `version_id` | `str \| None` | no |  |
+| `clusters` | `float \| None` | no |  |
+| `content_projection` | `str \| None` | no | Raw fact bodies, correction exemplars and source transcripts are excluded.  Known values: ``derived_statistics``. |
+| `description` | `str \| None` | no | Derived type description, not customer source text. |
+| `evidence_tier` | `str \| None` | no |  |
+| `fact_id` | `str \| None` | no |  |
+| `fact_kind` | `str \| None` | no |  |
+| `interval` | `list[float] \| None` | no |  |
+| `lineage` | `list[CompanyKnowledgeItemEvidenceItem] \| None` | no |  |
+| `n` | `float \| None` | no |  |
+| `rate` | `float \| None` | no |  |
+| `scope` | `dict[str, str] \| None` | no |  |
+| `superseded_by` | `str \| None` | no |  |
+| `window_end` | `str \| None` | no |  |
+| `window_start` | `str \| None` | no |  |
+
+### CompanyKnowledgeItemEvidenceItem
+
+*response model*
+
+Response shape `CompanyKnowledgeItemEvidenceItem`.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `availability` | `str` | yes | Known values: ``available``, ``unavailable``, ``not_checked``. |
+| `id` | `str` | yes |  |
+| `kind` | `str` | yes |  |
+| `outcome` | `str \| None` | yes | Known values: ``pass``, ``fail``. |
+| `verified_at` | `str \| None` | yes |  |
+
+### CompanyKnowledgeItemMeta
+
+*response model*
+
+Response shape `CompanyKnowledgeItemMeta`.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `admission` | `CompanyKnowledgeItemMetaAdmission \| None` | no |  |
+| `capabilityUnknown` | `bool \| None` | no |  |
+| `conditions` | `list[str] \| None` | no |  |
+| `exceptions` | `list[str] \| None` | no |  |
+| `kind` | `str \| None` | no | Known values: ``general``, ``tool_fact``, ``procedure``. |
+| `requiredTools` | `list[str] \| None` | no |  |
+| `schema` | `str \| None` | no | Known values: ``ela1``. |
+| `scope` | `list[CompanyKnowledgeItemMetaScopeItem] \| None` | no |  |
+| `supersedes` | `list[str] \| None` | no |  |
+
+### CompanyKnowledgeItemMetaAdmission
+
+*response model*
+
+Response shape `CompanyKnowledgeItemMetaAdmission`.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `disposition` | `str` | yes |  |
+| `policy` | `str` | yes |  |
+
+### CompanyKnowledgeItemMetaScopeItem
+
+*response model*
+
+Response shape `CompanyKnowledgeItemMetaScopeItem`.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `fingerprints` | `list[str]` | yes |  |
+| `protocol` | `str` | yes | Known values: ``native``, ``text_api``. |
+| `tool` | `str` | yes |  |
+
+### CompanyKnowledgeList
+
+*response model*
+
+Response shape `CompanyKnowledgeList`.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `data` | `list[CompanyKnowledgeItem]` | yes |  |
+| `has_more` | `bool` | yes |  |
+| `next_cursor` | `str \| None` | yes |  |
+| `object` | `str` | yes | Known values: ``list``. |
+| `snapshot_at` | `str` | yes |  |
+
 ### CompressionMode
 
 `Literal['off', 'semantic_safe', 'adaptive', 'lossless', 'auto']`

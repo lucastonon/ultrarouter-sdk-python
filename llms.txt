@@ -71,6 +71,7 @@ Read AGENTS.md first for canonical patterns and pitfalls.
 - [async_streaming.py](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/feat/learning-loop/examples/async_streaming.py): Stream a chat completion with the async client.
 - [bench.py](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/feat/learning-loop/examples/bench.py): Capture traffic into a Bench suite, freeze it and run a dry-run comparison.
 - [call_types_and_prompts.py](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/feat/learning-loop/examples/call_types_and_prompts.py): Create a call type, configure it, add and activate a hosted prompt, and trigger an eval.
+- [company_knowledge.py](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/feat/learning-loop/examples/company_knowledge.py): Read stored company knowledge with config:read or config:write. No model calls or mutations.
 - [context_runtime.py](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/feat/learning-loop/examples/context_runtime.py): Lift a conversation into a manifest, compile modules under a contract, and exit again.
 - [embeddings.py](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/feat/learning-loop/examples/embeddings.py): Embed a few texts and rank them by cosine similarity to a query.
 - [errors_and_retries.py](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/feat/learning-loop/examples/errors_and_retries.py): Handle typed errors: an unpriced model, an unknown model and retry settings.
