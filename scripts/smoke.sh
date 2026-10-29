@@ -2,7 +2,8 @@
 # Build smoke test: build the wheel and sdist, validate them, scan them for leaks, then install each
 # into fresh virtual environments for the oldest and newest supported Python and exercise the
 # installed package against the local mock gateway (sync + async chat, streaming, embeddings,
-# typed errors) and type-check a consumer file with mypy --strict against the installed package.
+# typed errors, the learning loop, one documented example) and type-check a consumer file with
+# mypy --strict against the installed package.
 #
 # Usage: scripts/smoke.sh            (run from the repository root, after `uv sync`)
 # Env:   SMOKE_DIR        where the throwaway environments go (default: $TMPDIR/ultrarouter-sdk-smoke)
@@ -38,7 +39,7 @@ log "leak scan of the built distributions"
 "$PY" scripts/leak_scan.py --no-tree --no-history --dist dist
 
 log "sdist contents"
-for required in README.md LICENSE CHANGELOG.md AGENTS.md llms.txt llms-full.txt docs/index.md examples/quickstart.py openapi/openapi.yaml src/ultrarouter/py.typed; do
+for required in README.md LICENSE CHANGELOG.md AGENTS.md llms.txt llms-full.txt docs/index.md examples/quickstart.py examples/learning_tool_episode.py docs/learning.md openapi/openapi.yaml src/ultrarouter/py.typed src/ultrarouter/_data/outcome_verdicts.json src/ultrarouter/_data/toy_env.json tests/fixtures/outcome_verdicts.json tests/fixtures/toy_env.json; do
   tar -tzf "$SDIST" | grep -q "/$required\$" || { echo "sdist is missing $required" >&2; exit 1; }
 done
 echo "sdist ok: $(tar -tzf "$SDIST" | wc -l | tr -d ' ') entries"
@@ -46,6 +47,8 @@ echo "sdist ok: $(tar -tzf "$SDIST" | wc -l | tr -d ' ') entries"
 import sys, zipfile
 names = zipfile.ZipFile(sys.argv[1]).namelist()
 assert "ultrarouter/py.typed" in names, "wheel is missing py.typed"
+for data in ("ultrarouter/_data/outcome_verdicts.json", "ultrarouter/_data/toy_env.json"):
+    assert data in names, f"wheel is missing {data}"
 assert any(n.endswith("licenses/LICENSE") for n in names), "wheel is missing the license file"
 assert not any(n.startswith(("tests/", "scripts/")) for n in names), "wheel contains repository files"
 print(f"wheel ok: {len(names)} files")
@@ -69,6 +72,8 @@ echo "mock gateway at $MOCK_URL"
 rm -rf "$SMOKE_DIR"
 mkdir -p "$SMOKE_DIR"
 cp scripts/smoke_consumer.py "$SMOKE_DIR/smoke_consumer.py"
+# One documented example, run from the installed copy (not the checkout), with no extra packages.
+cp examples/learning_immediate_outcome.py "$SMOKE_DIR/learning_immediate_outcome.py"
 
 for pyver in $SMOKE_PYTHONS; do
   for kind in wheel sdist; do
@@ -83,6 +88,8 @@ for pyver in $SMOKE_PYTHONS; do
       ULTRAROUTER_BASE_URL="$MOCK_URL" ULTRAROUTER_API_KEY="ur_sk_test_smoke" EXPECTED_VERSION="$VERSION" \
         "$env_dir/bin/python" -I smoke_consumer.py
       "$env_dir/bin/python" -m mypy --strict --no-incremental --python-executable "$env_dir/bin/python" smoke_consumer.py
+      ULTRAROUTER_BASE_URL="$MOCK_URL" ULTRAROUTER_API_KEY="ur_sk_test_smoke" \
+        "$env_dir/bin/python" -I learning_immediate_outcome.py
     )
   done
 done
