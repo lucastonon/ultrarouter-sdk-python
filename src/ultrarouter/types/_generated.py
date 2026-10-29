@@ -8501,7 +8501,7 @@ class OutcomeReceiptRecordEpisode(BaseModel):
     """The episode association of an applied teaching outcome."""
 
     status: str
-    """`associated` — the episode holding this request carries a verdict; `pending` — a teaching outcome waiting for its episode to be recorded; `not_recorded` — no episode held the request within 15 minutes (episode memory or recording off, a held-out request, no consent); `not_applicable` — the outcome does not teach (a proxy, behavioral or mechanical signal) or was not applied.
+    """`associated` — the episode holding this request carries a verdict; `pending` — a teaching outcome waiting for its episode to be recorded; `not_recorded` — the persisted request was held out and recording was intentionally suppressed, or no episode held the request within 15 minutes (episode memory or recording off, no consent); `not_applicable` — the outcome does not teach (a proxy, behavioral or mechanical signal) or was not applied.
 
     Known values: ``associated``, ``pending``, ``not_recorded``, ``not_applicable``.
     """
