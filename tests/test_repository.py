@@ -176,7 +176,7 @@ def test_every_public_symbol_has_a_docstring() -> None:
 
 def test_package_is_typed_and_versioned() -> None:
     assert (Path(ultrarouter.__file__).parent / "py.typed").exists()
-    assert ultrarouter.__version__ == "0.0.1"
+    assert ultrarouter.__version__ == "0.1.0"
     changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
     assert f"## [{ultrarouter.__version__}]" in changelog
 

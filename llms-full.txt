@@ -26,7 +26,7 @@ fallbacks, evals, and an outcome ledger that records what happened after a model
 - **Beyond chat**: call types, hosted prompts, Bench comparisons, outcomes, preflight with
   learned context, a reviewer adapter, and a pure context runtime (`ultrarouter.context`).
 
-> Status: `0.0.1` is an early (alpha) release. The API surface may change before `1.0`.
+> Status: `0.1.0` is an early (alpha) release. The API surface may change before `1.0`.
 > You need an ultrarouter API key and the URL of a gateway you have access to.
 
 ## Install

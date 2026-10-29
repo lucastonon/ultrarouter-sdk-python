@@ -6,18 +6,71 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
-### Changed
+## [0.1.0] - Unreleased
 
-- The gateway base URL is now required. `UltraRouter` and `AsyncUltraRouter` resolve it from the
-  `base_url=` argument, then `ULTRAROUTER_BASE_URL`, then `UR_BASE_URL`; with none set, the
-  constructor raises `ConfigurationError` (`code="missing_base_url"`) whose message names the
-  argument, both environment variables and `http://localhost:8080` as the local-gateway example.
-  There is no hosted gateway to default to.
-- A missing API key now raises the new `ConfigurationError` (`code="missing_api_key"`, unchanged
-  code and message) instead of a bare `UltraRouterError`; `except UltraRouterError` still catches it.
+The plug-and-play learning surface. The version moves to 0.1.0 with it (the TypeScript SDK's
+matching release is planned at the same version). The package is not published to PyPI; install
+from a locally built wheel or the GitHub source (the README and the installation guide no longer
+advertise a registry install).
 
 ### Added
 
+- **Request and episode correlation.** `chat.completions.create(...)` and `embeddings.create(...)`
+  take `request_id=` (sent as `x-ur-request-id`, `[A-Za-z0-9_-]{1,64}`) and `episode_key=` (sent as
+  `X-UR-Artifact`); `UltraRouter(request_ids="client")` mints a request id for every call.
+  `new_request_id()` (`req_c_<ULID>`), `new_episode_key()`, `correlation_headers(...)` (for the
+  `openai` package or any HTTP client), `request_id_of(result)` (SDK results, streams, `openai`
+  responses, raw responses and headers), `REQUEST_ID_HEADER` and `EPISODE_HEADER`.
+  `Stream.request_id` / `AsyncStream.request_id` are known as soon as a stream opens. An error raised
+  for a call that carried a minted id, without an answer from the gateway, reports that id.
+- **Episodes.** `client.episode(key=None)` is a (async) context manager whose
+  `episode.chat.completions.create(...)` steps carry the key and a freshly minted request id each;
+  `episode.report(...)` reports the terminal verdict on the last step.
+- **Verdict reports.** `client.outcomes.report(request_id, verdict, source=..., idempotency_key=,
+  observed_at=, evidence_hash=, supersedes=)` maps `pass` / `fail` from `verifier`,
+  `business_rule`, `webhook`, `human_review` or `self_rating` to an outcome channel and kind
+  through the verdict table shared byte for byte with the TypeScript SDK
+  (`ultrarouter/_data/outcome_verdicts.json`); `unknown` sends nothing (`NotReportedOutcome`). The
+  return type shows whether the report teaches (`TeachingOutcomeReport`) or is a proxy that never
+  teaches (`ProxyOutcomeReport`). The `source_event_id` is derived (`report_source_event_id`,
+  identical to the TypeScript SDK's) and the event goes through the durable queue under that
+  identity, so a lost acknowledgement, a flush or a repeated call replays the identical event, and
+  concurrent repeats share one send.
+- **Outcome receipts.** A `pending` answer is now a delivered outcome result (an outcome reported
+  before the gateway stored its request: the gateway holds a durable receipt and applies it when
+  the request lands); the shared queue-retention fixture, copied again from the TypeScript SDK,
+  has 273 cases including the two `pending` ones. `outcomes.receipt(id)`,
+  `outcomes.receipts_for_request(request_id)` and `outcomes.wait_for_receipt(receipt, timeout=)`
+  (bounded backoff polling of the public receipt endpoint; cancellable on the async client;
+  `ReceiptWaitTimeoutError` carries the last receipt read).
+- **Learning controls.** `client.learning.status / enable / pause / resume / disable / versions /
+  version / rollback / promote / reject / evaluations(call_type_id, ...)`, sync and async, with
+  typed models (`LearningStatus`, `LearningVersion`, `LearningEvaluation`, ...) and actionable typed
+  errors: `LearningConsentRequiredError`, `LearningProviderUnavailableError`,
+  `LearningQuotaExhaustedError`, `LearningBudgetExhaustedError`, `LearningNotFoundError`,
+  `LearningForbiddenError` (each with `reason` and `action`). `OutcomeBacklogFullError` for
+  `outcome_backlog_full` (429).
+- **Outcome adapters** (`ultrarouter.adapters`), with the TypeScript SDK's semantics, reasons and
+  hashes: `run_verifier`, `verdict_from_command` and `run_test_suite` (a computable check, a
+  command's exit code or a test suite as a verdict; a check that cannot decide is `unknown`),
+  `validate_output` (pydantic structured-output validation plus named business rules; always
+  `pass` or `fail`, reasons without values), `evidence_hash` (`sha256:` over canonical JSON), and
+  `WebhookVerifier` / `WebhookOutcomeHandler` / `sign_webhook` (`x-webhook-signature` =
+  HMAC-SHA256 over `"<timestamp>.<body>"`, `x-webhook-timestamp` within ±300 s, constant-time
+  comparison, secret rotation, secret from `ULTRAROUTER_WEBHOOK_SECRET`, event-id deduplication
+  for 7 days through a `DedupeStore` with an in-memory default; the handler answers `reported` /
+  `duplicate` 200, `rejected` 401/400 or `deferred` 503 with the claim released).
+- **A demonstration environment** (`ultrarouter.demo.OrderDesk`): the deterministic order-desk
+  tools, exact rules and verifier (orders in task order, and each SKU's stock consistent with its
+  reservations) from the fixture shared with the TypeScript SDK; labelled a demonstration, not
+  evidence that learning improves an agent.
+- The response models for the receipt and learning endpoints are hand-written and provisional
+  (`ultrarouter.types`, module `_learning`) until the specification describes them; the endpoints
+  are listed under "not yet in the specification" in `docs/api-coverage.md`.
+- New guide `docs/learning.md`; eight runnable examples (`examples/learning_*.py`: the `openai`
+  package, a native verifier, a tool episode, an immediate outcome, a delayed webhook,
+  acknowledgement loss, learning controls, the async client). The mock gateway in
+  `tests/support/` answers the new endpoints.
 - The bounded-experiment RUN surface under `client.flywheel.experiments` (sync and async), for a key
   with the `flywheel:experiment:run` scope: `enrol(experiment_id, phase=, pair_key=, slot=)` enrols
   one execution slot (the gateway decides the arm, never the caller; a repeat of the same tuple
@@ -42,6 +95,16 @@ All notable changes to this project are documented here. The format follows
 - `ConfigurationError`, a subclass of `UltraRouterError` raised before any network call when the
   client cannot be constructed because the API key or the gateway base URL is missing. Exported
   from the package.
+
+### Changed
+
+- The gateway base URL is now required. `UltraRouter` and `AsyncUltraRouter` resolve it from the
+  `base_url=` argument, then `ULTRAROUTER_BASE_URL`, then `UR_BASE_URL`; with none set, the
+  constructor raises `ConfigurationError` (`code="missing_base_url"`) whose message names the
+  argument, both environment variables and `http://localhost:8080` as the local-gateway example.
+  There is no hosted gateway to default to.
+- A missing API key now raises the new `ConfigurationError` (`code="missing_api_key"`, unchanged
+  code and message) instead of a bare `UltraRouterError`; `except UltraRouterError` still catches it.
 
 ### Removed
 
