@@ -33,6 +33,8 @@ class Embeddings(SyncAPIResource):
         timeout: float | None = None,
         max_retries: int | None = None,
         idempotency_key: str | None = None,
+        request_id: str | None = None,
+        episode_key: str | None = None,
         **params: Unpack[EmbeddingCreateKwargs],
     ) -> CreateEmbeddingResponse:
         """Create embeddings (``POST /v1/embeddings``).
@@ -44,11 +46,17 @@ class Embeddings(SyncAPIResource):
             timeout: Total seconds for this call across retries.
             max_retries: Automatic retries for this call.
             idempotency_key: Explicit ``Idempotency-Key`` (a key is generated otherwise).
+            request_id: Your own request id, sent as ``x-ur-request-id``.
+            episode_key: The episode this call belongs to, sent as ``X-UR-Artifact``.
             **params: ``input`` (required), ``model``, ``dimensions``, ``encoding_format``, ...;
                 see :class:`~ultrarouter.types.EmbeddingCreateKwargs`.
         """
         body = self._client._embedding_body(dict(params), extra_body)
-        options = openai_options(extra_headers, extra_query, timeout, max_retries, idempotency_key)
+        options = self._client._correlate(
+            openai_options(extra_headers, extra_query, timeout, max_retries, idempotency_key),
+            request_id,
+            episode_key,
+        )
         return self._client.request_model(
             build("POST", "/v1/embeddings", body=body, options=options), CreateEmbeddingResponse
         )
@@ -66,11 +74,17 @@ class AsyncEmbeddings(AsyncAPIResource):
         timeout: float | None = None,
         max_retries: int | None = None,
         idempotency_key: str | None = None,
+        request_id: str | None = None,
+        episode_key: str | None = None,
         **params: Unpack[EmbeddingCreateKwargs],
     ) -> CreateEmbeddingResponse:
         """Create embeddings; async twin of :meth:`Embeddings.create`."""
         body = self._client._embedding_body(dict(params), extra_body)
-        options = openai_options(extra_headers, extra_query, timeout, max_retries, idempotency_key)
+        options = self._client._correlate(
+            openai_options(extra_headers, extra_query, timeout, max_retries, idempotency_key),
+            request_id,
+            episode_key,
+        )
         return await self._client.request_model(
             build("POST", "/v1/embeddings", body=body, options=options), CreateEmbeddingResponse
         )

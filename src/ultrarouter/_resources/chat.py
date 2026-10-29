@@ -28,6 +28,8 @@ class Completions(SyncAPIResource):
         timeout: float | None = None,
         max_retries: int | None = None,
         idempotency_key: str | None = None,
+        request_id: str | None = None,
+        episode_key: str | None = None,
         **params: Unpack[ChatCompletionCreateKwargs],
     ) -> ChatCompletion: ...
 
@@ -42,6 +44,8 @@ class Completions(SyncAPIResource):
         timeout: float | None = None,
         max_retries: int | None = None,
         idempotency_key: str | None = None,
+        request_id: str | None = None,
+        episode_key: str | None = None,
         **params: Unpack[ChatCompletionCreateKwargs],
     ) -> Stream: ...
 
@@ -56,6 +60,8 @@ class Completions(SyncAPIResource):
         timeout: float | None = None,
         max_retries: int | None = None,
         idempotency_key: str | None = None,
+        request_id: str | None = None,
+        episode_key: str | None = None,
         **params: Unpack[ChatCompletionCreateKwargs],
     ) -> ChatCompletion | Stream: ...
 
@@ -69,6 +75,8 @@ class Completions(SyncAPIResource):
         timeout: float | None = None,
         max_retries: int | None = None,
         idempotency_key: str | None = None,
+        request_id: str | None = None,
+        episode_key: str | None = None,
         **params: Unpack[ChatCompletionCreateKwargs],
     ) -> ChatCompletion | Stream:
         """Create a chat completion (``POST /v1/chat/completions``).
@@ -88,13 +96,24 @@ class Completions(SyncAPIResource):
             timeout: Total seconds for this call across retries.
             max_retries: Automatic retries for this call.
             idempotency_key: Explicit ``Idempotency-Key`` (a key is generated otherwise).
+            request_id: Your own request id, sent as ``x-ur-request-id``
+                (``[A-Za-z0-9_-]{1,64}``; mint one with :func:`~ultrarouter.new_request_id`), so
+                you know the id before the call returns (and on an error or a stream).
+            episode_key: The episode this step belongs to, sent as ``X-UR-Artifact``: every step
+                with the same key is one episode. Concurrent tasks that open with identical text
+                need distinct keys, or they are grouped together.
             **params: The request body; see :class:`~ultrarouter.types.ChatCompletionCreateKwargs`.
 
         Returns:
-            The completion, whose ``ur`` block carries the request id, served model and cost.
+            The completion, whose ``ur`` block carries the request id, served model and cost
+            (``stream.request_id`` on a stream).
         """
         body = self._client._chat_body(dict(params), extra_body)
-        options = openai_options(extra_headers, extra_query, timeout, max_retries, idempotency_key)
+        options = self._client._correlate(
+            openai_options(extra_headers, extra_query, timeout, max_retries, idempotency_key),
+            request_id,
+            episode_key,
+        )
         if stream:
             body["stream"] = True
             response = self._client.request(
@@ -130,6 +149,8 @@ class AsyncCompletions(AsyncAPIResource):
         timeout: float | None = None,
         max_retries: int | None = None,
         idempotency_key: str | None = None,
+        request_id: str | None = None,
+        episode_key: str | None = None,
         **params: Unpack[ChatCompletionCreateKwargs],
     ) -> ChatCompletion: ...
 
@@ -144,6 +165,8 @@ class AsyncCompletions(AsyncAPIResource):
         timeout: float | None = None,
         max_retries: int | None = None,
         idempotency_key: str | None = None,
+        request_id: str | None = None,
+        episode_key: str | None = None,
         **params: Unpack[ChatCompletionCreateKwargs],
     ) -> AsyncStream: ...
 
@@ -158,6 +181,8 @@ class AsyncCompletions(AsyncAPIResource):
         timeout: float | None = None,
         max_retries: int | None = None,
         idempotency_key: str | None = None,
+        request_id: str | None = None,
+        episode_key: str | None = None,
         **params: Unpack[ChatCompletionCreateKwargs],
     ) -> ChatCompletion | AsyncStream: ...
 
@@ -171,6 +196,8 @@ class AsyncCompletions(AsyncAPIResource):
         timeout: float | None = None,
         max_retries: int | None = None,
         idempotency_key: str | None = None,
+        request_id: str | None = None,
+        episode_key: str | None = None,
         **params: Unpack[ChatCompletionCreateKwargs],
     ) -> ChatCompletion | AsyncStream:
         """Create a chat completion; async twin of :meth:`Completions.create`.
@@ -179,7 +206,11 @@ class AsyncCompletions(AsyncAPIResource):
         ``async for chunk in stream``.
         """
         body = self._client._chat_body(dict(params), extra_body)
-        options = openai_options(extra_headers, extra_query, timeout, max_retries, idempotency_key)
+        options = self._client._correlate(
+            openai_options(extra_headers, extra_query, timeout, max_retries, idempotency_key),
+            request_id,
+            episode_key,
+        )
         if stream:
             body["stream"] = True
             response = await self._client.request(

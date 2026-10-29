@@ -212,3 +212,94 @@ COVERAGE: dict[str, str] = {
 EXCLUDED: dict[str, str] = {
     "echo": "Diagnostic auth echo; client.key.get() verifies a key and returns more.",
 }
+
+
+#: Learning-loop endpoints the SDK calls that the synced specification does not describe yet:
+#: (method, path, SDK call expression, tests). ``tests/test_api_coverage.py`` fails once the
+#: specification gains one, so it moves into :data:`COVERAGE`.
+PROVISIONAL: list[tuple[str, str, str, str]] = [
+    (
+        "POST",
+        "/v1/requests/{id}/outcomes",
+        'client.outcomes.report("req_c_1", "pass", source="verifier")',
+        "`tests/test_outcome_report.py` (the existing operation, now answering `pending` + `receipt`)",
+    ),
+    (
+        "GET",
+        "/v1/outcome-receipts/{id}",
+        'client.outcomes.receipt("ork_1")',
+        "`tests/test_outcome_report.py`",
+    ),
+    (
+        "GET",
+        "/v1/requests/{id}/outcome-receipts",
+        'client.outcomes.receipts_for_request("req_c_1")',
+        "`tests/test_outcome_report.py`",
+    ),
+    (
+        "GET",
+        "/v1/call-types/{id}/learning",
+        'client.learning.status("ct")',
+        "`tests/test_learning_controls.py`",
+    ),
+    (
+        "POST",
+        "/v1/call-types/{id}/learning/enable",
+        'client.learning.enable("ct", reflection_model="m")',
+        "`tests/test_learning_controls.py`",
+    ),
+    (
+        "POST",
+        "/v1/call-types/{id}/learning/pause",
+        'client.learning.pause("ct")',
+        "`tests/test_learning_controls.py`",
+    ),
+    (
+        "POST",
+        "/v1/call-types/{id}/learning/resume",
+        'client.learning.resume("ct")',
+        "`tests/test_learning_controls.py`",
+    ),
+    (
+        "POST",
+        "/v1/call-types/{id}/learning/disable",
+        'client.learning.disable("ct")',
+        "`tests/test_learning_controls.py`",
+    ),
+    (
+        "GET",
+        "/v1/call-types/{id}/learning/versions",
+        'client.learning.versions("ct")',
+        "`tests/test_learning_controls.py`",
+    ),
+    (
+        "GET",
+        "/v1/call-types/{id}/learning/versions/{version_id}",
+        'client.learning.version("ct", "lv_1")',
+        "`tests/test_learning_controls.py`",
+    ),
+    (
+        "POST",
+        "/v1/call-types/{id}/learning/rollback",
+        'client.learning.rollback("ct", version_id="lv_1")',
+        "`tests/test_learning_controls.py`",
+    ),
+    (
+        "POST",
+        "/v1/call-types/{id}/learning/versions/{version_id}/promote",
+        'client.learning.promote("ct", "lv_2")',
+        "`tests/test_learning_controls.py`",
+    ),
+    (
+        "POST",
+        "/v1/call-types/{id}/learning/versions/{version_id}/reject",
+        'client.learning.reject("ct", "lv_2")',
+        "`tests/test_learning_controls.py`",
+    ),
+    (
+        "GET",
+        "/v1/call-types/{id}/learning/evaluations",
+        'client.learning.evaluations("ct")',
+        "`tests/test_learning_controls.py`",
+    ),
+]

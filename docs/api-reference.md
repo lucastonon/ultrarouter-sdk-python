@@ -36,6 +36,7 @@ UltraRouter(
     outcome_store: OutcomeStore | None = None,
     reviewer_store: OutcomeStore | None = None,
     preflight_cache_size: int = 1024,
+    request_ids: RequestIdMode = 'gateway',
     http_client: httpx.Client | None = None,
 ) -> None
 ```
@@ -69,6 +70,7 @@ print(reply.choices[0].message.content, reply.ur.request_id)
 - `outcome_store`: Durable store for queued outcome events (default in-memory).
 - `reviewer_store`: Durable store for queued reviewer decisions (default in-memory).
 - `preflight_cache_size`: Most preflight identities kept in the client-side cache (least recently used evicted first; expired entries are dropped). `0` disables it. Default 1024.
+- `request_ids`: Who mints request ids. `"gateway"` (default): the gateway does. `"client"`: the SDK sends a freshly minted `x-ur-request-id` on every chat and embeddings call that does not pass `request_id=`, so each call's id is known before it returns (and is set on the error when a call fails without an answer).
 - `http_client`: Your own `httpx.Client` (proxies, transports, mocking). The SDK does not close a client you pass in.
 
 #### UltraRouter.preflight
@@ -170,6 +172,20 @@ with client.with_artifact("ticket:4812:reply") as scope:
     scope.record({"channel": "behavioral", "kind": "accepted"})
 ```
 
+#### UltraRouter.episode
+
+```python
+client.episode(key: str | None = None) -> Episode
+```
+
+A context manager for one multi-step task (an episode); see `Episode`.
+
+Every `episode.chat.completions.create(...)` step carries the episode key
+(`X-UR-Artifact`) and a request id minted before the call;
+`episode.report(verdict, source=...)` reports the terminal verdict on the last step.
+Without `key` a unique one is minted. Concurrent tasks need distinct keys: steps with
+no key are grouped by their opening text, which identical concurrent tasks share.
+
 #### UltraRouter.record_outcome
 
 ```python
@@ -192,7 +208,10 @@ client.as_openai() -> Any
 Return an `openai.OpenAI` client preconfigured for this gateway.
 
 The returned client uses `<base_url>/v1`, this API key and any default (Bench)
-headers. Requires `pip install 'ultrarouter[openai]'` unless `cls` is given.
+headers. Requires the `openai` package (the `openai` extra) unless `cls` is given.
+To know a call's request id up front, pass
+`extra_headers=ultrarouter.correlation_headers(request_id=ultrarouter.new_request_id())`;
+afterwards `ultrarouter.request_id_of` reads it from the response.
 
 #### UltraRouter.with_options
 
@@ -234,6 +253,7 @@ AsyncUltraRouter(
     outcome_store: OutcomeStore | None = None,
     reviewer_store: OutcomeStore | None = None,
     preflight_cache_size: int = 1024,
+    request_ids: RequestIdMode = 'gateway',
     http_client: httpx.AsyncClient | None = None,
 ) -> None
 ```
@@ -319,6 +339,14 @@ client.with_artifact(key: str) -> AsyncArtifactScope
 An async context manager bound to one artifact `key`; see
 `UltraRouter.with_artifact`.
 
+#### AsyncUltraRouter.episode
+
+```python
+client.episode(key: str | None = None) -> AsyncEpisode
+```
+
+An async context manager for one multi-step task; see `UltraRouter.episode`.
+
 #### AsyncUltraRouter.record_outcome
 
 ```python
@@ -378,6 +406,8 @@ client.chat.completions.create(
     timeout: float | None = None,
     max_retries: int | None = None,
     idempotency_key: str | None = None,
+    request_id: str | None = None,
+    episode_key: str | None = None,
     **params: Unpack[ChatCompletionCreateKwargs],
 ) -> ChatCompletion | Stream
 ```
@@ -398,11 +428,14 @@ defaults (`default_model`, `defaults=`) apply to anything you leave out.
 - `timeout`: Total seconds for this call across retries.
 - `max_retries`: Automatic retries for this call.
 - `idempotency_key`: Explicit `Idempotency-Key` (a key is generated otherwise).
+- `request_id`: Your own request id, sent as `x-ur-request-id` (`[A-Za-z0-9_-]{1,64}`; mint one with `new_request_id`), so you know the id before the call returns (and on an error or a stream).
+- `episode_key`: The episode this step belongs to, sent as `X-UR-Artifact`: every step with the same key is one episode. Concurrent tasks that open with identical text need distinct keys, or they are grouped together.
 - `**params`: The request body; see `ChatCompletionCreateKwargs`.
 
 **Returns**
 
-The completion, whose `ur` block carries the request id, served model and cost.
+The completion, whose `ur` block carries the request id, served model and cost
+(`stream.request_id` on a stream).
 
 ### client.embeddings
 
@@ -419,6 +452,8 @@ client.embeddings.create(
     timeout: float | None = None,
     max_retries: int | None = None,
     idempotency_key: str | None = None,
+    request_id: str | None = None,
+    episode_key: str | None = None,
     **params: Unpack[EmbeddingCreateKwargs],
 ) -> CreateEmbeddingResponse
 ```
@@ -433,6 +468,8 @@ Create embeddings (`POST /v1/embeddings`).
 - `timeout`: Total seconds for this call across retries.
 - `max_retries`: Automatic retries for this call.
 - `idempotency_key`: Explicit `Idempotency-Key` (a key is generated otherwise).
+- `request_id`: Your own request id, sent as `x-ur-request-id`.
+- `episode_key`: The episode this call belongs to, sent as `X-UR-Artifact`.
 - `**params`: `input` (required), `model`, `dimensions`, `encoding_format`, ...; see `EmbeddingCreateKwargs`.
 
 ### client.models
@@ -1119,6 +1156,117 @@ cancellation, connection failure, 408/429/5xx) leaves the identical event queued
 - `outcome`: The event: `channel` and `kind` are required; `value`, `claim_key`, `confidence`, `observed_at`, `source_event_id`... are optional (see `OutcomeParams`).
 - `options`: Per-call request options for the first delivery attempt.
 
+#### client.outcomes.report
+
+```python
+client.outcomes.report(
+    request_id: str,
+    verdict: Verdict,
+    *,
+    source: OutcomeSource,
+    idempotency_key: str | None = None,
+    observed_at: str | datetime | None = None,
+    evidence_hash: str | None = None,
+    supersedes: str | None = None,
+    options: RequestOptions | None = None,
+) -> OutcomeReport
+```
+
+Report whether one request's task succeeded: a verdict from a named source.
+
+The verdict maps to an outcome event through the verdict table shared with the
+TypeScript SDK: `verifier` and `business_rule` become `computable` /
+`oracle_pass|oracle_fail`, `webhook` becomes `resolution` /
+`resolved_true|resolved_false`, `human_review` becomes `correction` /
+`accepted_unchanged|rejected`, and `self_rating` becomes a `proxy` thumbs event
+that may rank but never teaches. `verdict="unknown"` sends nothing and returns
+`NotReportedOutcome`: missing feedback stays missing.
+
+You may report the moment you have the final response: if the gateway has not persisted
+the request yet it answers `pending` with a durable receipt and applies the outcome
+when the request lands (`report.is_pending`, `report.receipt_id`; follow it with
+`wait_for_receipt`). Never sleep before reporting.
+
+Reporting never double-counts. The event's `source_event_id` is derived from
+`(request_id, verdict, source, idempotency_key)` (see
+`report_source_event_id`); the event goes through the durable queue
+under that identity, with an `Idempotency-Key` derived from it. A retry after a lost
+acknowledgement, a `flush()` or a second `report` call with the same arguments
+replays the identical event (same `observed_at`), which the gateway records once
+(`duplicate`); concurrent repeats share one send. A report repeated from another
+process names the same event too; pass `observed_at` explicitly when that can happen,
+so the replay is byte-identical rather than a conflicting payload. A failure whose outcome
+is unknown keeps the event queued for `flush`.
+
+**Args**
+
+- `request_id`: The gateway request id (`reply.ur.request_id`, `stream.request_id`, `request_id_of`, or the id you minted with `new_request_id`). For a multi-step episode, the last step's.
+- `verdict`: `"pass"`, `"fail"` or `"unknown"`.
+- `source`: `"verifier"`, `"business_rule"`, `"webhook"`, `"human_review"` or `"self_rating"`.
+- `idempotency_key`: Distinguishes two genuinely different reports with the same verdict and source on the same request (for example a webhook's event id).
+- `observed_at`: When the outcome was observed (ISO-8601 string or `datetime`; default: the first time this report is made).
+- `evidence_hash`: A content hash of the supporting evidence (never the evidence).
+- `supersedes`: The `source_event_id` of an earlier report this one revises.
+- `options`: Per-call request options for the first delivery attempt.
+
+**Returns**
+
+`TeachingOutcomeReport`, `ProxyOutcomeReport`
+or `NotReportedOutcome`.
+
+#### client.outcomes.receipt
+
+```python
+client.outcomes.receipt(
+    receipt_id: str,
+    *,
+    options: RequestOptions | None = None,
+) -> OutcomeReceiptRecord
+```
+
+One outcome receipt (`GET /v1/outcome-receipts/{id}`): status, reason, episode.
+
+#### client.outcomes.receipts_for_request
+
+```python
+client.outcomes.receipts_for_request(
+    request_id: str,
+    *,
+    options: RequestOptions | None = None,
+) -> OutcomeReceiptRecordList
+```
+
+Every outcome receipt for one request (`GET /v1/requests/{id}/outcome-receipts`).
+
+#### client.outcomes.wait_for_receipt
+
+```python
+client.outcomes.wait_for_receipt(
+    receipt: str | TeachingOutcomeReport | ProxyOutcomeReport,
+    *,
+    timeout: float = 30.0,
+    poll_interval: float = 0.25,
+    max_poll_interval: float = 4.0,
+    options: RequestOptions | None = None,
+) -> OutcomeReceiptRecord
+```
+
+Poll a receipt until it is final (`applied`, `rejected`, `failed`, `expired`).
+
+Reads the public receipt endpoint with a bounded backoff (`poll_interval` doubling up to
+`max_poll_interval`) for at most `timeout` seconds in total. A poll that fails for a
+transient reason is retried until the deadline; any other refusal is raised. On the
+deadline it raises `ReceiptWaitTimeoutError` carrying the last
+receipt read; the outcome is not lost, the receipt keeps reconciling on the gateway.
+
+**Args**
+
+- `receipt`: A receipt id, or a report returned by `report`.
+- `timeout`: Total seconds to wait.
+- `poll_interval`: The first wait between reads.
+- `max_poll_interval`: The longest wait between reads.
+- `options`: Per-call request options for each read.
+
 #### client.outcomes.batch
 
 ```python
@@ -1761,6 +1909,177 @@ client.reviewer.health(*, options: RequestOptions | None = None) -> ReviewerHeal
 
 Integration health: event counts, dead letters, backfills and the next repair action.
 
+### client.learning
+
+`client.learning`: inspect and control learning for one call type at a time.
+
+#### client.learning.status
+
+```python
+client.learning.status(
+    call_type_id: str,
+    *,
+    options: RequestOptions | None = None,
+) -> LearningStatus
+```
+
+The learning status of a call type (`GET /v1/call-types/{id}/learning`).
+
+`state` is one of `not_enabled`, `active`, `paused`, `disabled`,
+`unavailable` (no usable provider), `quota_exhausted` or `budget_exhausted`: a
+stopped learner always says why, never silently.
+
+#### client.learning.enable
+
+```python
+client.learning.enable(
+    call_type_id: str,
+    *,
+    reflection_model: str,
+    promotion: PromotionMode | Mapping[str, Any] | None = None,
+    objective: LearningObjective | None = None,
+    recipe: str | None = None,
+    options: RequestOptions | None = None,
+) -> LearningStatus
+```
+
+Turn learning on for a call type (`POST .../learning/enable`), self-serve.
+
+Needs a `config:write` key (or an owner/admin session) and the workspace's corrections
+consent; raises `LearningConsentRequiredError` without it and
+`LearningProviderUnavailableError` when the reflection model has no
+usable workspace provider (learning never falls back to a platform or paid provider).
+
+**Args**
+
+- `call_type_id`: The call type id or slug.
+- `reflection_model`: The model (one the workspace has configured) that writes candidate adaptations.
+- `promotion`: How a candidate becomes active: `"evaluate"` (the gateway's default: a randomized evaluation against the incumbent, under a rule frozen before it starts), `"manual"` (an owner or admin decides) or `"immediate"` (publication is activation); or a policy mapping `{"mode", "objective"}`.
+- `objective`: What an evaluation must show: `"success"` or `"cost_noninferior"`.
+- `recipe`: A named learning recipe (default: the gateway's default recipe).
+- `options`: Per-call request options.
+
+#### client.learning.pause
+
+```python
+client.learning.pause(
+    call_type_id: str,
+    *,
+    options: RequestOptions | None = None,
+) -> LearningStatus
+```
+
+Stop reflecting and evaluating; keep serving the active version.
+
+#### client.learning.resume
+
+```python
+client.learning.resume(
+    call_type_id: str,
+    *,
+    options: RequestOptions | None = None,
+) -> LearningStatus
+```
+
+Resume a paused (or quota- or budget-stopped) learner.
+
+#### client.learning.disable
+
+```python
+client.learning.disable(
+    call_type_id: str,
+    *,
+    options: RequestOptions | None = None,
+) -> LearningStatus
+```
+
+Stop learning and stop serving learned lessons for the call type (the kill switch).
+
+#### client.learning.versions
+
+```python
+client.learning.versions(
+    call_type_id: str,
+    *,
+    limit: int | None = None,
+    cursor: str | None = None,
+    options: RequestOptions | None = None,
+) -> LearningVersionList
+```
+
+Version history with each version's state (`GET .../learning/versions`).
+
+#### client.learning.version
+
+```python
+client.learning.version(
+    call_type_id: str,
+    version_id: str,
+    *,
+    options: RequestOptions | None = None,
+) -> LearningVersion
+```
+
+One version's lessons and provenance summary (`GET .../learning/versions/{id}`).
+
+#### client.learning.rollback
+
+```python
+client.learning.rollback(
+    call_type_id: str,
+    *,
+    version_id: str,
+    reason: str | None = None,
+    options: RequestOptions | None = None,
+) -> LearningStatus
+```
+
+Point the active version at an exact earlier, immutable version (`reason` is recorded
+with the audit event).
+
+#### client.learning.promote
+
+```python
+client.learning.promote(
+    call_type_id: str,
+    version_id: str,
+    *,
+    reason: str | None = None,
+    options: RequestOptions | None = None,
+) -> LearningVersion
+```
+
+Manually promote a candidate version to active (owner or admin); `reason` is recorded
+with the audit event.
+
+#### client.learning.reject
+
+```python
+client.learning.reject(
+    call_type_id: str,
+    version_id: str,
+    *,
+    reason: str | None = None,
+    options: RequestOptions | None = None,
+) -> LearningVersion
+```
+
+Manually reject a candidate version; the incumbent stays active (owner or admin).
+
+#### client.learning.evaluations
+
+```python
+client.learning.evaluations(
+    call_type_id: str,
+    *,
+    limit: int | None = None,
+    cursor: str | None = None,
+    options: RequestOptions | None = None,
+) -> LearningEvaluationList
+```
+
+Evaluations with their frozen rule, arms, interval and decision.
+
 Async differences: on `AsyncUltraRouter`, `client.reviewer.record(...)` and
 `client.reviewer.dead_letters()` stay synchronous (they never touch the network).
 
@@ -1784,9 +2103,10 @@ with client.chat.completions.create(
     for chunk in stream:
         if chunk.choices:
             print(chunk.choices[0].delta.content or "", end="")
-print(stream.ur.request_id if stream.ur else None)
+print(stream.request_id)  # known from the response header, before the first chunk
 ```
 
+- `request_id` (property): The gateway request id, available as soon as the stream opens (from the `x-ur-request-id` response header; after iteration also from the final `ur` block).
 - `text() -> str`: Consume the rest of the stream and return the concatenated `delta.content`.
 - `close() -> None`: Close the underlying HTTP response (safe to call more than once).
 
@@ -1796,6 +2116,7 @@ An asynchronous stream of `ChatCompletionChunk` objects.
 
 The async twin of `Stream`: `async for chunk in stream` and `async with`.
 
+- `request_id` (property): The gateway request id, available as soon as the stream opens; see `Stream.request_id`.
 - `text() -> str`: Consume the rest of the stream and return the concatenated `delta.content`.
 - `close() -> None`: Close the underlying HTTP response (safe to call more than once).
 
@@ -1856,6 +2177,55 @@ The scope yielded by `AsyncUltraRouter.with_artifact` (an async context manager)
 - `final(**params: Any) -> ArtifactFinal`: Record the approved final of this artifact.
 - `flush() -> OutcomeFlushReport`: Deliver queued outcomes now.
 
+### Episode
+
+One multi-step task; returned by `UltraRouter.episode` (a context manager):
+
+```python
+```
+
+from ultrarouter import UltraRouter
+
+client = UltraRouter()
+with client.episode("order:A-100") as episode:
+    episode.chat.completions.create(
+        model="openai/gpt-5.2-mini",
+        messages=[{"role": "user", "content": "Process order A-100."}],
+    )
+    # ... more steps (tool calls) ...
+    episode.report("pass", source="verifier")  # the terminal verdict, on the last step
+
+- `last_request_id` (property): The request id of the latest step, or `None` before the first.
+- `report(
+    verdict: Verdict,
+    *,
+    source: OutcomeSource,
+    request_id: str | None = None,
+    idempotency_key: str | None = None,
+    observed_at: str | datetime | None = None,
+    evidence_hash: str | None = None,
+    supersedes: str | None = None,
+    options: RequestOptions | None = None,
+) -> OutcomeReport`: Report the episode's terminal verdict (on the last step unless `request_id` is given).
+
+### AsyncEpisode
+
+One multi-step task on `AsyncUltraRouter` (an async context manager);
+see `Episode`.
+
+- `last_request_id` (property): The request id of the latest step, or `None` before the first.
+- `report(
+    verdict: Verdict,
+    *,
+    source: OutcomeSource,
+    request_id: str | None = None,
+    idempotency_key: str | None = None,
+    observed_at: str | datetime | None = None,
+    evidence_hash: str | None = None,
+    supersedes: str | None = None,
+    options: RequestOptions | None = None,
+) -> OutcomeReport`: Report the terminal verdict; async twin of `Episode.report`.
+
 ### BaseModel
 
 Base class of every typed response returned by the SDK.
@@ -1884,18 +2254,27 @@ Base class of every typed response returned by the SDK.
 | `ContextLengthError` | `APIStatusError` | `context_length` | `context_length` (400): prompt plus requested completion exceed the context window. |
 | `InternalServerError` | `APIStatusError` | `internal` | `internal` (500): an unexpected gateway failure. |
 | `InvalidRequestError` | `APIStatusError` | `invalid_request` | `invalid_request` (400): malformed body, parameters, or an unsupported option. |
+| `LearningBudgetExhaustedError` | `LearningError` | (any) | `budget_exhausted`: the call type's learning budget is spent. |
+| `LearningConsentRequiredError` | `LearningError` | (any) | `missing_consent`: learning needs the workspace's corrections consent, which is off. |
+| `LearningError` | `APIStatusError` | (any) | A learning control refused for a reason you can act on. |
+| `LearningForbiddenError` | `LearningError` | `permission` | `forbidden`: the key or user may not do this (reads need `config:read`, controls `config:write`, manual promote/reject an owner or admin). |
+| `LearningNotFoundError` | `LearningError` | `not_found` | `not_found`: the call type, version or evaluation does not exist in this workspace. |
+| `LearningProviderUnavailableError` | `LearningError` | (any) | `provider_unavailable`: the reflection model has no usable workspace provider. |
+| `LearningQuotaExhaustedError` | `LearningError` | (any) | `quota_exhausted`: the learning provider refused for quota. |
 | `ManifestInvalidError` | `APIStatusError` | `manifest_invalid` | `manifest_invalid` (400): a declared `ur.manifest` is structurally invalid. |
 | `ManifestMismatchError` | `APIStatusError` | `manifest_mismatch` | `manifest_mismatch` (400): a declared manifest hash does not match the bytes sent. |
 | `MaxCostExceededError` | `APIStatusError` | `max_cost_exceeded` | `max_cost_exceeded` (402): the estimated call cost exceeds `ur.max_cost_usd`. |
 | `ModelDeniedByPolicyError` | `APIStatusError` | `model_denied_by_policy` | `model_denied_by_policy` (403): the workspace model policy forbids this model. |
 | `ModelUnpricedError` | `APIStatusError` | `model_unpriced` | `model_unpriced` (403): the requested model has no usable price. |
 | `NotFoundError` | `APIStatusError` | `not_found` | `not_found` (404): unknown model, request, call type or other resource. |
+| `OutcomeBacklogFullError` | `RateLimitError` | `outcome_backlog_full` | `outcome_backlog_full` (429): too many outcomes are still pending for this workspace. |
 | `OutcomeStoreError` | `UltraRouterError` | `outcome_store` | A durable queue store could not be read or written (for example a damaged queue file). |
 | `PermissionDeniedError` | `APIStatusError` | `permission` | `permission` (403): the key is valid but lacks the scope this endpoint needs. |
 | `PromptVariablesMissingError` | `APIStatusError` | `prompt_variables_missing` | `prompt_variables_missing` (400): a required hosted-prompt variable was not supplied. |
 | `ProviderTimeoutError` | `APIStatusError` | `provider_timeout` | `provider_timeout` (504): the upstream provider exceeded its deadline. |
 | `ProviderUnavailableError` | `APIStatusError` | `provider_unavailable` | `provider_unavailable` (502): the upstream provider failed or was unreachable. |
 | `RateLimitError` | `APIStatusError` | `rate_limited` | `rate_limited` (429): a per-key or per-workspace rate limit was hit (retried). |
+| `ReceiptWaitTimeoutError` | `APITimeoutError` | `timeout` | `outcomes.wait_for_receipt` ran out of time before the receipt reached a final status. |
 | `RequestCancelledError` | `APIStatusError` | `cancelled` | `cancelled` (499): the request was aborted before completion. |
 | `SpendCapExceededError` | `APIStatusError` | `spend_cap_exceeded` | `spend_cap_exceeded` (402): the hard spend cap for the period was reached. |
 | `SpendGuardUnavailableError` | `APIStatusError` | `atomic_spend_guard_unavailable` | `atomic_spend_guard_unavailable` (503): live paid execution is not available. |
@@ -1964,6 +2343,30 @@ decision's identity fields.
 
 - `ChatCompletion`: response model; see the [types reference](types-reference.md#chatcompletion).
 - `ChatCompletionChunk`: response model; see the [types reference](types-reference.md#chatcompletionchunk).
+### correlation_headers
+
+```python
+correlation_headers(
+    *,
+    request_id: str | None = None,
+    episode_key: str | None = None,
+) -> dict[str, str]
+```
+
+The correlation headers for one call, validated.
+
+Pass the result as `extra_headers` to any OpenAI-compatible client pointed at the gateway
+(for example the `openai` package) to know the request id before the call and to group the
+call into an episode:
+
+```python
+from ultrarouter import correlation_headers, new_request_id
+
+request_id = new_request_id()
+headers = correlation_headers(request_id=request_id, episode_key="order:A-100")
+assert headers == {"x-ur-request-id": request_id, "x-ur-artifact": "order:A-100"}
+```
+
 - `CreateEmbeddingResponse`: response model; see the [types reference](types-reference.md#createembeddingresponse).
 ### decide_preflight_cache
 
@@ -2006,6 +2409,7 @@ Lengths of the draft and the final, in UTF-16 code units.
 
 The result of `diff_stats`.
 
+- `EPISODE_HEADER` = `'x-ur-artifact'`
 ### error_class_for
 
 ```python
@@ -2062,6 +2466,14 @@ is_retryable_status(status: int) -> bool
 
 Return `True` for HTTP statuses the SDK may retry: 408, 429 and 5xx.
 
+### is_valid_request_id
+
+```python
+is_valid_request_id(value: object) -> bool
+```
+
+Whether `value` is a string matching `[A-Za-z0-9_-]{1,64}`.
+
 - `KeyInfo`: response model; see the [types reference](types-reference.md#keyinfo).
 - `LEARNED_MESSAGE_ROLE` = `'user'`
 ### learned_placement_index
@@ -2078,6 +2490,10 @@ Return the index right after the leading run of `system` messages.
 
 The message `apply_learned_context` inserts.
 
+- `LEARNING_ERROR_ACTIONS` = `{'missing_consent': "A workspace owner or admin must turn on the workspace's corrections consent before learning can be enabled.", 'provider_unavailable': 'Configure a provider key for the reflecti...`
+- `LEARNING_ERROR_CODES` = `{'missing_consent': ('consent_required', 'corrections_consent_required', 'learning_consent_required'), 'provider_unavailable': ('learning_provider_unavailable', 'reflection_provider_unavailable', '...`
+- `LEARNING_ERROR_REASONS` = `('missing_consent', 'provider_unavailable', 'quota_exhausted', 'budget_exhausted', 'not_found', 'forbidden')`
+- `LearningObjective` = `typing.Literal['success', 'cost_noninferior']`
 ### MemoryOutcomeStore
 
 The default in-process store: durable for the lifetime of the client, FIFO order.
@@ -2090,6 +2506,25 @@ The default in-process store: durable for the lifetime of the client, FIFO order
 - `Model`: response model; see the [types reference](types-reference.md#model).
 - `ModelDetail`: response model; see the [types reference](types-reference.md#modeldetail).
 - `ModelList`: response model; see the [types reference](types-reference.md#modellist).
+### new_episode_key
+
+```python
+new_episode_key(prefix: str = 'ep') -> str
+```
+
+Mint a unique episode key: `"<prefix>_"` plus a ULID (`ep_01J...` by default).
+
+### new_request_id
+
+```python
+new_request_id() -> str
+```
+
+Mint a client-side request id to send as `x-ur-request-id`: `"req_c_"` plus a ULID.
+
+The `req_c_` prefix keeps a client-minted id apart from the ids the gateway mints itself
+(`req_<ULID>`). The same scheme as the TypeScript SDK's `mintRequestId`.
+
 - `NOT_GIVEN` = `NOT_GIVEN`
 ### NotGiven
 
@@ -2098,6 +2533,11 @@ Sentinel for "argument not supplied", distinct from an explicit `None`.
 Update methods use it for fields the API lets you clear: leaving the argument out sends
 nothing, passing `None` sends `null` (clearing the value).
 
+### NotReportedOutcome
+
+A verdict of `unknown`: nothing was sent, and nothing is ever inferred from silence.
+
+- `OUTCOME_SOURCES` = `('verifier', 'business_rule', 'webhook', 'human_review', 'self_rating')`
 ### OutcomeFlushReport
 
 What `outcomes.flush()` returns.
@@ -2112,6 +2552,8 @@ event stays in the store, unchanged, for `flush`) or `"rejected"` (the server
 definitively refused the event with a non-retryable 4xx; it was dropped and `error` says
 why).
 
+- `OutcomeReport` = `ultrarouter._outcome_report.TeachingOutcomeReport | ultrarouter._outcome_report.ProxyOutcomeReport | ultrarouter._outcome_report.NotReportedOutcome`
+- `OutcomeSource` = `typing.Literal['verifier', 'business_rule', 'webhook', 'human_review', 'self_rating']`
 ### OutcomeStore
 
 The durability port both queues persist through.
@@ -2202,6 +2644,7 @@ A cached preflight response. `body` always has `grant` set to `None`.
 - `PreflightKnowledge`: response model; see the [types reference](types-reference.md#preflightknowledge).
 - `PreflightPrompt`: response model; see the [types reference](types-reference.md#preflightprompt).
 - `PreflightResponse`: response model; see the [types reference](types-reference.md#preflightresponse).
+- `PromotionMode` = `typing.Literal['evaluate', 'manual', 'immediate']`
 - `PROMPT_VARIABLES_MISSING_CODE` = `'prompt_variables_missing'`
 ### PromptRenderFailure
 
@@ -2212,6 +2655,12 @@ A refused render: `{"ok": False, "missing": [...]}` (sorted, de-duplicated names
 
 A successful render: `{"ok": True, "text": ...}`.
 
+### ProxyOutcomeReport
+
+A reported self-rating: recorded as a weak proxy that may rank but never teaches.
+
+- `ProxySource` = `typing.Literal['self_rating']`
+- `RECEIPT_TERMINAL_STATUSES` = `('applied', 'rejected', 'failed', 'expired')`
 ### render_hosted_prompt_result
 
 ```python
@@ -2240,6 +2689,48 @@ object with `template` and `variables`). Raises
 `PromptVariablesMissingError` (`status == 0`) listing every missing
 required variable.
 
+- `REPORT_IDENTITY_VERSION` = `'ur-outcome-report/v1'`
+### report_source_event_id
+
+```python
+report_source_event_id(
+    request_id: str,
+    verdict: str,
+    source: str,
+    idempotency_key: str | None = None,
+) -> str
+```
+
+The stable `source_event_id` of a report: the same inputs always give the same id.
+
+    `"rpt_"` followed by the lowercase hex SHA-256 of the UTF-8 string
+    `"ur-outcome-report/v1
+" + request_id + "
+" + verdict + "
+" + source + "
+" +
+    (idempotency_key or "")`, exactly as the TypeScript SDK's `reportSourceEventId`. Reporting
+    the same verdict again (a retry after a lost acknowledgement, a restarted process, a
+    redelivered webhook) therefore names the same event, which the gateway records once. To record
+    a second, distinct event with the same verdict and source, pass a distinct `idempotency_key`.
+
+- `REQUEST_ID_HEADER` = `'x-ur-request-id'`
+### request_id_of
+
+```python
+request_id_of(result: Any) -> str
+```
+
+The gateway request id of a result, whichever client produced it.
+
+Accepts a request id string, an SDK response (`reply.ur.request_id`), a
+`Stream` or `AsyncStream` (known from the response
+header before the first chunk), an `openai` package response or stream pointed at the
+gateway (the `ur` block it keeps as an extra field, or the response headers), an
+`httpx.Response`, or a mapping with a `ur` block. Raises
+`InvalidRequestError` (status 0) when no id can be found.
+
+- `RequestIdMode` = `typing.Literal['gateway', 'client']`
 ### RequestOptions
 
 Per-call overrides accepted by every method as `options=`.
@@ -2289,7 +2780,35 @@ Return `"sha256=<hex>"`: HMAC-SHA256 of `"<timestamp>.<raw_body>"`.
 The HMAC key is `secret` (your API key for reviewer events and candidate decisions, the
 oracle secret for pull oracles).
 
+### source_teaches
+
+```python
+source_teaches(source: str) -> bool
+```
+
+Whether a verdict from `source` teaches (`False` only for `self_rating`).
+
+### TeachingOutcomeReport
+
+A reported verdict from a source that teaches (verifier, business rule, webhook, human).
+
+- `TeachingSource` = `typing.Literal['verifier', 'business_rule', 'webhook', 'human_review']`
 - `UrBlock`: response model; see the [types reference](types-reference.md#urblock).
+- `Verdict` = `typing.Literal['pass', 'fail', 'unknown']`
+### verdict_event
+
+```python
+verdict_event(source: str, verdict: str) -> VerdictEvent | None
+```
+
+The event a verdict maps to, or `None` for `unknown` (nothing is sent).
+
+Raises `InvalidRequestError` (status 0) for an unknown source or verdict.
+
+### VerdictEvent
+
+The outcome event one (source, verdict) pair maps to.
+
 ### with_header_grant
 
 ```python

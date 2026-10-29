@@ -3459,6 +3459,96 @@ Usage this period (from the live spend counters — never a scan of requests).
 | `workspace_spend_cap_micro_usd` | `int \| None` | yes | The per-workspace monthly hard cap; null = uncapped. |
 | `workspace_spent_micro_usd` | `int` | yes | The workspace's total spend this period. |
 
+### LearningArmEvidence
+
+*response model*
+
+One arm's evidence in an evaluation.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `version_id` | `str \| None` | no | The version the arm served. |
+| `verified` | `int \| None` | no | Episodes with a verified verdict. |
+| `passed` | `int \| None` | no | Verified episodes that passed. |
+| `unknown` | `int \| None` | no | Episodes whose verdict stayed unknown. |
+
+### LearningBudget
+
+*response model*
+
+The learning budget: its state and what is left.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `state` | `str \| None` | no | Known values: ``ok``, ``exhausted``. |
+| `remaining_usd` | `float \| None` | no | What is left, in USD. |
+
+### LearningEvaluation
+
+*response model*
+
+A prospective evaluation of a candidate against the incumbent.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `id` | `str` | yes | The evaluation id. |
+| `decision` | `str \| None` | no | ``running`` until it decides. Known values: ``running``, ``promoted``, ``retained``, ``inconclusive``, ``rejected``, ``stopped_budget``, ``stopped_manual``. |
+| `reason` | `str \| None` | no | Why it decided, when it has. |
+| `objective` | `str \| None` | no | The objective, frozen when the evaluation started. |
+| `rule` | `dict[str, Any] \| None` | no | The decision rule, frozen when the evaluation started (minimum and maximum verified episodes per arm, interval, minimum effect). |
+| `candidate` | `LearningArmEvidence \| None` | no | The candidate arm. |
+| `incumbent` | `LearningArmEvidence \| None` | no | The incumbent arm. |
+| `interval` | `LearningEvaluationInterval \| None` | no | The interval the rule reads. |
+| `started_at` | `str \| None` | no | When it started (ISO-8601). |
+| `decided_at` | `str \| None` | no | When it decided (ISO-8601), else ``None``. |
+
+### LearningEvaluationInterval
+
+*response model*
+
+The one-sided interval on (candidate − incumbent) success, in percentage points.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `lower` | `float \| None` | no | Lower bound. |
+| `upper` | `float \| None` | no | Upper bound. |
+
+### LearningEvaluationList
+
+*response model*
+
+Evaluations, newest first (`GET /v1/call-types/{id}/learning/evaluations`).
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `data` | `list[LearningEvaluation]` | no | The evaluations. |
+
+### LearningEvidenceCounts
+
+*response model*
+
+Outcome evidence that arrived, was verified, was incorporated, and is still pending.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `arrived` | `int \| None` | no | Outcomes that arrived. |
+| `verified` | `int \| None` | no | Outcomes verified against an episode. |
+| `incorporated` | `int \| None` | no | Verified outcomes already used to learn. |
+| `pending` | `int \| None` | no | Outcomes still waiting (for example on a pending receipt). |
+
+### LearningLesson
+
+*response model*
+
+One lesson of a learned version.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `id` | `str \| None` | no | The lesson id (stable across versions). |
+| `text` | `str \| None` | no | The lesson text. |
+| `tool` | `str \| None` | no | The tool the lesson is scoped to, or ``None`` for general guidance. |
+| `evidence_count` | `int \| None` | no | How many evidence cases support it. |
+
 ### LearningPlan
 
 *response model*
@@ -3556,6 +3646,103 @@ One learning-plan proposal in the discovery list (metadata only, never a body).
 | `provenance` | `str` | yes | inferred = derived from the inferred site brief (a zero-traffic seed); declared = derived from the workspace's OWN traffic. Declared, inferred and gateway provenance are never conflated.  Known values: ``inferred``, ``declared``. |
 | `review_state` | `str` | yes | The learning-plan lifecycle state.  Known values: ``proposed``, ``confirmed``, ``declined``, ``deferred``, ``stale``. |
 | `workflow_id` | `str` | yes |  |
+
+### LearningPromotionPolicy
+
+*response model*
+
+How a candidate becomes active.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `mode` | `str \| None` | no | Known values: ``evaluate`` (a randomized evaluation against the incumbent, under a rule frozen before it starts), ``manual`` (an owner or admin decides), ``immediate`` (publication is activation). |
+| `objective` | `str \| None` | no | What an evaluation must show. Known values: ``success``, ``cost_noninferior``. |
+
+### LearningProvenance
+
+*response model*
+
+Where a version's lessons came from.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `episodes` | `int \| None` | no | Episodes the lessons were learned from. |
+| `outcomes` | `int \| None` | no | Outcomes behind them. |
+
+### LearningProvider
+
+*response model*
+
+The workspace provider that runs reflection and evaluation for a call type.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `model` | `str \| None` | no | The reflection model id. |
+| `state` | `str \| None` | no | Whether it is usable. Known values: ``ready``, ``unavailable``, ``quota_exhausted``. |
+
+### LearningStatus
+
+*response model*
+
+The learning state of one call type (`GET /v1/call-types/{id}/learning`).
+
+The control routes (enable, pause, resume, disable, rollback) answer with this too.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `call_type_id` | `str \| None` | no | The call type id. |
+| `state` | `str \| None` | no | Known values: ``not_enabled``, ``active``, ``paused``, ``disabled``, ``unavailable`` (no usable learning provider), ``quota_exhausted``, ``budget_exhausted``. A stopped learner always says why, never silently. |
+| `reason` | `str \| None` | no | A stable machine reason for the state, when there is one (for example ``provider_missing``). |
+| `provider` | `LearningProvider \| None` | no | The learning provider: the reflection model and whether it is usable. |
+| `promotion` | `LearningPromotionPolicy \| None` | no | The promotion policy. |
+| `active` | `LearningVersionRef \| None` | no | The version serving now (the incumbent). |
+| `candidate` | `LearningVersionRef \| None` | no | The newest candidate. |
+| `evaluation` | `LearningEvaluation \| None` | no | The running or latest evaluation. |
+| `evidence` | `LearningEvidenceCounts \| None` | no | Evidence arrived, verified, incorporated and pending. |
+| `backlog` | `int \| None` | no | Outcomes waiting to be learned from. |
+| `budget` | `LearningBudget \| None` | no | The learning budget. |
+
+### LearningVersion
+
+*response model*
+
+One immutable learned version; only its state moves.
+
+The single-version read (`learning.version`) also fills `lessons` and `provenance`.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `id` | `str` | yes | The version id. |
+| `state` | `str \| None` | no | Known values: ``candidate``, ``evaluating``, ``active``, ``retired``, ``rejected``, ``superseded``. |
+| `state_reason` | `str \| None` | no | Why the version is in this state (a stable machine code), when known. |
+| `parent_version_id` | `str \| None` | no | The version this one was derived from. |
+| `lesson_count` | `int \| None` | no | The number of lessons. |
+| `evaluation_id` | `str \| None` | no | The evaluation that decided this version, when one did. |
+| `created_at` | `str \| None` | no | When the version was created (ISO-8601). |
+| `lessons` | `list[LearningLesson] \| None` | no | The lessons (on the single-version read). |
+| `provenance` | `LearningProvenance \| None` | no | A summary of where the lessons came from (on the single-version read). |
+
+### LearningVersionList
+
+*response model*
+
+Version history, newest first (`GET /v1/call-types/{id}/learning/versions`).
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `data` | `list[LearningVersion]` | no | The versions. |
+
+### LearningVersionRef
+
+*response model*
+
+A short reference to a learned version inside a status.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `id` | `str` | yes | The version id. |
+| `state` | `str \| None` | no | The version state (see :class:`LearningVersion`). |
+| `created_at` | `str \| None` | no | When the version was created (ISO-8601). |
 
 ### ManifestWireEntryParam
 
@@ -4293,6 +4480,44 @@ A single outcome event to record (the server assigns provenance + learning_use).
 | `supersedes_event_id` | `str` | no | The event this one supersedes. |
 | `tool_error_class` | `Literal['model', 'infra', 'unclassified']` | no | For mechanical:tool_error — refines learning_use (only model-class teaches). |
 | `value` | `dict[str, Any]` | no | The typed numeric/diff-stats payload — never a body. |
+
+### OutcomeReceiptRecord
+
+*response model*
+
+The durable receipt of one reported outcome (`GET /v1/outcome-receipts/{id}`).
+
+A report made before the gateway has persisted the request is accepted at once as
+`pending` and applied when the request lands; `status` then moves to `applied` (or
+`rejected` / `failed` / `expired` with a `reason`).
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `id` | `str` | yes | The receipt id. |
+| `object` | `str \| None` | no | Known values: ``outcome_receipt``. |
+| `status` | `str` | yes | Known values: ``pending``, ``applied``, ``rejected``, ``failed``, ``expired``. |
+| `reason` | `str \| None` | no | Why the receipt was rejected, failed or expired (for example ``request_not_found``). |
+| `episode` | `str \| None` | no | Episode association. Known values: ``associated``, ``pending``, ``not_recorded``, ``not_applicable``. |
+| `request_id` | `str \| None` | no | The request the outcome was reported on. |
+| `channel` | `str \| None` | no | The outcome channel. |
+| `kind` | `str \| None` | no | The channel kind. |
+| `source_event_id` | `str \| None` | no | The idempotency discriminator the report carried. |
+| `outcome_event_id` | `str \| None` | no | The recorded outcome event, once applied. |
+| `created_at` | `str \| None` | no | When the report was received (ISO-8601). |
+| `updated_at` | `str \| None` | no | When the receipt last changed (ISO-8601). |
+| `applied_at` | `str \| None` | no | When the outcome was applied (ISO-8601). |
+| `expires_at` | `str \| None` | no | When a still-pending receipt expires (ISO-8601). |
+
+### OutcomeReceiptRecordList
+
+*response model*
+
+Every receipt for one request (`GET /v1/requests/{id}/outcome-receipts`).
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `object` | `str \| None` | no | Known values: ``list``. |
+| `data` | `list[OutcomeReceiptRecord]` | no | The receipts, oldest first. |
 
 ### OutcomeResult
 

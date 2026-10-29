@@ -69,6 +69,23 @@ class SSEDecoder:
 
 _DONE = object()
 
+_REQUEST_ID_HEADER = "x-ur-request-id"
+
+
+def _stream_request_id(response: httpx.Response, ur: UrBlock | None) -> str | None:
+    """The request id: the response header (known before the first chunk), else the final
+    chunk's ``ur`` block, else the id the caller minted on the request."""
+    header = response.headers.get(_REQUEST_ID_HEADER)
+    if header:
+        return str(header)
+    if ur is not None and ur.request_id:
+        return ur.request_id
+    try:
+        sent = response.request.headers.get(_REQUEST_ID_HEADER)
+    except RuntimeError:  # a response built without a request
+        return None
+    return str(sent) if sent else None
+
 
 def decode_frame(event: str, data: str) -> Any:
     """Decode one frame into a parsed JSON object, or the ``_DONE`` sentinel.
@@ -162,7 +179,7 @@ class Stream:
             for chunk in stream:
                 if chunk.choices:
                     print(chunk.choices[0].delta.content or "", end="")
-        print(stream.ur.request_id if stream.ur else None)
+        print(stream.request_id)  # known from the response header, before the first chunk
     """
 
     def __init__(self, response: httpx.Response) -> None:
@@ -191,6 +208,12 @@ class Stream:
 
     def __next__(self) -> ChatCompletionChunk:
         return next(self._iterator)
+
+    @property
+    def request_id(self) -> str | None:
+        """The gateway request id, available as soon as the stream opens (from the
+        ``x-ur-request-id`` response header; after iteration also from the final ``ur`` block)."""
+        return _stream_request_id(self.response, self.ur)
 
     def text(self) -> str:
         """Consume the rest of the stream and return the concatenated ``delta.content``."""
@@ -250,6 +273,12 @@ class AsyncStream:
 
     async def __anext__(self) -> ChatCompletionChunk:
         return await self._iterator.__anext__()
+
+    @property
+    def request_id(self) -> str | None:
+        """The gateway request id, available as soon as the stream opens; see
+        :attr:`Stream.request_id`."""
+        return _stream_request_id(self.response, self.ur)
 
     async def text(self) -> str:
         """Consume the rest of the stream and return the concatenated ``delta.content``."""

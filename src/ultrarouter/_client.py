@@ -6,7 +6,7 @@ import copy
 import time
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from types import TracebackType
-from typing import Any
+from typing import Any, Literal
 
 import httpx
 
@@ -27,6 +27,7 @@ from ._config import (
     apply_embedding_defaults,
 )
 from ._constants import DEFAULT_MAX_RETRIES, DEFAULT_TIMEOUT_S
+from ._episode import AsyncEpisode, Episode
 from ._errors import InvalidRequestError, UltraRouterError
 from ._learned_placement import apply_learned_context
 from ._preflight import (
@@ -64,6 +65,7 @@ from ._resources.embeddings import (
     Models,
 )
 from ._resources.flywheel import AsyncFlywheel, Flywheel
+from ._resources.learning import AsyncLearning, Learning
 from ._resources.ledger import (
     Archetype,
     Artifacts,
@@ -106,6 +108,16 @@ __all__ = [
     "LearnedSession",
     "UltraRouter",
 ]
+
+
+RequestIdMode = Literal["gateway", "client"]
+"""Who mints request ids: the gateway (default) or the client (``x-ur-request-id``)."""
+
+
+def _request_id_mode(value: str) -> str:
+    if value not in ("gateway", "client"):
+        raise ValueError(f"request_ids must be 'gateway' or 'client' (got {value!r})")
+    return value
 
 
 def _now_ms() -> float:
@@ -164,7 +176,8 @@ def _import_openai(name: str) -> Any:
         import openai
     except ImportError as exc:
         raise UltraRouterError(
-            "as_openai() needs the openai package: pip install 'ultrarouter[openai]'",
+            "as_openai() needs the openai package: install it (pip install openai), or install "
+            "the ultrarouter wheel with its [openai] extra",
             code="dependency_missing",
         ) from exc
     return getattr(openai, name)
@@ -207,6 +220,10 @@ class UltraRouter(SyncAPIClient):
         preflight_cache_size: Most preflight identities kept in the client-side cache (least
             recently used evicted first; expired entries are dropped). ``0`` disables it.
             Default 1024.
+        request_ids: Who mints request ids. ``"gateway"`` (default): the gateway does.
+            ``"client"``: the SDK sends a freshly minted ``x-ur-request-id`` on every chat and
+            embeddings call that does not pass ``request_id=``, so each call's id is known
+            before it returns (and is set on the error when a call fails without an answer).
         http_client: Your own ``httpx.Client`` (proxies, transports, mocking). The SDK does not
             close a client you pass in.
     """
@@ -226,6 +243,7 @@ class UltraRouter(SyncAPIClient):
         outcome_store: OutcomeStore | None = None,
         reviewer_store: OutcomeStore | None = None,
         preflight_cache_size: int = DEFAULT_PREFLIGHT_CACHE_SIZE,
+        request_ids: RequestIdMode = "gateway",
         http_client: httpx.Client | None = None,
         _sleep: Callable[[float], None] = default_sleep,
         _rand: Callable[[], float] = default_rand,
@@ -246,6 +264,7 @@ class UltraRouter(SyncAPIClient):
         )
         self.default_model: str | None = default_model
         self.defaults: dict[str, Any] = dict(defaults or {})
+        self.request_ids = _request_id_mode(request_ids)
         self._outcome_queue = OutcomeQueue(
             outcome_store or MemoryOutcomeStore(), self._send_outcome
         )
@@ -288,6 +307,8 @@ class UltraRouter(SyncAPIClient):
         """Status, grants, candidates, oracles, plans and verdict sources."""
         self.reviewer = Reviewer(self)
         """Signed reviewer decisions."""
+        self.learning = Learning(self)
+        """Per-call-type learning: status, enable/pause/resume/disable, versions, evaluations."""
 
     # ── request shaping ────────────────────────────────────────────────────
 
@@ -498,6 +519,17 @@ class UltraRouter(SyncAPIClient):
         """
         return ArtifactScope(self, key)
 
+    def episode(self, key: str | None = None) -> Episode:
+        """A context manager for one multi-step task (an episode); see :class:`Episode`.
+
+        Every ``episode.chat.completions.create(...)`` step carries the episode key
+        (``X-UR-Artifact``) and a request id minted before the call;
+        ``episode.report(verdict, source=...)`` reports the terminal verdict on the last step.
+        Without ``key`` a unique one is minted. Concurrent tasks need distinct keys: steps with
+        no key are grouped by their opening text, which identical concurrent tasks share.
+        """
+        return Episode(self, key)
+
     # ── misc ───────────────────────────────────────────────────────────────
 
     def record_outcome(
@@ -514,7 +546,10 @@ class UltraRouter(SyncAPIClient):
         """Return an ``openai.OpenAI`` client preconfigured for this gateway.
 
         The returned client uses ``<base_url>/v1``, this API key and any default (Bench)
-        headers. Requires ``pip install 'ultrarouter[openai]'`` unless ``cls`` is given.
+        headers. Requires the ``openai`` package (the ``openai`` extra) unless ``cls`` is given.
+        To know a call's request id up front, pass
+        ``extra_headers=ultrarouter.correlation_headers(request_id=ultrarouter.new_request_id())``;
+        afterwards :func:`ultrarouter.request_id_of` reads it from the response.
         """
         factory = cls if cls is not None else _import_openai("OpenAI")
         return factory(**self._openai_preset())
@@ -721,6 +756,7 @@ class AsyncUltraRouter(AsyncAPIClient):
         outcome_store: OutcomeStore | None = None,
         reviewer_store: OutcomeStore | None = None,
         preflight_cache_size: int = DEFAULT_PREFLIGHT_CACHE_SIZE,
+        request_ids: RequestIdMode = "gateway",
         http_client: httpx.AsyncClient | None = None,
         _sleep: Callable[[float], Awaitable[None]] = default_async_sleep,
         _rand: Callable[[], float] = default_rand,
@@ -741,6 +777,7 @@ class AsyncUltraRouter(AsyncAPIClient):
         )
         self.default_model: str | None = default_model
         self.defaults: dict[str, Any] = dict(defaults or {})
+        self.request_ids = _request_id_mode(request_ids)
         self._outcome_queue = AsyncOutcomeQueue(
             outcome_store or MemoryOutcomeStore(), self._send_outcome
         )
@@ -783,6 +820,8 @@ class AsyncUltraRouter(AsyncAPIClient):
         """Status, grants, candidates, oracles, plans and verdict sources."""
         self.reviewer = AsyncReviewer(self)
         """Signed reviewer decisions."""
+        self.learning = AsyncLearning(self)
+        """Per-call-type learning: status, enable/pause/resume/disable, versions, evaluations."""
 
     def _chat_body(
         self, params: dict[str, Any], extra_body: Mapping[str, Any] | None
@@ -943,6 +982,10 @@ class AsyncUltraRouter(AsyncAPIClient):
         """An async context manager bound to one artifact ``key``; see
         :meth:`UltraRouter.with_artifact`."""
         return AsyncArtifactScope(self, key)
+
+    def episode(self, key: str | None = None) -> AsyncEpisode:
+        """An async context manager for one multi-step task; see :meth:`UltraRouter.episode`."""
+        return AsyncEpisode(self, key)
 
     async def record_outcome(
         self,

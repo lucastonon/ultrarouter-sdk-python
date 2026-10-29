@@ -97,6 +97,29 @@ gateway and validate the request body against the specification
 | --- | --- | --- |
 | `GET /v1/echo` | `echo` | Diagnostic auth echo; client.key.get() verifies a key and returns more. |
 
+## Learning-loop endpoints not yet in the specification
+
+The SDK calls these newer endpoints with hand-written, provisional models
+(`ultrarouter.types._learning`); they move to the table above when the specification
+gains them (`tests/test_api_coverage.py` fails until they do).
+
+| Endpoint | SDK method | Tests |
+| --- | --- | --- |
+| `POST /v1/requests/{id}/outcomes` | `client.outcomes.report(...)` | `tests/test_outcome_report.py` (the existing operation, now answering `pending` + `receipt`) |
+| `GET /v1/outcome-receipts/{id}` | `client.outcomes.receipt(...)` | `tests/test_outcome_report.py` |
+| `GET /v1/requests/{id}/outcome-receipts` | `client.outcomes.receipts_for_request(...)` | `tests/test_outcome_report.py` |
+| `GET /v1/call-types/{id}/learning` | `client.learning.status(...)` | `tests/test_learning_controls.py` |
+| `POST /v1/call-types/{id}/learning/enable` | `client.learning.enable(...)` | `tests/test_learning_controls.py` |
+| `POST /v1/call-types/{id}/learning/pause` | `client.learning.pause(...)` | `tests/test_learning_controls.py` |
+| `POST /v1/call-types/{id}/learning/resume` | `client.learning.resume(...)` | `tests/test_learning_controls.py` |
+| `POST /v1/call-types/{id}/learning/disable` | `client.learning.disable(...)` | `tests/test_learning_controls.py` |
+| `GET /v1/call-types/{id}/learning/versions` | `client.learning.versions(...)` | `tests/test_learning_controls.py` |
+| `GET /v1/call-types/{id}/learning/versions/{version_id}` | `client.learning.version(...)` | `tests/test_learning_controls.py` |
+| `POST /v1/call-types/{id}/learning/rollback` | `client.learning.rollback(...)` | `tests/test_learning_controls.py` |
+| `POST /v1/call-types/{id}/learning/versions/{version_id}/promote` | `client.learning.promote(...)` | `tests/test_learning_controls.py` |
+| `POST /v1/call-types/{id}/learning/versions/{version_id}/reject` | `client.learning.reject(...)` | `tests/test_learning_controls.py` |
+| `GET /v1/call-types/{id}/learning/evaluations` | `client.learning.evaluations(...)` | `tests/test_learning_controls.py` |
+
 ## Endpoints that do not accept an API key
 
 These operations require a dashboard session (or no authentication, for health probes), so

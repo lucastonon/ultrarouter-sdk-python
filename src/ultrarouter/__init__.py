@@ -2,8 +2,9 @@
 
 An OpenAI-compatible client (``client.chat.completions.create``, ``client.embeddings.create``,
 ``client.models.list``) plus the ultrarouter surfaces: call types, Bench, the outcome ledger,
-preflight and learned context, the reviewer adapter, and a pure context runtime
-(:mod:`ultrarouter.context`).
+preflight and learned context, the reviewer adapter, the learning loop (request and episode
+correlation, ``client.outcomes.report`` with receipts and ``client.learning`` controls), and a
+pure context runtime (:mod:`ultrarouter.context`).
 
 Quickstart::
 
@@ -28,14 +29,28 @@ from ._client import (
     AsyncLearnedSession,
     AsyncUltraRouter,
     LearnedSession,
+    RequestIdMode,
     UltraRouter,
 )
 from ._config import AutopilotMode, BenchTag, Defaults
 from ._constants import DEFAULT_MAX_RETRIES, DEFAULT_TIMEOUT_S
+from ._correlation import (
+    EPISODE_HEADER,
+    REQUEST_ID_HEADER,
+    correlation_headers,
+    is_valid_request_id,
+    new_episode_key,
+    new_request_id,
+    request_id_of,
+)
 from ._diff_stats import DiffLengths, DiffStats, diff_stats
+from ._episode import AsyncEpisode, Episode
 from ._errors import (
     GATEWAY_ERROR_CODES,
     GATEWAY_ERROR_TAXONOMY,
+    LEARNING_ERROR_ACTIONS,
+    LEARNING_ERROR_CODES,
+    LEARNING_ERROR_REASONS,
     APIConnectionError,
     APIResponseValidationError,
     APIStatusError,
@@ -49,18 +64,27 @@ from ._errors import (
     ErrorTaxonomyEntry,
     InternalServerError,
     InvalidRequestError,
+    LearningBudgetExhaustedError,
+    LearningConsentRequiredError,
+    LearningError,
+    LearningForbiddenError,
+    LearningNotFoundError,
+    LearningProviderUnavailableError,
+    LearningQuotaExhaustedError,
     ManifestInvalidError,
     ManifestMismatchError,
     MaxCostExceededError,
     ModelDeniedByPolicyError,
     ModelUnpricedError,
     NotFoundError,
+    OutcomeBacklogFullError,
     OutcomeStoreError,
     PermissionDeniedError,
     PromptVariablesMissingError,
     ProviderTimeoutError,
     ProviderUnavailableError,
     RateLimitError,
+    ReceiptWaitTimeoutError,
     RequestCancelledError,
     SpendCapExceededError,
     SpendGuardUnavailableError,
@@ -77,6 +101,12 @@ from ._learned_placement import (
     learned_placement_index,
 )
 from ._models import BaseModel
+from ._outcome_report import (
+    NotReportedOutcome,
+    OutcomeReport,
+    ProxyOutcomeReport,
+    TeachingOutcomeReport,
+)
 from ._preflight import (
     DEFAULT_PREFLIGHT_CACHE_SIZE,
     PREFLIGHT_DEFAULT_CONFIG_MAX_AGE_S,
@@ -110,6 +140,7 @@ from ._queue import (
     ReviewerFlushReport,
 )
 from ._resources.flywheel import EXPERIMENT_EXECUTION_HEADER, candidate_decision_callback_id
+from ._resources.learning import LearningObjective, PromotionMode
 from ._signing import (
     REVIEWER_SIGNATURE_HEADER,
     REVIEWER_TIMESTAMP_HEADER,
@@ -119,6 +150,18 @@ from ._signing import (
 )
 from ._streaming import AsyncStream, Stream
 from ._types import NOT_GIVEN, NotGiven
+from ._verdicts import (
+    OUTCOME_SOURCES,
+    REPORT_IDENTITY_VERSION,
+    OutcomeSource,
+    ProxySource,
+    TeachingSource,
+    Verdict,
+    VerdictEvent,
+    report_source_event_id,
+    source_teaches,
+    verdict_event,
+)
 from ._version import __version__
 from .types import (
     ChatCompletion,
@@ -136,21 +179,30 @@ from .types import (
     PreflightResponse,
     UrBlock,
 )
+from .types._learning import RECEIPT_TERMINAL_STATUSES
 
 __all__ = [
     "DEFAULT_MAX_RETRIES",
     "DEFAULT_PREFLIGHT_CACHE_SIZE",
     "DEFAULT_TIMEOUT_S",
+    "EPISODE_HEADER",
     "EXPERIMENT_EXECUTION_HEADER",
     "GATEWAY_ERROR_CODES",
     "GATEWAY_ERROR_TAXONOMY",
     "LEARNED_MESSAGE_ROLE",
+    "LEARNING_ERROR_ACTIONS",
+    "LEARNING_ERROR_CODES",
+    "LEARNING_ERROR_REASONS",
     "NOT_GIVEN",
+    "OUTCOME_SOURCES",
     "PREFLIGHT_DEFAULT_CONFIG_MAX_AGE_S",
     "PREFLIGHT_DEFAULT_LIVE_MAX_AGE_S",
     "PREFLIGHT_GRANT_HEADER",
     "PREFLIGHT_LIVE_MAX_AGE_HEADER",
     "PROMPT_VARIABLES_MISSING_CODE",
+    "RECEIPT_TERMINAL_STATUSES",
+    "REPORT_IDENTITY_VERSION",
+    "REQUEST_ID_HEADER",
     "REVIEWER_SIGNATURE_HEADER",
     "REVIEWER_TIMESTAMP_HEADER",
     "APIConnectionError",
@@ -160,6 +212,7 @@ __all__ = [
     "APITimeoutError",
     "ArtifactScope",
     "AsyncArtifactScope",
+    "AsyncEpisode",
     "AsyncLearnedSession",
     "AsyncStream",
     "AsyncUltraRouter",
@@ -178,6 +231,7 @@ __all__ = [
     "Defaults",
     "DiffLengths",
     "DiffStats",
+    "Episode",
     "ErrorTaxonomyEntry",
     "Feedback",
     "FileOutcomeStore",
@@ -187,6 +241,14 @@ __all__ = [
     "KeyInfo",
     "LearnedMessage",
     "LearnedSession",
+    "LearningBudgetExhaustedError",
+    "LearningConsentRequiredError",
+    "LearningError",
+    "LearningForbiddenError",
+    "LearningNotFoundError",
+    "LearningObjective",
+    "LearningProviderUnavailableError",
+    "LearningQuotaExhaustedError",
     "ManifestInvalidError",
     "ManifestMismatchError",
     "MaxCostExceededError",
@@ -198,8 +260,12 @@ __all__ = [
     "ModelUnpricedError",
     "NotFoundError",
     "NotGiven",
+    "NotReportedOutcome",
+    "OutcomeBacklogFullError",
     "OutcomeFlushReport",
     "OutcomeReceipt",
+    "OutcomeReport",
+    "OutcomeSource",
     "OutcomeStore",
     "OutcomeStoreError",
     "PermissionDeniedError",
@@ -210,31 +276,44 @@ __all__ = [
     "PreflightKnowledge",
     "PreflightPrompt",
     "PreflightResponse",
+    "PromotionMode",
     "PromptRenderFailure",
     "PromptRenderResult",
     "PromptRenderSuccess",
     "PromptVariablesMissingError",
     "ProviderTimeoutError",
     "ProviderUnavailableError",
+    "ProxyOutcomeReport",
+    "ProxySource",
     "RateLimitError",
+    "ReceiptWaitTimeoutError",
     "RequestCancelledError",
+    "RequestIdMode",
     "RequestOptions",
     "ReviewerFlushReport",
     "SpendCapExceededError",
     "SpendGuardUnavailableError",
     "Stream",
+    "TeachingOutcomeReport",
+    "TeachingSource",
     "UltraRouter",
     "UltraRouterError",
     "UrBlock",
+    "Verdict",
+    "VerdictEvent",
     "__version__",
     "apply_learned_context",
     "candidate_decision_callback_id",
+    "correlation_headers",
     "decide_preflight_cache",
     "diff_stats",
     "error_class_for",
     "is_gateway_error_code",
     "is_retryable_status",
+    "is_valid_request_id",
     "learned_placement_index",
+    "new_episode_key",
+    "new_request_id",
     "parse_gateway_error_envelope",
     "parse_grant_header",
     "parse_max_age_seconds",
@@ -242,9 +321,13 @@ __all__ = [
     "preflight_has_cluster_key",
     "render_hosted_prompt_result",
     "render_prompt",
+    "report_source_event_id",
+    "request_id_of",
     "reviewer_signature_headers",
     "reviewer_signed_payload",
     "sign_payload",
+    "source_teaches",
     "types",
+    "verdict_event",
     "with_header_grant",
 ]

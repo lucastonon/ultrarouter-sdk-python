@@ -10,12 +10,26 @@ and learning use of an event are assigned by the server from your API key.
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from typing import Any, Literal
+from datetime import datetime
+from typing import Any, Literal, cast, overload
 
-from .._base_client import RequestOptions
-from .._errors import InvalidRequestError
+from .._base_client import RequestOptions, parse_model
+from .._errors import (
+    InvalidRequestError,
+    ReceiptWaitTimeoutError,
+    UltraRouterError,
+)
+from .._outcome_report import (
+    NotReportedOutcome,
+    OutcomeReport,
+    ProxyOutcomeReport,
+    TeachingOutcomeReport,
+    build_report_event,
+    report_from_receipt,
+)
 from .._queue import OutcomeFlushReport, OutcomeReceipt
 from .._types import compact
+from .._verdicts import OutcomeSource, ProxySource, TeachingSource, Verdict
 from ..types import (
     Artifact,
     ArtifactFinal,
@@ -32,6 +46,7 @@ from ..types import (
     OutcomeParams,
     PendingClaimList,
 )
+from ..types._learning import OutcomeReceiptRecord, OutcomeReceiptRecordList
 from ._base import AsyncAPIResource, SyncAPIResource, build, seg
 
 __all__ = [
@@ -90,6 +105,54 @@ def _artifact_body(
         request_ids=list(request_ids) if request_ids is not None else None,
         situation_facets=dict(situation_facets) if situation_facets is not None else None,
     )
+
+
+#: Default total wait of ``outcomes.wait_for_receipt``, in seconds.
+DEFAULT_RECEIPT_WAIT_S = 30.0
+#: First and largest poll interval of ``outcomes.wait_for_receipt``, in seconds.
+RECEIPT_POLL_INITIAL_S = 0.25
+RECEIPT_POLL_MAX_S = 4.0
+
+
+def _receipt_id_of(receipt: str | TeachingOutcomeReport | ProxyOutcomeReport) -> str:
+    if isinstance(receipt, str):
+        if not receipt:
+            raise InvalidRequestError("receipt id must not be empty", status=0)
+        return receipt
+    receipt_id = receipt.receipt_id
+    if receipt_id is None:
+        raise InvalidRequestError(
+            f"this report has no gateway receipt (delivery status {receipt.status!r}, gateway "
+            f"status {receipt.outcome_status!r}); flush the queue or list "
+            "outcomes.receipts_for_request(request_id)",
+            status=0,
+        )
+    return receipt_id
+
+
+def _receipt_list_body(data: Any) -> Any:
+    """Accept ``{"data": [...]}``, ``{"receipts": [...]}`` or a bare list (as the TS SDK does)."""
+    if isinstance(data, list):
+        return {"object": "list", "data": data}
+    if isinstance(data, dict) and "data" not in data and isinstance(data.get("receipts"), list):
+        return {**{k: v for k, v in data.items() if k != "receipts"}, "data": data["receipts"]}
+    return data
+
+
+def _keep_polling(error: UltraRouterError) -> bool:
+    """A read that timed out against the call's own deadline, or a retryable failure the
+    transport gave up on, is one missed poll (the TypeScript SDK's rule); anything else
+    (``not_found``, ``permission``, a non-retryable server error) ends the wait."""
+    if isinstance(error, ReceiptWaitTimeoutError):
+        return False
+    return error.code == "timeout" or error.retryable
+
+
+def _report_kwargs_check(verdict: str) -> None:
+    if verdict not in ("pass", "fail", "unknown"):
+        raise InvalidRequestError(
+            f"verdict must be 'pass', 'fail' or 'unknown' (got {verdict!r})", status=0
+        )
 
 
 def _final_body(
@@ -274,6 +337,214 @@ class Outcomes(SyncAPIResource):
             options: Per-call request options for the first delivery attempt.
         """
         return self._client._outcome_queue.enqueue(normalize_target(target), outcome, options)
+
+    @overload
+    def report(
+        self,
+        request_id: str,
+        verdict: Literal["unknown"],
+        *,
+        source: OutcomeSource,
+        idempotency_key: str | None = None,
+        observed_at: str | datetime | None = None,
+        evidence_hash: str | None = None,
+        supersedes: str | None = None,
+        options: RequestOptions | None = None,
+    ) -> NotReportedOutcome: ...
+
+    @overload
+    def report(
+        self,
+        request_id: str,
+        verdict: Literal["pass", "fail"],
+        *,
+        source: ProxySource,
+        idempotency_key: str | None = None,
+        observed_at: str | datetime | None = None,
+        evidence_hash: str | None = None,
+        supersedes: str | None = None,
+        options: RequestOptions | None = None,
+    ) -> ProxyOutcomeReport: ...
+
+    @overload
+    def report(
+        self,
+        request_id: str,
+        verdict: Literal["pass", "fail"],
+        *,
+        source: TeachingSource,
+        idempotency_key: str | None = None,
+        observed_at: str | datetime | None = None,
+        evidence_hash: str | None = None,
+        supersedes: str | None = None,
+        options: RequestOptions | None = None,
+    ) -> TeachingOutcomeReport: ...
+
+    @overload
+    def report(
+        self,
+        request_id: str,
+        verdict: Verdict,
+        *,
+        source: OutcomeSource,
+        idempotency_key: str | None = None,
+        observed_at: str | datetime | None = None,
+        evidence_hash: str | None = None,
+        supersedes: str | None = None,
+        options: RequestOptions | None = None,
+    ) -> OutcomeReport: ...
+
+    def report(
+        self,
+        request_id: str,
+        verdict: Verdict,
+        *,
+        source: OutcomeSource,
+        idempotency_key: str | None = None,
+        observed_at: str | datetime | None = None,
+        evidence_hash: str | None = None,
+        supersedes: str | None = None,
+        options: RequestOptions | None = None,
+    ) -> OutcomeReport:
+        """Report whether one request's task succeeded: a verdict from a named source.
+
+        The verdict maps to an outcome event through the verdict table shared with the
+        TypeScript SDK: ``verifier`` and ``business_rule`` become ``computable`` /
+        ``oracle_pass|oracle_fail``, ``webhook`` becomes ``resolution`` /
+        ``resolved_true|resolved_false``, ``human_review`` becomes ``correction`` /
+        ``accepted_unchanged|rejected``, and ``self_rating`` becomes a ``proxy`` thumbs event
+        that may rank but never teaches. ``verdict="unknown"`` sends nothing and returns
+        :class:`~ultrarouter.NotReportedOutcome`: missing feedback stays missing.
+
+        You may report the moment you have the final response: if the gateway has not persisted
+        the request yet it answers ``pending`` with a durable receipt and applies the outcome
+        when the request lands (``report.is_pending``, ``report.receipt_id``; follow it with
+        :meth:`wait_for_receipt`). Never sleep before reporting.
+
+        Reporting never double-counts. The event's ``source_event_id`` is derived from
+        ``(request_id, verdict, source, idempotency_key)`` (see
+        :func:`~ultrarouter.report_source_event_id`); the event goes through the durable queue
+        under that identity, with an ``Idempotency-Key`` derived from it. A retry after a lost
+        acknowledgement, a ``flush()`` or a second ``report`` call with the same arguments
+        replays the identical event (same ``observed_at``), which the gateway records once
+        (``duplicate``); concurrent repeats share one send. A report repeated from another
+        process names the same event too; pass ``observed_at`` explicitly when that can happen,
+        so the replay is byte-identical rather than a conflicting payload. A failure whose outcome
+        is unknown keeps the event queued for :meth:`flush`.
+
+        Args:
+            request_id: The gateway request id (``reply.ur.request_id``, ``stream.request_id``,
+                :func:`~ultrarouter.request_id_of`, or the id you minted with
+                :func:`~ultrarouter.new_request_id`). For a multi-step episode, the last step's.
+            verdict: ``"pass"``, ``"fail"`` or ``"unknown"``.
+            source: ``"verifier"``, ``"business_rule"``, ``"webhook"``, ``"human_review"`` or
+                ``"self_rating"``.
+            idempotency_key: Distinguishes two genuinely different reports with the same
+                verdict and source on the same request (for example a webhook's event id).
+            observed_at: When the outcome was observed (ISO-8601 string or ``datetime``;
+                default: the first time this report is made).
+            evidence_hash: A content hash of the supporting evidence (never the evidence).
+            supersedes: The ``source_event_id`` of an earlier report this one revises.
+            options: Per-call request options for the first delivery attempt.
+
+        Returns:
+            :class:`~ultrarouter.TeachingOutcomeReport`, :class:`~ultrarouter.ProxyOutcomeReport`
+            or :class:`~ultrarouter.NotReportedOutcome`.
+        """
+        _report_kwargs_check(verdict)
+        built = build_report_event(
+            request_id,
+            verdict,
+            source,
+            idempotency_key=idempotency_key,
+            observed_at=observed_at,
+            evidence_hash=evidence_hash,
+            supersedes=supersedes,
+        )
+        if built is None:
+            return NotReportedOutcome(request_id=request_id, source=source)
+        receipt = self._client._outcome_queue.enqueue_stable(
+            built.source_event_id, {"request": request_id}, built.event, options
+        )
+        return report_from_receipt(
+            request_id, cast(Literal["pass", "fail"], verdict), source, built, receipt
+        )
+
+    def receipt(
+        self, receipt_id: str, *, options: RequestOptions | None = None
+    ) -> OutcomeReceiptRecord:
+        """One outcome receipt (``GET /v1/outcome-receipts/{id}``): status, reason, episode."""
+        return self._client.request_model(
+            build("GET", f"/v1/outcome-receipts/{seg(receipt_id)}", options=options),
+            OutcomeReceiptRecord,
+            unwrap="receipt",
+        )
+
+    def receipts_for_request(
+        self, request_id: str, *, options: RequestOptions | None = None
+    ) -> OutcomeReceiptRecordList:
+        """Every outcome receipt for one request (``GET /v1/requests/{id}/outcome-receipts``)."""
+        data = self._client.request_json(
+            build("GET", f"/v1/requests/{seg(request_id)}/outcome-receipts", options=options)
+        )
+        return parse_model(OutcomeReceiptRecordList, _receipt_list_body(data))
+
+    def wait_for_receipt(
+        self,
+        receipt: str | TeachingOutcomeReport | ProxyOutcomeReport,
+        *,
+        timeout: float = DEFAULT_RECEIPT_WAIT_S,
+        poll_interval: float = RECEIPT_POLL_INITIAL_S,
+        max_poll_interval: float = RECEIPT_POLL_MAX_S,
+        options: RequestOptions | None = None,
+    ) -> OutcomeReceiptRecord:
+        """Poll a receipt until it is final (``applied``, ``rejected``, ``failed``, ``expired``).
+
+        Reads the public receipt endpoint with a bounded backoff (``poll_interval`` doubling up to
+        ``max_poll_interval``) for at most ``timeout`` seconds in total. A poll that fails for a
+        transient reason is retried until the deadline; any other refusal is raised. On the
+        deadline it raises :class:`~ultrarouter.ReceiptWaitTimeoutError` carrying the last
+        receipt read; the outcome is not lost, the receipt keeps reconciling on the gateway.
+
+        Args:
+            receipt: A receipt id, or a report returned by :meth:`report`.
+            timeout: Total seconds to wait.
+            poll_interval: The first wait between reads.
+            max_poll_interval: The longest wait between reads.
+            options: Per-call request options for each read.
+        """
+        receipt_id = _receipt_id_of(receipt)
+        clock = self._client._clock
+        deadline = clock() + max(0.0, timeout)
+        interval = max(0.01, poll_interval)
+        last: OutcomeReceiptRecord | None = None
+        while True:
+            remaining = deadline - clock()
+            if remaining <= 0:
+                break
+            try:
+                last = self.receipt(
+                    receipt_id,
+                    options={**(options or {}), "timeout": min(remaining, self._client.timeout)},
+                )
+            except UltraRouterError as error:
+                if not _keep_polling(error):
+                    raise
+            else:
+                if last.is_terminal:
+                    return last
+            remaining = deadline - clock()
+            if remaining <= 0:
+                break
+            self._client._sleep(min(interval, remaining))
+            interval = min(max(interval, max_poll_interval), interval * 2)
+        raise ReceiptWaitTimeoutError(
+            f"receipt {receipt_id} was still {last.status if last is not None else 'unread'} "
+            f"after {timeout}s",
+            receipt_id=receipt_id,
+            last_receipt=last,
+            request_id=last.request_id if last is not None else None,
+        )
 
     def batch(
         self,
@@ -531,6 +802,161 @@ class AsyncOutcomes(AsyncAPIResource):
     ) -> OutcomeReceipt:
         """Record one outcome durably; async twin of :meth:`Outcomes.record`."""
         return await self._client._outcome_queue.enqueue(normalize_target(target), outcome, options)
+
+    @overload
+    async def report(
+        self,
+        request_id: str,
+        verdict: Literal["unknown"],
+        *,
+        source: OutcomeSource,
+        idempotency_key: str | None = None,
+        observed_at: str | datetime | None = None,
+        evidence_hash: str | None = None,
+        supersedes: str | None = None,
+        options: RequestOptions | None = None,
+    ) -> NotReportedOutcome: ...
+
+    @overload
+    async def report(
+        self,
+        request_id: str,
+        verdict: Literal["pass", "fail"],
+        *,
+        source: ProxySource,
+        idempotency_key: str | None = None,
+        observed_at: str | datetime | None = None,
+        evidence_hash: str | None = None,
+        supersedes: str | None = None,
+        options: RequestOptions | None = None,
+    ) -> ProxyOutcomeReport: ...
+
+    @overload
+    async def report(
+        self,
+        request_id: str,
+        verdict: Literal["pass", "fail"],
+        *,
+        source: TeachingSource,
+        idempotency_key: str | None = None,
+        observed_at: str | datetime | None = None,
+        evidence_hash: str | None = None,
+        supersedes: str | None = None,
+        options: RequestOptions | None = None,
+    ) -> TeachingOutcomeReport: ...
+
+    @overload
+    async def report(
+        self,
+        request_id: str,
+        verdict: Verdict,
+        *,
+        source: OutcomeSource,
+        idempotency_key: str | None = None,
+        observed_at: str | datetime | None = None,
+        evidence_hash: str | None = None,
+        supersedes: str | None = None,
+        options: RequestOptions | None = None,
+    ) -> OutcomeReport: ...
+
+    async def report(
+        self,
+        request_id: str,
+        verdict: Verdict,
+        *,
+        source: OutcomeSource,
+        idempotency_key: str | None = None,
+        observed_at: str | datetime | None = None,
+        evidence_hash: str | None = None,
+        supersedes: str | None = None,
+        options: RequestOptions | None = None,
+    ) -> OutcomeReport:
+        """Report a verdict on one request; async twin of :meth:`Outcomes.report`."""
+        _report_kwargs_check(verdict)
+        built = build_report_event(
+            request_id,
+            verdict,
+            source,
+            idempotency_key=idempotency_key,
+            observed_at=observed_at,
+            evidence_hash=evidence_hash,
+            supersedes=supersedes,
+        )
+        if built is None:
+            return NotReportedOutcome(request_id=request_id, source=source)
+        receipt = await self._client._outcome_queue.enqueue_stable(
+            built.source_event_id, {"request": request_id}, built.event, options
+        )
+        return report_from_receipt(
+            request_id, cast(Literal["pass", "fail"], verdict), source, built, receipt
+        )
+
+    async def receipt(
+        self, receipt_id: str, *, options: RequestOptions | None = None
+    ) -> OutcomeReceiptRecord:
+        """One outcome receipt; async twin of :meth:`Outcomes.receipt`."""
+        return await self._client.request_model(
+            build("GET", f"/v1/outcome-receipts/{seg(receipt_id)}", options=options),
+            OutcomeReceiptRecord,
+            unwrap="receipt",
+        )
+
+    async def receipts_for_request(
+        self, request_id: str, *, options: RequestOptions | None = None
+    ) -> OutcomeReceiptRecordList:
+        """Every receipt for a request; async twin of :meth:`Outcomes.receipts_for_request`."""
+        data = await self._client.request_json(
+            build("GET", f"/v1/requests/{seg(request_id)}/outcome-receipts", options=options)
+        )
+        return parse_model(OutcomeReceiptRecordList, _receipt_list_body(data))
+
+    async def wait_for_receipt(
+        self,
+        receipt: str | TeachingOutcomeReport | ProxyOutcomeReport,
+        *,
+        timeout: float = DEFAULT_RECEIPT_WAIT_S,
+        poll_interval: float = RECEIPT_POLL_INITIAL_S,
+        max_poll_interval: float = RECEIPT_POLL_MAX_S,
+        options: RequestOptions | None = None,
+    ) -> OutcomeReceiptRecord:
+        """Poll a receipt until it is final; async twin of :meth:`Outcomes.wait_for_receipt`.
+
+        Cancellable: cancelling the awaiting task (``task.cancel()``, ``asyncio.timeout``,
+        ``asyncio.wait_for``) stops the wait at once with ``asyncio.CancelledError``; the
+        outcome is unaffected.
+        """
+        receipt_id = _receipt_id_of(receipt)
+        clock = self._client._clock
+        deadline = clock() + max(0.0, timeout)
+        interval = max(0.01, poll_interval)
+        last: OutcomeReceiptRecord | None = None
+        while True:
+            remaining = deadline - clock()
+            if remaining <= 0:
+                break
+            try:
+                last = await self.receipt(
+                    receipt_id,
+                    options={**(options or {}), "timeout": min(remaining, self._client.timeout)},
+                )
+            except UltraRouterError as error:
+                if not _keep_polling(error):
+                    raise
+            else:
+                if last.is_terminal:
+                    return last
+            remaining = deadline - clock()
+            if remaining <= 0:
+                break
+            await self._client._sleep(min(interval, remaining))
+            interval = min(max(interval, max_poll_interval), interval * 2)
+        raise ReceiptWaitTimeoutError(
+            f"receipt {receipt_id} was still {last.status if last is not None else 'unread'} "
+            f"after {timeout}s",
+            receipt_id=receipt_id,
+            last_receipt=last,
+            request_id=last.request_id if last is not None else None,
+        )
 
     async def batch(
         self,

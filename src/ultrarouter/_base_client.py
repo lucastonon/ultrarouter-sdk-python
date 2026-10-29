@@ -42,6 +42,7 @@ from ._constants import (
     DEFAULT_TIMEOUT_S,
     USER_AGENT,
 )
+from ._correlation import REQUEST_ID_HEADER, correlation_headers, new_request_id
 from ._errors import (
     APIConnectionError,
     APIResponseValidationError,
@@ -279,6 +280,15 @@ def _interrupt(response: httpx.Response) -> None:
         sock.shutdown(socket.SHUT_RDWR)
 
 
+def _attach_request_id(error: UltraRouterError, http_request: httpx.Request) -> None:
+    """Give an error the request id the caller minted when the gateway's answer carried none
+    (a timeout, a lost connection, an error page from a proxy)."""
+    if error.request_id is None:
+        sent = http_request.headers.get(REQUEST_ID_HEADER)
+        if sent:
+            error.request_id = sent
+
+
 def _needs_body(req: APIRequest, response: httpx.Response) -> bool:
     """Whether the body belongs to the deadline: always, except a successful stream's."""
     if not req.stream:
@@ -313,6 +323,9 @@ class _BaseAPIClient:
             raise ValueError(
                 f"autopilot must be one of {sorted(AUTOPILOT_ROUTER)} (got {autopilot!r})"
             )
+        self.request_ids: str = "gateway"
+        """Who mints request ids: ``"gateway"`` (default) or ``"client"`` (the SDK sends a
+        freshly minted ``x-ur-request-id`` on every chat and embeddings call that has none)."""
         self.autopilot_mode: str | None = autopilot
         self._autopilot_router: str | None = (
             AUTOPILOT_ROUTER[autopilot] if autopilot is not None else None
@@ -388,6 +401,25 @@ class _BaseAPIClient:
         if req.stream:
             max_retries = 0  # a stream is never retried automatically
         return timeout, max_retries
+
+    def _correlate(
+        self,
+        options: Mapping[str, Any],
+        request_id: str | None,
+        episode_key: str | None,
+    ) -> dict[str, Any]:
+        """Add the correlation headers (``x-ur-request-id``, ``x-ur-artifact``) to ``options``.
+
+        With ``request_ids="client"``, a call without ``request_id`` gets a freshly minted one.
+        The headers are built once per call, so every retry carries the same request id.
+        """
+        if request_id is None and self.request_ids == "client":
+            request_id = new_request_id()
+        headers = correlation_headers(request_id=request_id, episode_key=episode_key)
+        merged = dict(options)
+        if headers:
+            merged["extra_headers"] = {**dict(options.get("extra_headers") or {}), **headers}
+        return merged
 
     def _openai_preset(self) -> dict[str, Any]:
         preset: dict[str, Any] = {"base_url": f"{self.base_url}/v1", "api_key": self.api_key}
@@ -502,11 +534,20 @@ class SyncAPIClient(_BaseAPIClient):
     def request(self, req: APIRequest) -> httpx.Response:
         """Execute ``req`` with the retry policy and return the raw 2xx (or accepted 304) response.
 
-        For a streaming request the response body is left open for the caller to read.
+        For a streaming request the response body is left open for the caller to read. An error
+        raised for a call that carried a client-minted ``x-ur-request-id`` reports that id in
+        ``request_id`` when the gateway's answer did not carry one.
         """
+        http_request = self._build_request(self._http, req)
+        try:
+            return self._request_with_retries(req, http_request)
+        except UltraRouterError as error:
+            _attach_request_id(error, http_request)
+            raise
+
+    def _request_with_retries(self, req: APIRequest, http_request: httpx.Request) -> httpx.Response:
         timeout, max_retries = self._budget(req)
         deadline = time.monotonic() + timeout
-        http_request = self._build_request(self._http, req)
         last: UltraRouterError | None = None
         for attempt in range(max_retries + 1):
             remaining = deadline - time.monotonic()
@@ -626,9 +667,18 @@ class AsyncAPIClient(_BaseAPIClient):
 
     async def request(self, req: APIRequest) -> httpx.Response:
         """Async twin of :meth:`SyncAPIClient.request`."""
+        http_request = self._build_request(self._http, req)
+        try:
+            return await self._request_with_retries(req, http_request)
+        except UltraRouterError as error:
+            _attach_request_id(error, http_request)
+            raise
+
+    async def _request_with_retries(
+        self, req: APIRequest, http_request: httpx.Request
+    ) -> httpx.Response:
         timeout, max_retries = self._budget(req)
         deadline = time.monotonic() + timeout
-        http_request = self._build_request(self._http, req)
         last: UltraRouterError | None = None
         for attempt in range(max_retries + 1):
             remaining = deadline - time.monotonic()

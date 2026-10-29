@@ -31,6 +31,9 @@ from typing import Any, NamedTuple
 __all__ = [
     "GATEWAY_ERROR_CODES",
     "GATEWAY_ERROR_TAXONOMY",
+    "LEARNING_ERROR_ACTIONS",
+    "LEARNING_ERROR_CODES",
+    "LEARNING_ERROR_REASONS",
     "APIConnectionError",
     "APIResponseValidationError",
     "APIStatusError",
@@ -44,18 +47,27 @@ __all__ = [
     "ErrorTaxonomyEntry",
     "InternalServerError",
     "InvalidRequestError",
+    "LearningBudgetExhaustedError",
+    "LearningConsentRequiredError",
+    "LearningError",
+    "LearningForbiddenError",
+    "LearningNotFoundError",
+    "LearningProviderUnavailableError",
+    "LearningQuotaExhaustedError",
     "ManifestInvalidError",
     "ManifestMismatchError",
     "MaxCostExceededError",
     "ModelDeniedByPolicyError",
     "ModelUnpricedError",
     "NotFoundError",
+    "OutcomeBacklogFullError",
     "OutcomeStoreError",
     "PermissionDeniedError",
     "PromptVariablesMissingError",
     "ProviderTimeoutError",
     "ProviderUnavailableError",
     "RateLimitError",
+    "ReceiptWaitTimeoutError",
     "RequestCancelledError",
     "SpendCapExceededError",
     "SpendGuardUnavailableError",
@@ -64,6 +76,7 @@ __all__ = [
     "error_from_response",
     "is_gateway_error_code",
     "is_retryable_status",
+    "learning_error",
     "parse_gateway_error_envelope",
 ]
 
@@ -430,6 +443,166 @@ class InternalServerError(APIStatusError):
     default_code = "internal"
 
 
+class OutcomeBacklogFullError(RateLimitError):
+    """``outcome_backlog_full`` (429): too many outcomes are still pending for this workspace.
+
+    Outcomes reported before the gateway has persisted their request wait as pending receipts;
+    the workspace may hold only so many. The SDK retries with backoff, and an outcome reported
+    through ``client.outcomes`` stays durably queued for ``flush()``.
+    """
+
+    default_code = "outcome_backlog_full"
+
+
+class ReceiptWaitTimeoutError(APITimeoutError):
+    """``outcomes.wait_for_receipt`` ran out of time before the receipt reached a final status.
+
+    ``receipt_id`` is the receipt waited on; ``last_receipt`` the last one read (still
+    ``pending``), or ``None`` when no read succeeded. The outcome is not lost: the receipt is
+    durable and keeps reconciling on the gateway; read it again later with
+    ``outcomes.receipt(receipt_id)``.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        receipt_id: str,
+        last_receipt: Any = None,
+        request_id: str | None = None,
+    ) -> None:
+        super().__init__(message, request_id=request_id)
+        self.receipt_id: str = receipt_id
+        self.last_receipt: Any = last_receipt
+
+
+#: Why a learning control was refused, in terms you can act on (the TypeScript SDK's vocabulary).
+LEARNING_ERROR_REASONS: tuple[str, ...] = (
+    "missing_consent",
+    "provider_unavailable",
+    "quota_exhausted",
+    "budget_exhausted",
+    "not_found",
+    "forbidden",
+)
+
+#: The gateway error codes (or named refusals) each learning reason is recognised from.
+LEARNING_ERROR_CODES: Mapping[str, tuple[str, ...]] = {
+    "missing_consent": (
+        "consent_required",
+        "corrections_consent_required",
+        "learning_consent_required",
+    ),
+    "provider_unavailable": (
+        "learning_provider_unavailable",
+        "reflection_provider_unavailable",
+        "learning_unavailable",
+        "provider_unavailable",
+    ),
+    "quota_exhausted": ("quota_exhausted", "provider_quota_exhausted", "learning_quota_exhausted"),
+    "budget_exhausted": ("budget_exhausted", "learning_budget_exhausted", "spend_cap_exceeded"),
+    "not_found": ("not_found",),
+    "forbidden": ("permission", "forbidden"),
+}
+
+#: What to do about each learning reason.
+LEARNING_ERROR_ACTIONS: Mapping[str, str] = {
+    "missing_consent": (
+        "A workspace owner or admin must turn on the workspace's corrections consent before "
+        "learning can be enabled."
+    ),
+    "provider_unavailable": (
+        "Configure a provider key for the reflection model in this workspace (learning never "
+        "falls back to another provider), then retry."
+    ),
+    "quota_exhausted": (
+        "The learning provider refused for quota. Learning resumes on its own after the "
+        "provider quota resets, or resume it once the quota is raised."
+    ),
+    "budget_exhausted": (
+        "The learning budget is spent. Raise the budget or wait for the next period, then "
+        "resume learning."
+    ),
+    "not_found": "Check the call type id (or slug) and the version id.",
+    "forbidden": (
+        "Use a key with the config:write scope (config:read for reads) or an owner/admin "
+        "session; promote and reject need an owner or admin."
+    ),
+}
+
+
+class LearningError(APIStatusError):
+    """A learning control refused for a reason you can act on.
+
+    ``reason`` names it (``missing_consent``, ``provider_unavailable``, ``quota_exhausted``,
+    ``budget_exhausted``, ``not_found`` or ``forbidden``) and ``action`` says what to do; the
+    message ends with the action too. ``code``, ``status``, ``request_id`` and ``retryable`` are the
+    gateway's. Catch a subclass to branch on one reason.
+    """
+
+    #: The reason this class represents.
+    learning_reason: str = ""
+
+    def __init__(self, message: str, **fields: Any) -> None:
+        super().__init__(message, **fields)
+        self.reason: str = self.learning_reason
+        self.action: str = LEARNING_ERROR_ACTIONS.get(self.learning_reason, "")
+
+
+class LearningConsentRequiredError(LearningError):
+    """``missing_consent``: learning needs the workspace's corrections consent, which is off."""
+
+    learning_reason = "missing_consent"
+
+
+class LearningProviderUnavailableError(LearningError):
+    """``provider_unavailable``: the reflection model has no usable workspace provider.
+
+    Learning runs only on a provider offer the workspace configured; there is no platform or paid
+    fallback.
+    """
+
+    learning_reason = "provider_unavailable"
+
+
+class LearningQuotaExhaustedError(LearningError):
+    """``quota_exhausted``: the learning provider refused for quota."""
+
+    learning_reason = "quota_exhausted"
+
+
+class LearningBudgetExhaustedError(LearningError):
+    """``budget_exhausted``: the call type's learning budget is spent."""
+
+    learning_reason = "budget_exhausted"
+
+
+class LearningNotFoundError(LearningError, NotFoundError):
+    """``not_found``: the call type, version or evaluation does not exist in this workspace."""
+
+    learning_reason = "not_found"
+
+
+class LearningForbiddenError(LearningError, PermissionDeniedError):
+    """``forbidden``: the key or user may not do this (reads need ``config:read``, controls
+    ``config:write``, manual promote/reject an owner or admin)."""
+
+    learning_reason = "forbidden"
+
+
+_LEARNING_CLASSES: dict[str, type[LearningError]] = {
+    cls.learning_reason: cls
+    for cls in (
+        LearningConsentRequiredError,
+        LearningProviderUnavailableError,
+        LearningQuotaExhaustedError,
+        LearningBudgetExhaustedError,
+        LearningNotFoundError,
+        LearningForbiddenError,
+    )
+}
+
+
 _CODE_CLASSES: dict[str, type[APIStatusError]] = {
     cls.default_code: cls
     for cls in (
@@ -454,6 +627,7 @@ _CODE_CLASSES: dict[str, type[APIStatusError]] = {
         ContextLengthError,
         RequestCancelledError,
         InternalServerError,
+        OutcomeBacklogFullError,
     )
     if cls.default_code is not None
 }
@@ -531,4 +705,57 @@ def error_from_response(status: int, body: Any) -> APIStatusError:
         provider_code=provider_code if isinstance(provider_code, str) else None,
         body=body,
         envelope=parse_gateway_error_envelope(body),
+    )
+
+
+def _learning_reason_for(token: str) -> str | None:
+    for reason, codes in LEARNING_ERROR_CODES.items():
+        if token in codes:
+            return reason
+    return None
+
+
+def _named_refusal(error: APIStatusError) -> str | None:
+    """A named refusal under a generic code: ``error.reason`` in the body, else a ``snake_case:``
+    prefix of the message (how the gateway names refusals under a taxonomy code)."""
+    body = error.body
+    if isinstance(body, Mapping):
+        inner = body.get("error")
+        if isinstance(inner, Mapping) and isinstance(inner.get("reason"), str):
+            return str(inner["reason"])
+    head, sep, _ = error.message.partition(":")
+    if sep and head and head.replace("_", "").isalnum() and head == head.lower():
+        return head
+    return None
+
+
+def learning_error(error: UltraRouterError) -> UltraRouterError:
+    """Turn a gateway refusal of a learning control into the matching :class:`LearningError`.
+
+    The reason is recognised from the error ``code`` (:data:`LEARNING_ERROR_CODES`); a generic code
+    (``permission``, ``invalid_request``, ``conflict``, ``not_found``) is refined by a named refusal
+    in the body's ``error.reason`` or a ``reason:`` message prefix. Anything else (a transport
+    failure, an unrecognised code) is returned unchanged.
+    """
+    if not isinstance(error, APIStatusError) or isinstance(error, LearningError):
+        return error
+    if not error.status:  # no answer: a transport failure is not a refusal
+        return error
+    reason = _learning_reason_for(error.code)
+    refusal = _named_refusal(error)
+    refined = _learning_reason_for(refusal) if refusal is not None else None
+    if refined is not None and refined not in ("not_found", "forbidden"):
+        reason = refined
+    if reason is None:
+        return error
+    cls = _LEARNING_CLASSES[reason]
+    return cls(
+        f"{error.message} ({LEARNING_ERROR_ACTIONS[reason]})",
+        code=error.code,
+        status=error.status,
+        request_id=error.request_id,
+        retryable=error.retryable,
+        provider_code=error.provider_code,
+        body=error.body,
+        envelope=error.envelope,
     )

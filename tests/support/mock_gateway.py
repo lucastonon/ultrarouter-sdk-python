@@ -23,9 +23,24 @@ Special inputs (to exercise error handling):
 * an API key containing ``invalid`` → 401 ``authentication``;
 * ``GET /v1/generation?id=req_missing`` → 404.
 
+The learning loop (hand-written, ahead of the specification): chat completions and embeddings
+answer ``x-ur-request-id`` (the client's own valid id when it sent one) and remember the request;
+a served request is "persisted" ``persist_delay_s`` (default 0.25 s) later. ``POST
+/v1/requests/{id}/outcomes`` answers ``pending`` with a durable receipt before that, and
+``accepted`` (receipt ``applied``) after; it is idempotent on ``(request, kind, source_event_id)``
+(a replay is ``duplicate``, a different payload ``409 conflict``); an unknown id stays pending
+until ``pending_ttl_s`` and then expires with ``request_not_found``; ``req_missing`` is refused at
+once (404). ``GET /v1/outcome-receipts/{id}`` and ``GET /v1/requests/{id}/outcome-receipts`` read
+receipts. ``/v1/call-types/{id}/learning*`` keeps a per-call-type learning state machine; the call
+types ``no-consent``, ``no-provider``, ``quota-out``, ``budget-out``, ``read-only`` and
+``ct_missing`` exercise the refusals.
+
 Control endpoints (not part of the API): ``GET /__mock__/requests`` lists recorded requests,
 ``POST /__mock__/reset`` clears state, ``POST /__mock__/fail`` queues failures
 (``{"path": "/v1/...", "status": 503, "code": "provider_unavailable", "times": 1}``) and
+``POST /__mock__/drop`` processes the next ``times`` requests to a path and then closes the
+connection without answering (a lost acknowledgement: ``{"path": "/v1/...", "times": 1}``),
+``POST /__mock__/learning`` sets ``persist_delay_s`` / ``pending_ttl_s``, and
 ``POST /__mock__/slow`` makes responses slow
 (``{"path": "/v1/...", "header_delay": 0.0, "chunk_delay": 0.1, "chunks": 8, "times": 1}``: wait
 before the status line, then drip a JSON body in ``chunks`` pieces, or an event stream frame by
@@ -39,6 +54,7 @@ import base64
 import hashlib
 import hmac
 import json
+import re
 import struct
 import sys
 import threading
@@ -73,12 +89,12 @@ class MockState:
     """Mutable state shared by every request handler."""
 
     def __init__(self) -> None:
-        self.lock = threading.Lock()
+        self.lock = threading.RLock()
         self.reset()
 
     def reset(self) -> None:
         """Forget every recorded request and every piece of per-run state."""
-        with getattr(self, "lock", threading.Lock()):
+        with getattr(self, "lock", threading.RLock()):
             self.requests: list[dict[str, Any]] = []
             self.failures: list[dict[str, Any]] = []
             self.slow: list[dict[str, Any]] = []
@@ -87,6 +103,13 @@ class MockState:
             self.seen_callbacks: set[str] = set()
             self.seen_outcomes: set[str] = set()
             self.seen_verdicts: set[str] = set()
+            self.drops: list[dict[str, Any]] = []
+            self.served: dict[str, dict[str, Any]] = {}
+            self.receipts: dict[str, dict[str, Any]] = {}
+            self.receipt_keys: dict[str, tuple[str, str]] = {}
+            self.learning: dict[str, dict[str, Any]] = {}
+            self.persist_delay_s = 0.25
+            self.pending_ttl_s = 900.0
 
     def next_id(self, prefix: str) -> str:
         with self.lock:
@@ -95,6 +118,8 @@ class MockState:
 
 
 STATE = MockState()
+_CURRENT = threading.local()
+_REQUEST_ID = re.compile(r"[A-Za-z0-9_-]{1,64}")
 _ROUTES = [
     (path_regex(path), method, op_id, op) for op_id, (method, path, op) in operations().items()
 ]
@@ -115,7 +140,7 @@ def _error(code: str, message: str, status: int | None = None) -> tuple[int, dic
 def _ur_block(model: str, body: dict[str, Any]) -> dict[str, Any]:
     ur = body.get("ur") or {}
     block: dict[str, Any] = {
-        "request_id": STATE.next_id("req"),
+        "request_id": getattr(_CURRENT, "request_id", None) or STATE.next_id("req"),
         "call_type": body.get("call_type"),
         "model_served": model,
         "provider": model.split("/")[0] if "/" in model else "mock",
@@ -285,7 +310,7 @@ def _embeddings(body: dict[str, Any]) -> tuple[int, Any]:
         "model": model,
         "usage": {"prompt_tokens": 4 * len(inputs), "total_tokens": 4 * len(inputs)},
         "ur": {
-            "request_id": STATE.next_id("req"),
+            "request_id": getattr(_CURRENT, "request_id", None) or STATE.next_id("req"),
             "call_type": body.get("call_type"),
             "model_served": model,
             "provider": str(model).split("/")[0],
@@ -589,6 +614,355 @@ def _oracle_signed(
     return None
 
 
+# ─────────────────────────────── learning loop ───────────────────────────────
+
+
+def _served(op_id: str, body: dict[str, Any], headers: dict[str, str]) -> tuple[int, Any, dict]:
+    """Serve chat/embeddings with the correlation headers and remember the request."""
+    sent = headers.get("x-ur-request-id")
+    request_id = sent if sent and _REQUEST_ID.fullmatch(sent) else STATE.next_id("req")
+    _CURRENT.request_id = request_id
+    try:
+        status, payload = _chat(body) if op_id == "createChatCompletion" else _embeddings(body)
+    finally:
+        _CURRENT.request_id = None
+    extra = {"x-ur-request-id": request_id}
+    if status == 429:
+        extra["retry-after"] = "0"
+    if 200 <= status < 300:
+        ur = body.get("ur") if isinstance(body.get("ur"), dict) else {}
+        episode = headers.get("x-ur-artifact") or ur.get("artifact")
+        with STATE.lock:
+            STATE.served[request_id] = {"at": time.time(), "episode": episode}
+    return status, payload, extra
+
+
+def _persisted(request_id: str) -> bool:
+    served = STATE.served.get(request_id)
+    return served is not None and time.time() - served["at"] >= STATE.persist_delay_s
+
+
+def _iso(at: float) -> str:
+    return time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime(at)) + f".{int(at * 1000) % 1000:03d}Z"
+
+
+def _refresh(receipt: dict[str, Any]) -> dict[str, Any]:
+    """Reconcile a pending receipt: apply it once its request landed, or expire it."""
+    if receipt["status"] != "pending":
+        return receipt
+    now = time.time()
+    request_id = receipt["request_id"]
+    if _persisted(request_id):
+        served = STATE.served[request_id]
+        receipt.update(
+            status="applied",
+            outcome_event_id=STATE.next_id("oev"),
+            applied_at=_iso(now),
+            updated_at=_iso(now),
+            episode=(
+                "not_applicable"
+                if receipt["channel"] == "proxy" or not served.get("episode")
+                else "associated"
+            ),
+        )
+    elif now >= receipt["_expires"]:
+        receipt.update(
+            status="expired",
+            reason="request_not_found",
+            updated_at=_iso(now),
+            episode="not_recorded",
+        )
+    return receipt
+
+
+def _public(receipt: dict[str, Any]) -> dict[str, Any]:
+    return {k: v for k, v in receipt.items() if not k.startswith("_")}
+
+
+def _request_outcome(request_id: str, body: dict[str, Any]) -> tuple[int, Any]:
+    if request_id == "req_missing":
+        return _error("not_found", f"unknown request {request_id}")
+    if not body.get("channel") or not body.get("kind"):
+        return _error("invalid_request", "channel and kind are required")
+    key = json.dumps([request_id, body.get("kind"), body.get("source_event_id")])
+    payload = json.dumps(body, sort_keys=True)
+    with STATE.lock:
+        known = STATE.receipt_keys.get(key)
+        if known is not None:
+            receipt_id, first_payload = known
+            if first_payload != payload:
+                return _error("conflict", "the same outcome identity with a different payload")
+            receipt = _refresh(STATE.receipts[receipt_id])
+            return 202, _outcome_answer(receipt, "duplicate")
+        now = time.time()
+        receipt = {
+            "id": STATE.next_id("ork"),
+            "object": "outcome_receipt",
+            "request_id": request_id,
+            "status": "pending",
+            "reason": None,
+            "episode": "pending",
+            "channel": body.get("channel"),
+            "kind": body.get("kind"),
+            "source_event_id": body.get("source_event_id"),
+            "outcome_event_id": None,
+            "created_at": _iso(now),
+            "updated_at": _iso(now),
+            "applied_at": None,
+            "expires_at": _iso(now + STATE.pending_ttl_s),
+            "_expires": now + STATE.pending_ttl_s,
+        }
+        STATE.receipts[receipt["id"]] = receipt
+        STATE.receipt_keys[key] = (receipt["id"], payload)
+        _refresh(receipt)
+        status = "accepted" if receipt["status"] == "applied" else "pending"
+        return 202, _outcome_answer(receipt, status)
+
+
+def _outcome_answer(receipt: dict[str, Any], status: str) -> dict[str, Any]:
+    teaches = receipt["channel"] != "proxy"
+    return {
+        "id": receipt["outcome_event_id"],
+        "status": status,
+        "source_event_id": receipt["source_event_id"],
+        "source": "declared",
+        "latency_class": "instant",
+        "learning_use": ["train", "calibrate"] if teaches else ["rank"],
+        "target_kind": "artifact",
+        "canonical_target_id": None,
+        "artifact_version": None,
+        "reason": None,
+        "receipt": _public(receipt),
+    }
+
+
+_LEARNING = re.compile(r"^/v1/call-types/([^/]+)/learning(?:/(.*))?$")
+_RECEIPT = re.compile(r"^/v1/outcome-receipts/([^/]+)$")
+_REQUEST_RECEIPTS = re.compile(r"^/v1/requests/([^/]+)/outcome-receipts$")
+
+
+def _learning_routes(method: str, path: str, body: dict[str, Any]) -> tuple[int, Any] | None:
+    """The hand-written learning-loop routes (not yet in the specification)."""
+    match = _RECEIPT.match(path)
+    if match and method == "GET":
+        with STATE.lock:
+            receipt = STATE.receipts.get(unquote(match.group(1)))
+            if receipt is None:
+                return _error("not_found", "unknown receipt")
+            return 200, _public(_refresh(receipt))
+    match = _REQUEST_RECEIPTS.match(path)
+    if match and method == "GET":
+        request_id = unquote(match.group(1))
+        with STATE.lock:
+            rows = [
+                _public(_refresh(r))
+                for r in STATE.receipts.values()
+                if r["request_id"] == request_id
+            ]
+        return 200, {"object": "list", "data": rows}
+    match = _LEARNING.match(path)
+    if match is None:
+        return None
+    return _learning(method, unquote(match.group(1)), match.group(2) or "", body)
+
+
+def _learning_state(call_type: str) -> dict[str, Any]:
+    state = STATE.learning.get(call_type)
+    if state is None:
+        state = STATE.learning[call_type] = {
+            "state": "not_enabled",
+            "reason": None,
+            "promotion": None,
+            "provider": None,
+            "active": None,
+            "versions": [],
+            "evaluations": [],
+        }
+    return state
+
+
+def _status(call_type: str, state: dict[str, Any]) -> dict[str, Any]:
+    versions = {v["id"]: v for v in state["versions"]}
+    candidate = next(
+        (v for v in reversed(state["versions"]) if v["state"] in ("candidate", "evaluating")), None
+    )
+    active = versions.get(state["active"]) if state["active"] else None
+
+    def ref(version: dict[str, Any] | None) -> dict[str, Any] | None:
+        if version is None:
+            return None
+        return {"id": version["id"], "state": version["state"], "created_at": version["created_at"]}
+
+    return {
+        "object": "learning_status",
+        "call_type_id": call_type,
+        "state": state["state"],
+        "reason": state["reason"],
+        "provider": state["provider"],
+        "promotion": state["promotion"],
+        "active": ref(active),
+        "candidate": ref(candidate),
+        "evaluation": state["evaluations"][-1] if state["evaluations"] else None,
+        "evidence": {"arrived": 12, "verified": 9, "incorporated": 6, "pending": 1},
+        "backlog": 3,
+        "budget": {
+            "state": "exhausted" if state["state"] == "budget_exhausted" else "ok",
+            "remaining_usd": 0.0 if state["state"] == "budget_exhausted" else 4.5,
+        },
+    }
+
+
+def _seed_versions(call_type: str, state: dict[str, Any]) -> None:
+    if state["versions"]:
+        return
+    lesson = {
+        "id": "lsn_1",
+        "text": "Check stock before reserving.",
+        "tool": "check_stock",
+        "evidence_count": 4,
+    }
+    state["versions"] = [
+        {
+            "id": "lv_1",
+            "object": "learning_version",
+            "state": "active",
+            "state_reason": None,
+            "parent_version_id": None,
+            "lesson_count": 1,
+            "evaluation_id": None,
+            "created_at": "2026-10-01T00:00:00.000Z",
+            "lessons": [lesson],
+            "provenance": {"episodes": 8, "outcomes": 8},
+        },
+        {
+            "id": "lv_2",
+            "object": "learning_version",
+            "state": "evaluating",
+            "state_reason": None,
+            "parent_version_id": "lv_1",
+            "lesson_count": 2,
+            "evaluation_id": "lev_1",
+            "created_at": "2026-10-02T00:00:00.000Z",
+            "lessons": [
+                lesson,
+                {
+                    "id": "lsn_2",
+                    "text": "Backorder when stock is short.",
+                    "tool": "set_order_status",
+                    "evidence_count": 3,
+                },
+            ],
+            "provenance": {"episodes": 12, "outcomes": 12},
+        },
+    ]
+    state["active"] = "lv_1"
+    state["evaluations"] = [
+        {
+            "id": "lev_1",
+            "object": "learning_evaluation",
+            "decision": "running",
+            "reason": None,
+            "objective": "success",
+            "rule": {
+                "min_verified_per_arm": 20,
+                "max_verified_per_arm": 200,
+                "alpha": 0.05,
+                "min_effect_pp": 3,
+            },
+            "candidate": {"version_id": "lv_2", "verified": 7, "passed": 5, "unknown": 1},
+            "incumbent": {"version_id": "lv_1", "verified": 6, "passed": 3, "unknown": 0},
+            "interval": {"lower": -12.5, "upper": None},
+            "started_at": "2026-10-02T00:00:00.000Z",
+            "decided_at": None,
+        },
+    ]
+
+
+def _learning(method: str, call_type: str, rest: str, body: dict[str, Any]) -> tuple[int, Any]:
+    if call_type == "ct_missing":
+        return _error("not_found", f"unknown call type {call_type}")
+    writes = method == "POST"
+    if writes and call_type == "read-only":
+        return _error("permission", "this key lacks the config:write scope")
+    with STATE.lock:
+        state = _learning_state(call_type)
+        if method == "GET" and rest == "":
+            return 200, _status(call_type, state)
+        if method == "POST" and rest == "enable":
+            if call_type == "no-consent":
+                return _error(
+                    "consent_required", "consent_required: corrections consent is off", 403
+                )
+            if not body.get("reflection_model"):
+                return _error("invalid_request", "reflection_model is required")
+            if call_type == "no-provider":
+                return _error(
+                    "learning_provider_unavailable",
+                    "no workspace provider serves the reflection model",
+                    409,
+                )
+            promotion = body.get("promotion") or "evaluate"
+            if isinstance(promotion, str):
+                promotion = {"mode": promotion, "objective": "success"}
+            state.update(
+                state="active",
+                reason=None,
+                promotion=promotion,
+                provider={"model": body["reflection_model"], "state": "ready"},
+            )
+            if call_type == "quota-out":
+                state.update(state="quota_exhausted", reason="provider_quota_exhausted")
+                state["provider"]["state"] = "quota_exhausted"
+            if call_type == "budget-out":
+                state.update(state="budget_exhausted", reason="budget_exhausted")
+            _seed_versions(call_type, state)
+            return 200, _status(call_type, state)
+        if method == "POST" and rest in ("pause", "resume", "disable"):
+            if rest == "resume" and state["state"] == "quota_exhausted":
+                return _error("quota_exhausted", "the learning provider's quota is exhausted", 429)
+            if rest == "resume" and state["state"] == "budget_exhausted":
+                return _error("budget_exhausted", "the learning budget is spent", 402)
+            state["state"] = {"pause": "paused", "resume": "active", "disable": "disabled"}[rest]
+            return 200, _status(call_type, state)
+        if method == "GET" and rest == "versions":
+            rows = [
+                {k: v for k, v in r.items() if k not in ("lessons", "provenance")}
+                for r in reversed(state["versions"])
+            ]
+            return 200, {"object": "list", "data": rows}
+        if method == "GET" and rest == "evaluations":
+            return 200, {"object": "list", "data": list(reversed(state["evaluations"]))}
+        if method == "POST" and rest == "rollback":
+            target = next((v for v in state["versions"] if v["id"] == body.get("version_id")), None)
+            if target is None:
+                return _error("not_found", "unknown version")
+            for version in state["versions"]:
+                if version["state"] == "active":
+                    version["state"] = "retired"
+            target["state"] = "active"
+            state["active"] = target["id"]
+            return 200, _status(call_type, state)
+        parts = rest.split("/")
+        if len(parts) >= 2 and parts[0] == "versions":
+            version = next((v for v in state["versions"] if v["id"] == unquote(parts[1])), None)
+            if version is None:
+                return _error("not_found", "unknown version")
+            if method == "GET" and len(parts) == 2:
+                return 200, version
+            if method == "POST" and len(parts) == 3 and parts[2] in ("promote", "reject"):
+                if parts[2] == "promote":
+                    for other in state["versions"]:
+                        if other["state"] == "active":
+                            other["state"] = "retired"
+                    version["state"] = "active"
+                    state["active"] = version["id"]
+                else:
+                    version["state"] = "rejected"
+                version["state_reason"] = f"manual_{parts[2]}"
+                return 200, {k: v for k, v in version.items() if k not in ("lessons",)}
+    return _error("not_found", f"no learning route {method} {rest}")
+
+
 # ─────────────────────────────── generic synthesis ───────────────────────────────
 
 
@@ -726,7 +1100,18 @@ class Handler(BaseHTTPRequestHandler):
                 {"method": method, "path": path, "query": query, "headers": headers, "body": body}
             )
         status, payload, extra = self._route(method, path, query, headers, raw, body)
+        if self._take_drop(path):
+            self.close_connection = True  # processed, but the acknowledgement is lost
+            return
         self._send(status, payload, extra)
+
+    def _take_drop(self, path: str) -> bool:
+        with STATE.lock:
+            for drop in STATE.drops:
+                if drop.get("path") == path and int(drop.get("times", 1)) > 0:
+                    drop["times"] = int(drop.get("times", 1)) - 1
+                    return True
+        return False
 
     def _control(self, method: str, path: str, body: Any) -> None:
         if path == "/__mock__/requests" and method == "GET":
@@ -740,6 +1125,19 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/__mock__/fail" and method == "POST" and isinstance(body, dict):
             with STATE.lock:
                 STATE.failures.append(dict(body))
+            self._send(200, {"ok": True})
+            return
+        if path == "/__mock__/drop" and method == "POST" and isinstance(body, dict):
+            with STATE.lock:
+                STATE.drops.append(dict(body))
+            self._send(200, {"ok": True})
+            return
+        if path == "/__mock__/learning" and method == "POST" and isinstance(body, dict):
+            with STATE.lock:
+                if "persist_delay_s" in body:
+                    STATE.persist_delay_s = float(body["persist_delay_s"])
+                if "pending_ttl_s" in body:
+                    STATE.pending_ttl_s = float(body["pending_ttl_s"])
             self._send(200, {"ok": True})
             return
         if path == "/__mock__/slow" and method == "POST" and isinstance(body, dict):
@@ -781,6 +1179,9 @@ class Handler(BaseHTTPRequestHandler):
         failure = self._scripted_failure(path)
         if failure is not None:
             return failure
+        learning = _learning_routes(method, path, body if isinstance(body, dict) else {})
+        if learning is not None:
+            return (*learning, {})
         for regex, op_method, op_id, op in _ROUTES:
             match = regex.match(path)
             if match is None or op_method != method:
@@ -802,13 +1203,10 @@ class Handler(BaseHTTPRequestHandler):
         body: dict[str, Any],
     ) -> tuple[int, Any, dict[str, str]]:
         api_key = headers.get("authorization", "")[len("Bearer ") :]
-        if op_id == "createChatCompletion":
-            status, payload = _chat(body)
-            if status == 429:
-                return status, payload, {"retry-after": "0"}
-            return status, payload, {}
-        if op_id == "createEmbeddings":
-            return (*_embeddings(body), {})
+        if op_id in ("createChatCompletion", "createEmbeddings"):
+            return _served(op_id, body, headers)
+        if op_id == "recordRequestOutcome":
+            return (*_request_outcome(unquote(params[0]), body), {})
         if op_id == "listModels":
             return 200, _models(query), {}
         if op_id == "getModel":
