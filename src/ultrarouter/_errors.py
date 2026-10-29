@@ -519,8 +519,10 @@ LEARNING_ERROR_CODES: Mapping[str, tuple[str, ...]] = {
 #: What to do about each reason.
 LEARNING_ERROR_ACTIONS: Mapping[str, str] = {
     "missing_consent": (
-        "A workspace owner or admin must turn on the workspace's corrections consent before "
-        "learning can be enabled."
+        "A workspace owner or admin must turn on the workspace self-learning opt-in (knowledge and "
+        "corrections consent) in the dashboard Learning page or through the signed-in session "
+        'PUT /v1/workspaces/{id}/self-learning with {"enabled":true}; '
+        "an API key cannot grant consent."
     ),
     "provider_unavailable": (
         "Give the reflection model a workspace-owned offer (one of your custom providers, or a "
@@ -581,7 +583,7 @@ class LearningError(APIStatusError):
 
 
 class LearningConsentRequiredError(LearningError):
-    """``missing_consent``: learning needs the workspace's corrections consent, which is off."""
+    """``missing_consent``: the workspace's knowledge or corrections consent is off."""
 
     learning_reason = "missing_consent"
 

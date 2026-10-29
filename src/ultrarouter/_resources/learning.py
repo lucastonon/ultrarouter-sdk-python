@@ -8,7 +8,7 @@ that loop:
 * :meth:`Learning.status`: the state, the active version and the latest candidate, the running and
   latest evaluation, evidence (recorded vs verified vs incorporated vs pending), outcome receipts
   by state, the reflection provider, the budget and the usage;
-* :meth:`Learning.enable` (self-serve; needs the workspace's corrections consent and a
+* :meth:`Learning.enable` (self-serve; needs the workspace's knowledge and corrections consent and a
   workspace-owned reflection model), ``pause``, ``resume``, ``disable`` (the kill switch),
   ``rollback``, ``promote`` and ``reject``: each returns a
   :class:`~ultrarouter.types.LearningControl` (``changed`` is ``False`` when it was already in
@@ -145,8 +145,10 @@ class Learning(SyncAPIResource):
     ) -> LearningControl:
         """Turn learning on for a call type, self-serve (``POST .../learning/enable``).
 
-        Needs a ``config:write`` key (or an owner/admin session) and the workspace's corrections
-        consent (:class:`~ultrarouter.LearningConsentRequiredError` otherwise). The reflection
+        Needs a ``config:write`` key (or an owner/admin session) and the workspace's full
+        self-learning opt-in: knowledge and corrections consent
+        (:class:`~ultrarouter.LearningConsentRequiredError` otherwise). An owner/admin session
+        must grant consent separately; an API key cannot do so. The reflection
         model must resolve to a workspace-owned offer: one of the workspace's custom providers, or
         a provider it stored its own key for; there is no platform or paid fallback
         (:class:`~ultrarouter.LearningProviderUnavailableError`, ``detail`` names why).

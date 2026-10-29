@@ -2027,8 +2027,10 @@ client.learning.enable(
 
 Turn learning on for a call type, self-serve (`POST .../learning/enable`).
 
-Needs a `config:write` key (or an owner/admin session) and the workspace's corrections
-consent (`LearningConsentRequiredError` otherwise). The reflection
+Needs a `config:write` key (or an owner/admin session) and the workspace's full
+self-learning opt-in: knowledge and corrections consent
+(`LearningConsentRequiredError` otherwise). An owner/admin session
+must grant consent separately; an API key cannot do so. The reflection
 model must resolve to a workspace-owned offer: one of the workspace's custom providers, or
 a provider it stored its own key for; there is no platform or paid fallback
 (`LearningProviderUnavailableError`, `detail` names why).
@@ -2333,7 +2335,7 @@ Base class of every typed response returned by the SDK.
 | `InternalServerError` | `APIStatusError` | `internal` | `internal` (500): an unexpected gateway failure. |
 | `InvalidRequestError` | `APIStatusError` | `invalid_request` | `invalid_request` (400): malformed body, parameters, or an unsupported option. |
 | `LearningBudgetExhaustedError` | `LearningError` | (any) | `budget_exhausted`: the call type's learning budget is spent. |
-| `LearningConsentRequiredError` | `LearningError` | (any) | `missing_consent`: learning needs the workspace's corrections consent, which is off. |
+| `LearningConsentRequiredError` | `LearningError` | (any) | `missing_consent`: the workspace's knowledge or corrections consent is off. |
 | `LearningError` | `APIStatusError` | (any) | A learning control refused for a reason you can act on. |
 | `LearningForbiddenError` | `LearningError` | `permission` | `forbidden`: the key or user may not do this (reads need `config:read`, controls `config:write`, manual promote/reject an owner or admin). |
 | `LearningNotEnabledError` | `LearningError` | `conflict` | `not_enabled` (409 `learning_not_enabled`): the control needs learning enabled through the learning API first. |
@@ -2579,7 +2581,7 @@ Return the index right after the leading run of `system` messages.
 
 The message `apply_learned_context` inserts.
 
-- `LEARNING_ERROR_ACTIONS` = `{'missing_consent': "A workspace owner or admin must turn on the workspace's corrections consent before learning can be enabled.", 'provider_unavailable': 'Give the reflection model a workspace-own...`
+- `LEARNING_ERROR_ACTIONS` = `{'missing_consent': 'A workspace owner or admin must turn on the workspace self-learning opt-in (knowledge and corrections consent) in the dashboard Learning page or through the signed-in session P...`
 - `LEARNING_ERROR_CODES` = `{'missing_consent': ('corrections_consent_required',), 'provider_unavailable': ('reflection_model_not_workspace_owned',), 'not_enabled': ('learning_not_enabled',), 'invalid_promotion': ('promotion_...`
 - `LEARNING_ERROR_REASONS` = `('missing_consent', 'provider_unavailable', 'not_enabled', 'invalid_promotion', 'version_conflict', 'quota_exhausted', 'budget_exhausted', 'not_found', 'forbidden')`
 - `LearningObjective` = `typing.Literal['success', 'cost_noninferior']`

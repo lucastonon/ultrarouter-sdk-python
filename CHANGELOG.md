@@ -6,6 +6,9 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+- Learning setup and refusal guidance require the full owner/admin self-learning opt-in
+  (knowledge and corrections consent); the synced API specification carries the same requirement.
+
 ## [0.1.0] - Unreleased
 
 The plug-and-play learning surface. The version moves to 0.1.0 with it (the TypeScript SDK's

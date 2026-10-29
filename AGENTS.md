@@ -103,6 +103,10 @@ Async: `AsyncUltraRouter` has the same methods; `await` them and use `async with
   `idempotency_key`s, and pass `observed_at` when a report may be repeated from another process.
 - **Learning controls return a `LearningControl`**; the status is `control.learning`. A refusal
   is a `LearningError` subclass: branch on `reason`, show `action`.
+- **Learning needs the full workspace self-learning opt-in** (knowledge and corrections consent).
+  An owner/admin grants it on the dashboard Learning page or through the signed-in session
+  `PUT /v1/workspaces/{id}/self-learning` with `{"enabled":true}`. An API key cannot grant consent;
+  corrections consent alone is insufficient.
 - **`ultrarouter.demo` is a demonstration**, not evidence that learning improves an agent.
 
 ### Where to look

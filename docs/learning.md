@@ -369,6 +369,12 @@ another payload shape; `WebhookVerifier.verify(body, headers)` alone raises a
 `LearningControl`: the `action`, whether it `changed` anything (controls are idempotent), the
 version it acted on, an evaluation it stopped, and the resulting `learning` status.
 
+Before enabling learning, an owner or admin must grant the workspace's full self-learning
+opt-in: **knowledge and corrections consent**. Use the dashboard Learning page or a signed-in
+session calling `PUT /v1/workspaces/{id}/self-learning` with `{"enabled":true}`. An API key
+cannot grant consent, and corrections consent alone is insufficient. The reflection model must
+resolve to a workspace-owned provider; learning has no platform or paid fallback.
+
 ```python
 from ultrarouter import UltraRouter
 
