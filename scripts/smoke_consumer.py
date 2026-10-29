@@ -112,7 +112,9 @@ def check_learning() -> None:
         assert silent.status == "not_reported"
         final: OutcomeReceiptRecord = client.outcomes.wait_for_receipt(report, timeout=10)
         assert final.status == "applied"
-        control: LearningControl = client.learning.enable("smoke", reflection_model=MODEL)
+        # One mock gateway serves every smoke environment: a fresh call type per run.
+        call_type = f"smoke-{new_request_id()}"
+        control: LearningControl = client.learning.enable(call_type, reflection_model=MODEL)
         status: LearningStatus = control.learning
         assert control.changed
         assert status.state == "learning"
