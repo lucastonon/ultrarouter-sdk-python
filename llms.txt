@@ -15,89 +15,89 @@ Read AGENTS.md first for canonical patterns and pitfalls.
 
 ## Start here
 
-- [README](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/main/README.md): what the SDK is, install, quickstart (sync and async), configuration, feature tour
-- [AGENTS.md](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/main/AGENTS.md): canonical usage patterns, pitfalls, and how to change the repository
-- [Guide index](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/main/docs/index.md): every guide with a one-line summary
+- [README](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/feat/learning-loop/README.md): what the SDK is, install, quickstart (sync and async), configuration, feature tour
+- [AGENTS.md](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/feat/learning-loop/AGENTS.md): canonical usage patterns, pitfalls, and how to change the repository
+- [Guide index](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/feat/learning-loop/docs/index.md): every guide with a one-line summary
 
 ## Getting started
 
-- [Installation](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/main/docs/installation.md): from a locally built wheel or the GitHub source (not on PyPI yet); the openai extra; supported Python versions
-- [Configuration and authentication](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/main/docs/configuration.md): API keys, base URL and self-hosted gateways, environment variables, client defaults, autopilot, Bench tagging
-- [Sync and async clients](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/main/docs/clients.md): UltraRouter vs AsyncUltraRouter, lifecycle, connection pools, with_options, concurrency
+- [Installation](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/feat/learning-loop/docs/installation.md): from a locally built wheel or the GitHub source (not on PyPI yet); the openai extra; supported Python versions
+- [Configuration and authentication](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/feat/learning-loop/docs/configuration.md): API keys, base URL and self-hosted gateways, environment variables, client defaults, autopilot, Bench tagging
+- [Sync and async clients](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/feat/learning-loop/docs/clients.md): UltraRouter vs AsyncUltraRouter, lifecycle, connection pools, with_options, concurrency
 
 ## OpenAI-compatible surface
 
-- [Chat completions](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/main/docs/chat-completions.md): client.chat.completions.create, parameters, the ur response block
-- [Streaming](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/main/docs/streaming.md): stream=True, Stream / AsyncStream, final usage and ur
-- [Tools](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/main/docs/tools.md): function calling, tool results, streaming tool-call fragments
-- [Structured outputs](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/main/docs/structured-outputs.md): response_format with JSON schema, parsing into pydantic
-- [Embeddings](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/main/docs/embeddings.md): client.embeddings.create, float and base64 encodings
-- [Models and key info](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/main/docs/models.md): client.models.list, client.models.retrieve, client.key.get
-- [OpenAI compatibility](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/main/docs/openai-compatibility.md): as_openai(), migrating from the openai package
-- [Native passthrough](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/main/docs/passthrough.md): the official openai and anthropic SDKs through the gateway: /v1/responses, /v1/messages, the ur metering headers
+- [Chat completions](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/feat/learning-loop/docs/chat-completions.md): client.chat.completions.create, parameters, the ur response block
+- [Streaming](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/feat/learning-loop/docs/streaming.md): stream=True, Stream / AsyncStream, final usage and ur
+- [Tools](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/feat/learning-loop/docs/tools.md): function calling, tool results, streaming tool-call fragments
+- [Structured outputs](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/feat/learning-loop/docs/structured-outputs.md): response_format with JSON schema, parsing into pydantic
+- [Embeddings](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/feat/learning-loop/docs/embeddings.md): client.embeddings.create, float and base64 encodings
+- [Models and key info](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/feat/learning-loop/docs/models.md): client.models.list, client.models.retrieve, client.key.get
+- [OpenAI compatibility](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/feat/learning-loop/docs/openai-compatibility.md): as_openai(), migrating from the openai package
+- [Native passthrough](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/feat/learning-loop/docs/passthrough.md): the official openai and anthropic SDKs through the gateway: /v1/responses, /v1/messages, the ur metering headers
 
 ## ultrarouter surfaces
 
-- [Call types](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/main/docs/call-types.md): create, configure and evaluate call types; recommendations
-- [Hosted prompts](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/main/docs/hosted-prompts.md): versioned prompts, activation and rollback, get_prompt
-- [Prompt rendering](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/main/docs/prompt-render.md): render_prompt and render_hosted_prompt_result
-- [Verified memory](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/main/docs/verified-memory.md): enable, inspect and disable answering from verified cases
-- [Feedback](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/main/docs/feedback.md): thumbs up / down on a served request
-- [Generation lookup](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/main/docs/generation.md): tokens, cost, timing and routing for one request
-- [Autopilot](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/main/docs/autopilot.md): the routing intent and the readiness report
-- [Bench](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/main/docs/bench.md): capture, freeze, paired runs, reports and the compare gate
-- [Outcomes and artifacts](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/main/docs/outcomes.md): artifact types, artifacts, outcome events, finals, the durable queue
-- [Plug-and-play learning](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/main/docs/learning.md): request and episode correlation, verdict reports with receipts, outcome adapters, learning controls, the demonstration environment
-- [History imports](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/main/docs/imports.md): import usage exports or traces without proxying
-- [Flywheel](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/main/docs/flywheel.md): status, exposure grants, candidates, confirmations, plans, improvement reads
-- [Oracles and verdict sources](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/main/docs/oracles.md): register and qualify your own checks; source checks
-- [Reviewer adapter](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/main/docs/reviewer.md): signed human decisions, dead letters and repair
-- [Preflight and learned context](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/main/docs/preflight.md): preflight, use_learned, messages for case modules, caching
-- [Learned-module placement](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/main/docs/learned-placement.md): learned_placement_index, apply_learned_context
-- [Diff statistics](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/main/docs/diff-stats.md): diff_stats for reporting edits without sending text
-- [Context runtime](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/main/docs/context-runtime.md): ultrarouter.context: lift, compile, render, exit
+- [Call types](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/feat/learning-loop/docs/call-types.md): create, configure and evaluate call types; recommendations
+- [Hosted prompts](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/feat/learning-loop/docs/hosted-prompts.md): versioned prompts, activation and rollback, get_prompt
+- [Prompt rendering](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/feat/learning-loop/docs/prompt-render.md): render_prompt and render_hosted_prompt_result
+- [Verified memory](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/feat/learning-loop/docs/verified-memory.md): enable, inspect and disable answering from verified cases
+- [Feedback](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/feat/learning-loop/docs/feedback.md): thumbs up / down on a served request
+- [Generation lookup](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/feat/learning-loop/docs/generation.md): tokens, cost, timing and routing for one request
+- [Autopilot](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/feat/learning-loop/docs/autopilot.md): the routing intent and the readiness report
+- [Bench](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/feat/learning-loop/docs/bench.md): capture, freeze, paired runs, reports and the compare gate
+- [Outcomes and artifacts](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/feat/learning-loop/docs/outcomes.md): artifact types, artifacts, outcome events, finals, the durable queue
+- [Plug-and-play learning](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/feat/learning-loop/docs/learning.md): request and episode correlation, verdict reports with receipts, outcome adapters, learning controls, the demonstration environment
+- [History imports](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/feat/learning-loop/docs/imports.md): import usage exports or traces without proxying
+- [Flywheel](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/feat/learning-loop/docs/flywheel.md): status, exposure grants, candidates, confirmations, plans, improvement reads
+- [Oracles and verdict sources](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/feat/learning-loop/docs/oracles.md): register and qualify your own checks; source checks
+- [Reviewer adapter](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/feat/learning-loop/docs/reviewer.md): signed human decisions, dead letters and repair
+- [Preflight and learned context](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/feat/learning-loop/docs/preflight.md): preflight, use_learned, messages for case modules, caching
+- [Learned-module placement](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/feat/learning-loop/docs/learned-placement.md): learned_placement_index, apply_learned_context
+- [Diff statistics](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/feat/learning-loop/docs/diff-stats.md): diff_stats for reporting edits without sending text
+- [Context runtime](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/feat/learning-loop/docs/context-runtime.md): ultrarouter.context: lift, compile, render, exit
 
 ## Reliability and typing
 
-- [Errors](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/main/docs/errors.md): the error classes, codes, statuses and what to do about each
-- [Retries, timeouts and idempotency](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/main/docs/retries-timeouts.md): the request policy and how to tune it
-- [Typing](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/main/docs/typing.md): pydantic models, request TypedDicts, mypy --strict
-- [Testing and mocking](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/main/docs/testing.md): respx, httpx.MockTransport, testing code that uses the SDK
-- [Troubleshooting and FAQ](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/main/docs/troubleshooting.md): common problems and answers
+- [Errors](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/feat/learning-loop/docs/errors.md): the error classes, codes, statuses and what to do about each
+- [Retries, timeouts and idempotency](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/feat/learning-loop/docs/retries-timeouts.md): the request policy and how to tune it
+- [Typing](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/feat/learning-loop/docs/typing.md): pydantic models, request TypedDicts, mypy --strict
+- [Testing and mocking](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/feat/learning-loop/docs/testing.md): respx, httpx.MockTransport, testing code that uses the SDK
+- [Troubleshooting and FAQ](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/feat/learning-loop/docs/troubleshooting.md): common problems and answers
 
 ## Examples
 
-- [async_quickstart.py](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/main/examples/async_quickstart.py): Send chat completions concurrently with the async client.
-- [async_streaming.py](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/main/examples/async_streaming.py): Stream a chat completion with the async client.
-- [bench.py](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/main/examples/bench.py): Capture traffic into a Bench suite, freeze it and run a dry-run comparison.
-- [call_types_and_prompts.py](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/main/examples/call_types_and_prompts.py): Create a call type, configure it, add and activate a hosted prompt, and trigger an eval.
-- [context_runtime.py](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/main/examples/context_runtime.py): Lift a conversation into a manifest, compile modules under a contract, and exit again.
-- [embeddings.py](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/main/examples/embeddings.py): Embed a few texts and rank them by cosine similarity to a query.
-- [errors_and_retries.py](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/main/examples/errors_and_retries.py): Handle typed errors: an unpriced model, an unknown model and retry settings.
-- [hosted_prompt.py](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/main/examples/hosted_prompt.py): Fetch the active hosted prompt of a call type and render it locally.
-- [learning_ack_loss.py](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/main/examples/learning_ack_loss.py): A lost acknowledgement and a repeated report never count twice.
-- [learning_async.py](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/main/examples/learning_async.py): The learning loop with the async client: an episode, a report, a cancellable receipt wait.
-- [learning_controls.py](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/main/examples/learning_controls.py): Learning controls for one call type: status, enable, pause/resume, versions, evaluations.
-- [learning_delayed_webhook.py](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/main/examples/learning_delayed_webhook.py): A delayed outcome from a signed webhook: verified, deduplicated, reported once.
-- [learning_immediate_outcome.py](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/main/examples/learning_immediate_outcome.py): Report the outcome the moment you have the answer: no sleep, no waiting for persistence.
-- [learning_native_verifier.py](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/main/examples/learning_native_verifier.py): Native SDK plus a real, computable verifier: the answer is checked, not trusted.
-- [learning_openai_client.py](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/main/examples/learning_openai_client.py): Keep your existing OpenAI client; add one header and one outcome report.
-- [learning_tool_episode.py](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/main/examples/learning_tool_episode.py): A multi-step tool episode: every step correlated, one terminal verdict for the whole task.
-- [openai_dropin.py](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/main/examples/openai_dropin.py): Use the official openai package against the gateway via as_openai().
-- [outcomes.py](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/main/examples/outcomes.py): Record what happened after an answer: artifacts, outcome events and the edited final.
-- [preflight_learned.py](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/main/examples/preflight_learned.py): Use learned context on a call you make directly to a provider (no proxying).
-- [quickstart.py](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/main/examples/quickstart.py): Send one chat completion and print the answer, the served model and the cost.
-- [reviewer.py](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/main/examples/reviewer.py): Send reviewer decisions through the signed, durable reviewer adapter.
-- [streaming.py](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/main/examples/streaming.py): Stream a chat completion token by token, then print usage and the ur block.
-- [structured_output.py](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/main/examples/structured_output.py): Ask for JSON that follows a schema and validate it with pydantic.
-- [tools.py](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/main/examples/tools.py): Call a function tool and send its result back to the model.
+- [async_quickstart.py](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/feat/learning-loop/examples/async_quickstart.py): Send chat completions concurrently with the async client.
+- [async_streaming.py](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/feat/learning-loop/examples/async_streaming.py): Stream a chat completion with the async client.
+- [bench.py](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/feat/learning-loop/examples/bench.py): Capture traffic into a Bench suite, freeze it and run a dry-run comparison.
+- [call_types_and_prompts.py](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/feat/learning-loop/examples/call_types_and_prompts.py): Create a call type, configure it, add and activate a hosted prompt, and trigger an eval.
+- [context_runtime.py](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/feat/learning-loop/examples/context_runtime.py): Lift a conversation into a manifest, compile modules under a contract, and exit again.
+- [embeddings.py](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/feat/learning-loop/examples/embeddings.py): Embed a few texts and rank them by cosine similarity to a query.
+- [errors_and_retries.py](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/feat/learning-loop/examples/errors_and_retries.py): Handle typed errors: an unpriced model, an unknown model and retry settings.
+- [hosted_prompt.py](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/feat/learning-loop/examples/hosted_prompt.py): Fetch the active hosted prompt of a call type and render it locally.
+- [learning_ack_loss.py](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/feat/learning-loop/examples/learning_ack_loss.py): A lost acknowledgement and a repeated report never count twice.
+- [learning_async.py](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/feat/learning-loop/examples/learning_async.py): The learning loop with the async client: an episode, a report, a cancellable receipt wait.
+- [learning_controls.py](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/feat/learning-loop/examples/learning_controls.py): Learning controls for one call type: status, enable, pause/resume, versions, evaluations.
+- [learning_delayed_webhook.py](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/feat/learning-loop/examples/learning_delayed_webhook.py): A delayed outcome from a signed webhook: verified, deduplicated, reported once.
+- [learning_immediate_outcome.py](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/feat/learning-loop/examples/learning_immediate_outcome.py): Report the outcome the moment you have the answer: no sleep, no waiting for persistence.
+- [learning_native_verifier.py](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/feat/learning-loop/examples/learning_native_verifier.py): Native SDK plus a real, computable verifier: the answer is checked, not trusted.
+- [learning_openai_client.py](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/feat/learning-loop/examples/learning_openai_client.py): Keep your existing OpenAI client; add one header and one outcome report.
+- [learning_tool_episode.py](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/feat/learning-loop/examples/learning_tool_episode.py): A multi-step tool episode: every step correlated, one terminal verdict for the whole task.
+- [openai_dropin.py](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/feat/learning-loop/examples/openai_dropin.py): Use the official openai package against the gateway via as_openai().
+- [outcomes.py](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/feat/learning-loop/examples/outcomes.py): Record what happened after an answer: artifacts, outcome events and the edited final.
+- [preflight_learned.py](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/feat/learning-loop/examples/preflight_learned.py): Use learned context on a call you make directly to a provider (no proxying).
+- [quickstart.py](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/feat/learning-loop/examples/quickstart.py): Send one chat completion and print the answer, the served model and the cost.
+- [reviewer.py](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/feat/learning-loop/examples/reviewer.py): Send reviewer decisions through the signed, durable reviewer adapter.
+- [streaming.py](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/feat/learning-loop/examples/streaming.py): Stream a chat completion token by token, then print usage and the ur block.
+- [structured_output.py](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/feat/learning-loop/examples/structured_output.py): Ask for JSON that follows a schema and validate it with pydantic.
+- [tools.py](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/feat/learning-loop/examples/tools.py): Call a function tool and send its result back to the model.
 
 ## Optional
 
-- [API reference](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/main/docs/api-reference.md): every public symbol with signature and docstring
-- [Types reference](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/main/docs/types-reference.md): every response model and request shape with fields
-- [API coverage](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/main/docs/api-coverage.md): every endpoint, the SDK method that calls it, and its test
-- [llms-full.txt](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/main/llms-full.txt): README, AGENTS.md and every guide in one file
-- [OpenAPI specification](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/main/openapi/openapi.yaml): the API this SDK targets
-- [Changelog](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/main/CHANGELOG.md)
+- [API reference](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/feat/learning-loop/docs/api-reference.md): every public symbol with signature and docstring
+- [Types reference](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/feat/learning-loop/docs/types-reference.md): every response model and request shape with fields
+- [API coverage](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/feat/learning-loop/docs/api-coverage.md): every endpoint, the SDK method that calls it, and its test
+- [llms-full.txt](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/feat/learning-loop/llms-full.txt): README, AGENTS.md and every guide in one file
+- [OpenAPI specification](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/feat/learning-loop/openapi/openapi.yaml): the API this SDK targets
+- [Changelog](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/feat/learning-loop/CHANGELOG.md)
 - [Repository](https://github.com/lucastonon/ultrarouter-sdk-python)

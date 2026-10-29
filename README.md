@@ -1,7 +1,7 @@
 # ultrarouter Python SDK
 
-[![Python 3.10 to 3.14](https://img.shields.io/badge/python-3.10%20to%203.14-blue.svg)](https://github.com/lucastonon/ultrarouter-sdk-python/blob/main/pyproject.toml)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/lucastonon/ultrarouter-sdk-python/blob/main/LICENSE)
+[![Python 3.10 to 3.14](https://img.shields.io/badge/python-3.10%20to%203.14-blue.svg)](https://github.com/lucastonon/ultrarouter-sdk-python/blob/feat/learning-loop/pyproject.toml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/lucastonon/ultrarouter-sdk-python/blob/feat/learning-loop/LICENSE)
 
 The official Python client for ultrarouter, an OpenAI-compatible LLM gateway with model routing,
 fallbacks, evals, and an outcome ledger that records what happened after a model answered.
@@ -27,19 +27,20 @@ fallbacks, evals, and an outcome ledger that records what happened after a model
 ## Install
 
 The package is **not on PyPI** (or any registry) yet, so `pip install ultrarouter` does not work.
-Build a wheel from this repository and install it, or install from the GitHub source:
+Build a wheel from this repository and install it, or install from the GitHub source. Select
+`feat/learning-loop` for this 0.1.0 preview; the default branch does not yet include the learning additions:
 
 ```bash
-git clone https://github.com/lucastonon/ultrarouter-sdk-python.git
+git clone --branch feat/learning-loop --single-branch https://github.com/lucastonon/ultrarouter-sdk-python.git
 cd ultrarouter-sdk-python && uv build
 pip install dist/ultrarouter-0.1.0-py3-none-any.whl            # add [openai] for client.as_openai()
 
 # or, without cloning:
-pip install "ultrarouter @ git+https://github.com/lucastonon/ultrarouter-sdk-python.git"
+pip install "ultrarouter @ git+https://github.com/lucastonon/ultrarouter-sdk-python.git@feat/learning-loop"
 ```
 
 Python 3.10 or newer. Runtime dependencies: `httpx`, `pydantic` (v2) and `typing-extensions`. See
-[Installation](https://github.com/lucastonon/ultrarouter-sdk-python/blob/main/docs/installation.md).
+[Installation](https://github.com/lucastonon/ultrarouter-sdk-python/blob/feat/learning-loop/docs/installation.md).
 
 ## 60-second quickstart
 
@@ -98,7 +99,7 @@ asyncio.run(main())
 | Extra headers | `default_headers=` | | none |
 
 Point `base_url` at any deployment (self-hosted, staging, a local stack); a trailing `/v1` is
-accepted. See [Configuration](https://github.com/lucastonon/ultrarouter-sdk-python/blob/main/docs/configuration.md) for per-call defaults (`defaults=`), the
+accepted. See [Configuration](https://github.com/lucastonon/ultrarouter-sdk-python/blob/feat/learning-loop/docs/configuration.md) for per-call defaults (`defaults=`), the
 `autopilot` routing intent and Bench tagging.
 
 ```python
@@ -198,13 +199,13 @@ final = client.outcomes.wait_for_receipt(report)  # bounded polling of the publi
 print(final.status)  # "applied"
 ```
 
-See [Plug-and-play learning](https://github.com/lucastonon/ultrarouter-sdk-python/blob/main/docs/learning.md)
+See [Plug-and-play learning](https://github.com/lucastonon/ultrarouter-sdk-python/blob/feat/learning-loop/docs/learning.md)
 for correlation with the `openai` package, receipts, outcome adapters, learning controls and the
 demonstration environment.
 
-More: [call types and hosted prompts](https://github.com/lucastonon/ultrarouter-sdk-python/blob/main/docs/call-types.md), [Bench](https://github.com/lucastonon/ultrarouter-sdk-python/blob/main/docs/bench.md),
-[preflight and learned context](https://github.com/lucastonon/ultrarouter-sdk-python/blob/main/docs/preflight.md), [the reviewer adapter](https://github.com/lucastonon/ultrarouter-sdk-python/blob/main/docs/reviewer.md),
-[the context runtime](https://github.com/lucastonon/ultrarouter-sdk-python/blob/main/docs/context-runtime.md) and the [full guide index](https://github.com/lucastonon/ultrarouter-sdk-python/blob/main/docs/index.md).
+More: [call types and hosted prompts](https://github.com/lucastonon/ultrarouter-sdk-python/blob/feat/learning-loop/docs/call-types.md), [Bench](https://github.com/lucastonon/ultrarouter-sdk-python/blob/feat/learning-loop/docs/bench.md),
+[preflight and learned context](https://github.com/lucastonon/ultrarouter-sdk-python/blob/feat/learning-loop/docs/preflight.md), [the reviewer adapter](https://github.com/lucastonon/ultrarouter-sdk-python/blob/feat/learning-loop/docs/reviewer.md),
+[the context runtime](https://github.com/lucastonon/ultrarouter-sdk-python/blob/feat/learning-loop/docs/context-runtime.md) and the [full guide index](https://github.com/lucastonon/ultrarouter-sdk-python/blob/feat/learning-loop/docs/index.md).
 
 ## Use it as the OpenAI client
 
@@ -221,12 +222,12 @@ print(reply.choices[0].message.content)
 ```
 
 `AsyncUltraRouter().as_openai()` returns an `openai.AsyncOpenAI`. See
-[OpenAI compatibility](https://github.com/lucastonon/ultrarouter-sdk-python/blob/main/docs/openai-compatibility.md).
+[OpenAI compatibility](https://github.com/lucastonon/ultrarouter-sdk-python/blob/feat/learning-loop/docs/openai-compatibility.md).
 
 For the OpenAI Responses and Anthropic Messages APIs, point the official `openai` and `anthropic`
 SDKs straight at the gateway by changing only the base URL and the key; the gateway forwards the
 body verbatim and meters the call. See
-[Native passthrough](https://github.com/lucastonon/ultrarouter-sdk-python/blob/main/docs/passthrough.md).
+[Native passthrough](https://github.com/lucastonon/ultrarouter-sdk-python/blob/feat/learning-loop/docs/passthrough.md).
 
 ## Errors and retries
 
@@ -253,23 +254,23 @@ The SDK retries connection errors and 408/429/5xx responses that the gateway did
 `retryable: false` (two retries by default, jittered exponential backoff, `Retry-After`
 honoured), all within the call's total `timeout`. Every non-streaming `POST` carries an
 `Idempotency-Key` that stays the same across retries. Streams are not retried. Details:
-[Errors](https://github.com/lucastonon/ultrarouter-sdk-python/blob/main/docs/errors.md) and [Retries, timeouts and idempotency](https://github.com/lucastonon/ultrarouter-sdk-python/blob/main/docs/retries-timeouts.md).
+[Errors](https://github.com/lucastonon/ultrarouter-sdk-python/blob/feat/learning-loop/docs/errors.md) and [Retries, timeouts and idempotency](https://github.com/lucastonon/ultrarouter-sdk-python/blob/feat/learning-loop/docs/retries-timeouts.md).
 
 ## Documentation
 
-- [Guide index](https://github.com/lucastonon/ultrarouter-sdk-python/blob/main/docs/index.md): installation, configuration, every surface, typing, testing,
+- [Guide index](https://github.com/lucastonon/ultrarouter-sdk-python/blob/feat/learning-loop/docs/index.md): installation, configuration, every surface, typing, testing,
   troubleshooting.
-- [API reference](https://github.com/lucastonon/ultrarouter-sdk-python/blob/main/docs/api-reference.md) and [API coverage](https://github.com/lucastonon/ultrarouter-sdk-python/blob/main/docs/api-coverage.md) (every
+- [API reference](https://github.com/lucastonon/ultrarouter-sdk-python/blob/feat/learning-loop/docs/api-reference.md) and [API coverage](https://github.com/lucastonon/ultrarouter-sdk-python/blob/feat/learning-loop/docs/api-coverage.md) (every
   endpoint the SDK calls, sync and async).
-- [Examples](https://github.com/lucastonon/ultrarouter-sdk-python/tree/main/examples): runnable scripts.
-- For AI agents: [AGENTS.md](https://github.com/lucastonon/ultrarouter-sdk-python/blob/main/AGENTS.md), [llms.txt](https://github.com/lucastonon/ultrarouter-sdk-python/blob/main/llms.txt) and [llms-full.txt](https://github.com/lucastonon/ultrarouter-sdk-python/blob/main/llms-full.txt).
+- [Examples](https://github.com/lucastonon/ultrarouter-sdk-python/tree/feat/learning-loop/examples): runnable scripts.
+- For AI agents: [AGENTS.md](https://github.com/lucastonon/ultrarouter-sdk-python/blob/feat/learning-loop/AGENTS.md), [llms.txt](https://github.com/lucastonon/ultrarouter-sdk-python/blob/feat/learning-loop/llms.txt) and [llms-full.txt](https://github.com/lucastonon/ultrarouter-sdk-python/blob/feat/learning-loop/llms-full.txt).
 
 ## Contributing and security
 
-See [CONTRIBUTING.md](https://github.com/lucastonon/ultrarouter-sdk-python/blob/main/CONTRIBUTING.md) (`make check` runs the full gate) and
-[SECURITY.md](https://github.com/lucastonon/ultrarouter-sdk-python/blob/main/SECURITY.md) for reporting vulnerabilities. Changes are listed in
-[CHANGELOG.md](https://github.com/lucastonon/ultrarouter-sdk-python/blob/main/CHANGELOG.md).
+See [CONTRIBUTING.md](https://github.com/lucastonon/ultrarouter-sdk-python/blob/feat/learning-loop/CONTRIBUTING.md) (`make check` runs the full gate) and
+[SECURITY.md](https://github.com/lucastonon/ultrarouter-sdk-python/blob/feat/learning-loop/SECURITY.md) for reporting vulnerabilities. Changes are listed in
+[CHANGELOG.md](https://github.com/lucastonon/ultrarouter-sdk-python/blob/feat/learning-loop/CHANGELOG.md).
 
 ## License
 
-[MIT](https://github.com/lucastonon/ultrarouter-sdk-python/blob/main/LICENSE)
+[MIT](https://github.com/lucastonon/ultrarouter-sdk-python/blob/feat/learning-loop/LICENSE)

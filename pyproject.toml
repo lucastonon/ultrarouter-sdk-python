@@ -60,10 +60,10 @@ openai = ["openai>=1.55.3"]
 
 [project.urls]
 Homepage = "https://github.com/lucastonon/ultrarouter-sdk-python"
-Documentation = "https://github.com/lucastonon/ultrarouter-sdk-python/tree/main/docs"
+Documentation = "https://github.com/lucastonon/ultrarouter-sdk-python/tree/feat/learning-loop/docs"
 Repository = "https://github.com/lucastonon/ultrarouter-sdk-python"
 Issues = "https://github.com/lucastonon/ultrarouter-sdk-python/issues"
-Changelog = "https://github.com/lucastonon/ultrarouter-sdk-python/blob/main/CHANGELOG.md"
+Changelog = "https://github.com/lucastonon/ultrarouter-sdk-python/blob/feat/learning-loop/CHANGELOG.md"
 
 [dependency-groups]
 dev = [

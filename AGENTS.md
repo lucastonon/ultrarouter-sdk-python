@@ -12,7 +12,7 @@ wheel built from the repository, or the GitHub source:
 
 ```bash
 uv build && pip install dist/ultrarouter-0.1.0-py3-none-any.whl   # "...whl[openai]" for as_openai()
-pip install "ultrarouter @ git+https://github.com/lucastonon/ultrarouter-sdk-python.git"
+pip install "ultrarouter @ git+https://github.com/lucastonon/ultrarouter-sdk-python.git@feat/learning-loop"
 ```
 
 Python 3.10+. Import name: `ultrarouter`. Never tell a user `pip install ultrarouter` works.

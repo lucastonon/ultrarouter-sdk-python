@@ -270,7 +270,8 @@ LINK = re.compile(r"\]\((?!https?://|mailto:|#)([^)#\s]+)(#[^)\s]*)?\)")
 
 
 REPO_LINK = re.compile(
-    r"\]\(https://github\.com/lucastonon/ultrarouter-sdk-python/(blob|tree)/main/([^)#\s]+)(#[^)\s]*)?\)"
+    r"\]\(https://github\.com/lucastonon/ultrarouter-sdk-python/(blob|tree)/"
+    r"(?:main|feat/learning-loop)/([^)#\s]+)(#[^)\s]*)?\)"
 )
 
 
