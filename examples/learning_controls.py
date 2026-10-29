@@ -1,11 +1,15 @@
 """Learning controls for one call type: status, enable, pause/resume, versions, evaluations.
 
-Enabling is self-serve for a `config:write` key once the workspace's corrections consent is on;
-learning reflects only with a workspace-owned model (no platform fallback). Every control returns
+Enabling is self-serve for a `config:write` key after the full workspace opt-in (knowledge and
+corrections consent). An owner/admin grants both on the dashboard Learning page or using the
+signed-in session PUT /v1/workspaces/{id}/self-learning with {"enabled":true}.
+API keys cannot grant consent.
+Learning reflects only with a workspace-owned model (no platform fallback). Every control returns
 the resulting status; every refusal is a typed, actionable `LearningError` (`reason`, `refusal`,
-`action`). Set `ULTRAROUTER_CALL_TYPE` and `ULTRAROUTER_REFLECTION_MODEL` for your own call type.
+`action`). Set `ULTRAROUTER_CALL_TYPE_ID` and `ULTRAROUTER_REFLECTION_MODEL` for your own call type.
 
-Run: ULTRAROUTER_API_KEY=... ULTRAROUTER_BASE_URL=... python examples/learning_controls.py
+Run: ULTRAROUTER_API_KEY=... ULTRAROUTER_BASE_URL=... ULTRAROUTER_CALL_TYPE_ID=ct_... \
+     python examples/learning_controls.py
 
 Expected output (mock gateway):
     before: off (not_enabled)
@@ -15,20 +19,28 @@ Expected output (mock gateway):
     epb_3: 3 lessons, learned from 12 verified episodes
     evaluation lev_1: running (candidate 5/7 pass, incumbent 3/6)
     rolled back: active epb_1
-    unknown call type: not_found -> Check the call type id (or slug) and the version id.
+    unknown call type: not_found -> Check the ct_... call type id (not its slug) and the version id.
 """
 
 from __future__ import annotations
 
 import os
+import re
+import sys
 
 from ultrarouter import LearningError, LearningVersionConflictError, UltraRouter
 
-CALL_TYPE = os.environ.get("ULTRAROUTER_CALL_TYPE", "order-desk")
+CALL_TYPE = os.environ.get("ULTRAROUTER_CALL_TYPE_ID", "")
 REFLECTION_MODEL = os.environ.get("ULTRAROUTER_REFLECTION_MODEL", "openai/gpt-5.2-mini")
 
 
 def main() -> int:
+    if re.fullmatch(r"ct_[A-Za-z0-9_-]+", CALL_TYPE) is None:
+        print(
+            "Set ULTRAROUTER_CALL_TYPE_ID to the ct_... ID from call_types.list(), not a slug.",
+            file=sys.stderr,
+        )
+        return 2
     with UltraRouter() as client:
         learning = client.learning
         try:

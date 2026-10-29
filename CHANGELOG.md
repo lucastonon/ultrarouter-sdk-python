@@ -6,6 +6,14 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+- Exact-answer learning examples now verify trimmed `OK`, including negative tests for a wrong
+  non-empty answer or an empty answer, instead of reporting success for any text or hardcoding pass.
+
+- Learning examples resolve a call type before inference, send its slug on every call and use its
+  `ct_...` ID for learning controls. The controls-only example rejects missing IDs and slugs before
+  making requests. Setup requires the full workspace knowledge and corrections opt-in. Corrected
+  learning documentation and actionable errors that previously suggested slugs on ID-only routes.
+
 - Learning setup and refusal guidance require the full owner/admin self-learning opt-in
   (knowledge and corrections consent); the synced API specification carries the same requirement.
 

@@ -2591,7 +2591,7 @@ class EpisodeMemoryStatusSetting(BaseModel):
     """`epm1` — the pure rule version a stored setting is parsed under."""
 
     self_serve: bool | None = None
-    """Present (true) only when learning was enabled self-serve through `POST /v1/call-types/{id}/learning/enable` — a published version is then a candidate, served only once promoted.
+    """Present (true) only when learning was enabled self-serve through `POST /v1/call-types/{id}/learning/enable` — a published version is then a candidate. In evaluate mode it receives a randomized share of eligible episodes before the policy can make it the active version.
     """
 
     source_call_type_id: str | None
@@ -3130,7 +3130,8 @@ class LearningStatus(BaseModel):
     """Evidence arrived vs verified vs incorporated vs pending."""
 
     governed: bool
-    """Publication is not activation: candidates serve only once promoted."""
+    """Uses a configured promotion policy. In evaluate mode, candidates receive a randomized share of eligible episodes before any active-version change.
+    """
 
     last_evaluation: LearningEvaluation | None
     """The newest evaluation (any decision)."""
@@ -3406,7 +3407,7 @@ class LearningPromotionPolicy(BaseModel):
     """The window closes when BOTH arms have this many verified episodes (default 30)."""
 
     mode: str
-    """`evaluate`: a candidate must win a prospective randomized evaluation against the incumbent under a rule frozen when the evaluation starts. `manual`: a candidate waits for an owner/admin promote or reject. `immediate`: publication is activation (the legacy behaviour).
+    """`evaluate`: a candidate must win a prospective randomized evaluation against the incumbent under a rule frozen when the evaluation starts; it serves a randomized share of eligible episodes during that comparison. `manual`: a candidate waits for an owner/admin promote or reject. `immediate`: publication is activation (the legacy behaviour).
 
     Known values: ``evaluate``, ``manual``, ``immediate``.
     """
@@ -3572,7 +3573,7 @@ class LearningPromotionParams(TypedDict, total=False):
     """The window closes when BOTH arms have this many verified episodes (default 30)."""
 
     mode: Literal["evaluate", "manual", "immediate"]
-    """`evaluate`: a candidate must win a prospective randomized evaluation against the incumbent under a rule frozen when the evaluation starts. `manual`: a candidate waits for an owner/admin promote or reject. `immediate`: publication is activation (the legacy behaviour).
+    """`evaluate`: a candidate must win a prospective randomized evaluation against the incumbent under a rule frozen when the evaluation starts; it serves a randomized share of eligible episodes during that comparison. `manual`: a candidate waits for an owner/admin promote or reject. `immediate`: publication is activation (the legacy behaviour).
     """
 
     noninferiority_margin_pp: float

@@ -6,7 +6,11 @@ event id and reports with `source="webhook"`, and tells you what to answer the s
 report or a redelivery (a no-op), 401/400 for a forged, stale or malformed delivery (nothing is
 reported), 503 when the gateway has not acknowledged yet (the sender redelivers). The secret comes
 from `ULTRAROUTER_WEBHOOK_SECRET` (this demo generates a throwaway one when it is unset; it is
-never printed).
+never printed). The payment event is simulated here; a real sender must derive its verdict from
+the authoritative business result.
+
+This example resolves or creates order-desk (config:read/write), and sends its slug on every call.
+Enable learning separately for its ct_... ID after full workspace learning consent.
 
 Run: ULTRAROUTER_API_KEY=... ULTRAROUTER_BASE_URL=... python examples/learning_delayed_webhook.py
 
@@ -42,7 +46,13 @@ def main() -> int:
     handler = WebhookOutcomeHandler(WebhookVerifier())  # secret from the environment
 
     with UltraRouter() as client:
+        call_type = next(
+            (ct for ct in client.call_types.list().data if ct.slug == "order-desk"), None
+        )
+        if call_type is None:
+            call_type = client.call_types.create(slug="order-desk")
         reply = client.chat.completions.create(
+            call_type=call_type.slug,
             model=MODEL,
             messages=[{"role": "user", "content": "Draft a refund approval for order A-100."}],
         )

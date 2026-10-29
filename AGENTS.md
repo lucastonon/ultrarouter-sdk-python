@@ -63,14 +63,16 @@ receipt = client.outcomes.record(
 client.outcomes.flush()
 
 # Learning loop: correlate, then report whether the task succeeded (see docs/learning.md)
-with client.episode("order:A-100") as episode:  # key -> X-UR-Artifact; ids minted per step
-    episode.chat.completions.create(messages=[{"role": "user", "content": "Process A-100"}])
-    report = episode.report("pass", source="verifier")  # pass | fail | unknown
-if report.reported and report.receipt_id:
-    final = client.outcomes.wait_for_receipt(report)  # pending -> applied
 call_type = next((ct for ct in client.call_types.list().data if ct.slug == "support-reply"), None)
 if call_type is None:
     call_type = client.call_types.create(slug="support-reply")
+with client.episode("order:A-100") as episode:  # key -> X-UR-Artifact; ids minted per step
+    episode.chat.completions.create(
+        call_type=call_type.slug, messages=[{"role": "user", "content": "Process A-100"}]
+    )
+    report = episode.report("pass", source="verifier")  # pass | fail | unknown
+if report.reported and report.receipt_id:
+    final = client.outcomes.wait_for_receipt(report)  # pending -> applied
 status = client.learning.status(call_type.id)  # learning requires the ct_… id, not the slug
 ```
 

@@ -110,6 +110,8 @@ class MockState:
             self.receipts: dict[str, dict[str, Any]] = {}
             self.receipt_keys: dict[str, tuple[str, str]] = {}
             self.learning: dict[str, dict[str, Any]] = {}
+            self.call_types: dict[str, dict[str, Any]] = {}
+            self.say_ok_reply = "OK"
             self.persist_delay_s = 0.25
             self.pending_ttl_s = 900.0
 
@@ -197,6 +199,8 @@ def _reply_for(body: dict[str, Any]) -> tuple[str, list[dict[str, Any]] | None, 
         return json.dumps(sample(schema)), None, "stop"
     if fmt.get("type") == "json_object":
         return json.dumps({"answer": MOCK_REPLY}), None, "stop"
+    if body.get("messages", [{}])[-1].get("content") == "Say OK.":
+        return STATE.say_ok_reply, None, "stop"
     return MOCK_REPLY, None, "stop"
 
 
@@ -1403,6 +1407,18 @@ class Handler(BaseHTTPRequestHandler):
         body: dict[str, Any],
     ) -> tuple[int, Any, dict[str, str]]:
         api_key = headers.get("authorization", "")[len("Bearer ") :]
+        if op_id == "createCallType":
+            status, payload = _synthesize(op, [])
+            with STATE.lock:
+                slug = str(body["slug"])
+                payload.update(id=STATE.next_id("ct"), slug=slug)
+                STATE.call_types[slug] = payload
+            return status, payload, {}
+        if op_id == "listCallTypes":
+            status, payload = _synthesize(op, [])
+            with STATE.lock:
+                payload["data"] = [*payload["data"], *STATE.call_types.values()]
+            return status, payload, {}
         if op_id in ("createChatCompletion", "createEmbeddings"):
             return _served(op_id, body, headers)
         if op_id == "recordRequestOutcome":

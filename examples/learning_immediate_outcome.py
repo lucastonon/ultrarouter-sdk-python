@@ -5,6 +5,11 @@ accepted at once as `pending` with a durable receipt and applied when the reques
 example reports immediately, then follows the receipt (bounded polling of the public receipt
 endpoint) to its final state.
 
+The verifier requires the trimmed answer to equal OK; a non-empty wrong answer fails.
+
+This example resolves or creates order-desk (config:read/write), and sends its slug on every call.
+Enable learning separately for its ct_... ID after full workspace learning consent.
+
 Run: ULTRAROUTER_API_KEY=... ULTRAROUTER_BASE_URL=... python examples/learning_immediate_outcome.py
 
 Expected output (mock gateway; ids differ):
@@ -24,12 +29,17 @@ MODEL = os.environ.get("ULTRAROUTER_MODEL", "openai/gpt-5.2-mini")
 
 def main() -> int:
     with UltraRouter() as client:
+        call_type = next(
+            (ct for ct in client.call_types.list().data if ct.slug == "order-desk"), None
+        )
+        if call_type is None:
+            call_type = client.call_types.create(slug="order-desk")
         reply = client.chat.completions.create(
-            model=MODEL, messages=[{"role": "user", "content": "Say OK."}]
+            call_type=call_type.slug, model=MODEL, messages=[{"role": "user", "content": "Say OK."}]
         )
         request_id = reply.ur.request_id
         print("request:", request_id)
-        ok = (reply.choices[0].message.content or "").strip() != ""
+        ok = (reply.choices[0].message.content or "").strip() == "OK"
         report = client.outcomes.report(request_id, "pass" if ok else "fail", source="verifier")
         if report.status != "delivered":
             print(f"not delivered ({report.status}): {report.error}")

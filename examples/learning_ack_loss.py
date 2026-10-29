@@ -6,6 +6,11 @@ the same Idempotency-Key; the gateway recognises it. Reporting the same verdict 
 application-level retry) derives the same event identity too. In the end the request has exactly
 one outcome.
 
+The verifier requires the trimmed answer to equal OK; a non-empty wrong answer fails.
+
+This example resolves or creates order-desk (config:read/write), and sends its slug on every call.
+Enable learning separately for its ct_... ID after full workspace learning consent.
+
 Run: ULTRAROUTER_API_KEY=... ULTRAROUTER_BASE_URL=... python examples/learning_ack_loss.py
 
 Expected output (mock gateway):
@@ -49,16 +54,22 @@ class DropFirstOutcomeAck(httpx.BaseTransport):
 def main() -> int:
     transport = DropFirstOutcomeAck()
     with httpx.Client(transport=transport) as http, UltraRouter(http_client=http) as client:
+        call_type = next(
+            (ct for ct in client.call_types.list().data if ct.slug == "order-desk"), None
+        )
+        if call_type is None:
+            call_type = client.call_types.create(slug="order-desk")
         reply = client.chat.completions.create(
-            model=MODEL, messages=[{"role": "user", "content": "Say OK."}]
+            call_type=call_type.slug, model=MODEL, messages=[{"role": "user", "content": "Say OK."}]
         )
         request_id = reply.ur.request_id
-        first = client.outcomes.report(request_id, "pass", source="verifier")
+        verdict = "pass" if (reply.choices[0].message.content or "").strip() == "OK" else "fail"
+        first = client.outcomes.report(request_id, verdict, source="verifier")
         if transport.dropped == 1:
             print("acknowledgement lost once; the SDK retried")
         print(f"first report: {first.status}, gateway status {first.outcome_status}")
 
-        again = client.outcomes.report(request_id, "pass", source="verifier")
+        again = client.outcomes.report(request_id, verdict, source="verifier")
         print(f"repeated report: same event {again.source_event_id == first.source_event_id}")
 
         receipts = client.outcomes.receipts_for_request(request_id).data

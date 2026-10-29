@@ -4,6 +4,9 @@ The `openai` package talks to the gateway unchanged (base URL + key). Mint the r
 the call, send it as `x-ur-request-id`, check the answer with your own business rule, and report
 the verdict. Needs the `openai` package.
 
+This example resolves or creates order-desk (config:read/write), and sends its slug on every call.
+Enable learning separately for its ct_... ID after full workspace learning consent.
+
 Run: ULTRAROUTER_API_KEY=... ULTRAROUTER_BASE_URL=... python examples/learning_openai_client.py
 
 Expected output (mock gateway; ids differ):
@@ -28,10 +31,18 @@ def main() -> int:
     base_url = os.environ["ULTRAROUTER_BASE_URL"].rstrip("/").removesuffix("/v1")
     chat = openai.OpenAI(base_url=f"{base_url}/v1", api_key=os.environ["ULTRAROUTER_API_KEY"])
 
+    with UltraRouter() as client:
+        call_type = next(
+            (ct for ct in client.call_types.list().data if ct.slug == "order-desk"), None
+        )
+        if call_type is None:
+            call_type = client.call_types.create(slug="order-desk")
+
     request_id = new_request_id()  # known before the call, even if the answer is lost
     reply = chat.chat.completions.create(
         model=MODEL,
         messages=[{"role": "user", "content": "Write a one-line welcome for a new customer."}],
+        extra_body={"call_type": call_type.slug},
         extra_headers=correlation_headers(request_id=request_id),
     )
     chat.close()

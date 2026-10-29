@@ -84,6 +84,17 @@ def test_python_blocks_run(path: Path, sandbox_network: MockGateway) -> None:
             compiled = compile(code, f"{path.relative_to(ROOT)}:{line}", "exec")
             with contextlib.redirect_stdout(io.StringIO()):
                 exec(compiled, namespace)  # noqa: S102 - running our own documentation
+            requests = sandbox_network.requests
+            assert not any(
+                re.match(r"/v1/call-types/(?!ct_)[^/]+/learning(?:/|$)", item["path"])
+                for item in requests
+            ), f"{path.name}:{line}: learning controls require ct_... IDs"
+            if path.relative_to(ROOT).as_posix() == "docs/learning.md":
+                assert all(
+                    item["body"].get("call_type") == "support-reply"
+                    for item in requests
+                    if item["path"] == "/v1/chat/completions"
+                ), f"{path.name}:{line}: learning traffic must declare its call-type slug"
             ran += 1
     finally:
         _close_clients(namespace)

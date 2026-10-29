@@ -8,7 +8,11 @@ list clears it. Resolve the `ct_…` id with `client.call_types.list()` first.
 from ultrarouter import UltraRouter
 
 with UltraRouter() as client:
-    ct = client.call_types.list().data[0]
+    ct = next(
+        (item for item in client.call_types.list().data if item.slug == "support-reply"), None
+    )
+    if ct is None:
+        ct = client.call_types.create(slug="support-reply")
     client.learning.put_tool_documentation(
         ct.id,
         tools=[
@@ -44,6 +48,27 @@ Every response is a typed model generated from the API specification (`OutcomeRe
 `LearningStatus`, `LearningControl`, ... in `ultrarouter.types`); unknown fields are kept in
 `model_extra`.
 
+## Route traffic to the configured call type
+
+Learning controls require a `ct_…` ID; inference uses that call type's **slug** in `call_type`.
+Resolve or create it first (`config:read`, and `config:write` to create):
+
+```python
+from ultrarouter import UltraRouter
+
+with UltraRouter() as client:
+    ct = next(
+        (item for item in client.call_types.list().data if item.slug == "support-reply"), None
+    )
+    if ct is None:
+        ct = client.call_types.create(slug="support-reply")
+    print(ct.id, ct.slug)  # ID for learning controls; slug for inference
+```
+
+The traffic snippets below use `support-reply`. Enable learning separately for its ID after the
+full workspace opt-in described under Learning controls. The runnable order-desk examples perform
+the same lookup before their first call.
+
 ## Correlation
 
 Every response carries its request id (`reply.ur.request_id`, and the `x-ur-request-id` header).
@@ -56,6 +81,7 @@ from ultrarouter import UltraRouter, new_request_id
 client = UltraRouter()
 request_id = new_request_id()  # "req_c_" + a ULID; any [A-Za-z0-9_-]{1,64} works
 reply = client.chat.completions.create(
+    call_type="support-reply",
     model="openai/gpt-5.2-mini",
     messages=[{"role": "user", "content": "Hi"}],
     request_id=request_id,  # sent as x-ur-request-id
@@ -72,7 +98,10 @@ A stream knows its request id as soon as it opens, from the response header:
 
 ```python
 with client.chat.completions.create(
-    model="openai/gpt-5.2-mini", messages=[{"role": "user", "content": "Hi"}], stream=True
+    call_type="support-reply",
+    model="openai/gpt-5.2-mini",
+    messages=[{"role": "user", "content": "Hi"}],
+    stream=True,
 ) as stream:
     print(stream.request_id)  # before the first chunk
     stream.text()
@@ -95,7 +124,9 @@ from ultrarouter import UltraRouter
 client = UltraRouter()
 with client.episode("order:A-100") as episode:
     episode.chat.completions.create(
-        model="openai/gpt-5.2-mini", messages=[{"role": "user", "content": "Process order A-100."}]
+        call_type="support-reply",
+        model="openai/gpt-5.2-mini",
+        messages=[{"role": "user", "content": "Process order A-100."}],
     )
     # ... more steps: tool calls and their results ...
     report = episode.report("pass", source="verifier")
@@ -112,6 +143,7 @@ from ultrarouter import UltraRouter, correlation_headers, new_request_id, reques
 chat = UltraRouter().as_openai()  # or openai.OpenAI(base_url=".../v1", api_key=...)
 request_id = new_request_id()
 reply = chat.chat.completions.create(
+    extra_body={"call_type": "support-reply"},
     model="openai/gpt-5.2-mini",
     messages=[{"role": "user", "content": "Hi"}],
     extra_headers=correlation_headers(request_id=request_id, episode_key="order:A-100"),
@@ -145,7 +177,9 @@ from ultrarouter import (
 
 client = UltraRouter()
 reply = client.chat.completions.create(
-    model="openai/gpt-5.2-mini", messages=[{"role": "user", "content": "Hi"}]
+    call_type="support-reply",
+    model="openai/gpt-5.2-mini",
+    messages=[{"role": "user", "content": "Hi"}],
 )
 request_id = reply.ur.request_id
 
@@ -212,9 +246,12 @@ from ultrarouter import UltraRouter
 
 client = UltraRouter()
 reply = client.chat.completions.create(
-    model="openai/gpt-5.2-mini", messages=[{"role": "user", "content": "Say OK."}]
+    call_type="support-reply",
+    model="openai/gpt-5.2-mini",
+    messages=[{"role": "user", "content": "Say OK."}],
 )
-report = client.outcomes.report(reply.ur.request_id, "pass", source="verifier")
+verdict = "pass" if (reply.choices[0].message.content or "").strip() == "OK" else "fail"
+report = client.outcomes.report(reply.ur.request_id, verdict, source="verifier")
 print(report.is_pending, report.receipt_id)
 
 final = client.outcomes.wait_for_receipt(report, timeout=30)  # bounded backoff polling
@@ -238,9 +275,12 @@ from ultrarouter import AsyncUltraRouter
 async def main() -> None:
     async with AsyncUltraRouter() as client:
         reply = await client.chat.completions.create(
-            model="openai/gpt-5.2-mini", messages=[{"role": "user", "content": "Say OK."}]
+            call_type="support-reply",
+            model="openai/gpt-5.2-mini",
+            messages=[{"role": "user", "content": "Say OK."}],
         )
-        report = await client.outcomes.report(reply.ur.request_id, "pass", source="verifier")
+        verdict = "pass" if (reply.choices[0].message.content or "").strip() == "OK" else "fail"
+        report = await client.outcomes.report(reply.ur.request_id, verdict, source="verifier")
         waiting = asyncio.ensure_future(client.outcomes.wait_for_receipt(report))
         waiting.cancel()  # stops at once; the outcome is unaffected
         final = await asyncio.wait_for(client.outcomes.wait_for_receipt(report), timeout=35)

@@ -6,6 +6,9 @@ each call); tool calls run against the toy environment; at the end its verifier 
 verdict is reported once, on the last step. The toy environment is a demonstration, not evidence
 that learning improves an agent.
 
+This example resolves or creates order-desk (config:read/write), and sends its slug on every call.
+Enable learning separately for its ct_... ID after full workspace learning consent.
+
 Run: ULTRAROUTER_API_KEY=... ULTRAROUTER_BASE_URL=... python examples/learning_tool_episode.py
 
 Expected output (mock gateway; it calls one tool and stops, so the task fails):
@@ -41,9 +44,14 @@ def main() -> int:
         {"role": "user", "content": desk.task},
     ]
     with UltraRouter() as client, client.episode(new_episode_key("order-desk:s3")) as episode:
+        call_type = next(
+            (ct for ct in client.call_types.list().data if ct.slug == "order-desk"), None
+        )
+        if call_type is None:
+            call_type = client.call_types.create(slug="order-desk")
         for step in range(1, MAX_STEPS + 1):
             reply = episode.chat.completions.create(
-                model=MODEL, messages=messages, tools=desk.tools
+                call_type=call_type.slug, model=MODEL, messages=messages, tools=desk.tools
             )
             message = reply.choices[0].message
             if not message.tool_calls:

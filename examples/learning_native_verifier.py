@@ -4,6 +4,9 @@ The model must return `{"sum": <int>}` for two numbers; the verifier recomputes 
 verdict is reported with `source="verifier"`. A crashed verifier would be `unknown` (nothing sent),
 never a `fail`; a malformed answer fails the structured-output validation first.
 
+This example resolves or creates order-desk (config:read/write), and sends its slug on every call.
+Enable learning separately for its ct_... ID after full workspace learning consent.
+
 Run: ULTRAROUTER_API_KEY=... ULTRAROUTER_BASE_URL=... python examples/learning_native_verifier.py
 
 Expected output (mock gateway; its sample JSON is not the right sum, so the verifier fails it):
@@ -34,7 +37,13 @@ class Sum(BaseModel):
 
 def main() -> int:
     with UltraRouter() as client:
+        call_type = next(
+            (ct for ct in client.call_types.list().data if ct.slug == "order-desk"), None
+        )
+        if call_type is None:
+            call_type = client.call_types.create(slug="order-desk")
         reply = client.chat.completions.create(
+            call_type=call_type.slug,
             model=MODEL,
             messages=[{"role": "user", "content": f"Add {A} and {B}. Answer as JSON."}],
             response_format={

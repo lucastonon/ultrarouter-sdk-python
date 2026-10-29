@@ -2111,7 +2111,7 @@ The frozen episode-memory setting on a call-type config version.
 | `record` | `bool` | yes |  |
 | `retrieval_key` | `str \| None` | no | Present only when not the default `first_user_message`.  Known values: ``first_user_message``, ``content_lines``. |
 | `rule_version` | `str` | yes | `epm1` — the pure rule version a stored setting is parsed under. |
-| `self_serve` | `bool \| None` | no | Present (true) only when learning was enabled self-serve through `POST /v1/call-types/{id}/learning/enable` — a published version is then a candidate, served only once promoted. |
+| `self_serve` | `bool \| None` | no | Present (true) only when learning was enabled self-serve through `POST /v1/call-types/{id}/learning/enable` — a published version is then a candidate. In evaluate mode it receives a randomized share of eligible episodes before the policy can make it the active version. |
 | `source_call_type_id` | `str \| None` | yes |  |
 
 ### EpisodeMemoryStatusSettingLessons
@@ -3892,7 +3892,7 @@ Promotion-policy changes, merged over the current policy (or the defaults).
 | `max_verified_per_arm` | `int` | no | …or when EITHER arm reaches this many; each arm counts at most this many (default 200). |
 | `min_effect_pp` | `float` | no | `success`: the minimum point improvement in percentage points (default 0). |
 | `min_verified_per_arm` | `int` | no | The window closes when BOTH arms have this many verified episodes (default 30). |
-| `mode` | `Literal['evaluate', 'manual', 'immediate']` | no | `evaluate`: a candidate must win a prospective randomized evaluation against the incumbent under a rule frozen when the evaluation starts. `manual`: a candidate waits for an owner/admin promote or reject. `immediate`: publication is activation (the legacy behaviour). |
+| `mode` | `Literal['evaluate', 'manual', 'immediate']` | no | `evaluate`: a candidate must win a prospective randomized evaluation against the incumbent under a rule frozen when the evaluation starts; it serves a randomized share of eligible episodes during that comparison. `manual`: a candidate waits for an owner/admin promote or reject. `immediate`: publication is activation (the legacy behaviour). |
 | `noninferiority_margin_pp` | `float` | no | `cost_noninferior`: the success non-inferiority margin in percentage points (default 5). |
 | `objective` | `Literal['success', 'cost_noninferior']` | no | `success`: a higher whole-task success rate (the one-sided lower bound of the difference > 0 and the point difference ≥ `min_effect_pp`). `cost_noninferior`: a lower mean cost per episode with success not worse than the incumbent by more than `noninferiority_margin_pp`. |
 
@@ -3910,7 +3910,7 @@ The promotion policy. Defaults: evaluate / success / 30–200 verified episodes 
 | `max_verified_per_arm` | `int` | yes | …or when EITHER arm reaches this many; each arm counts at most this many (default 200). |
 | `min_effect_pp` | `float` | yes | `success`: the minimum point improvement in percentage points (default 0). |
 | `min_verified_per_arm` | `int` | yes | The window closes when BOTH arms have this many verified episodes (default 30). |
-| `mode` | `str` | yes | `evaluate`: a candidate must win a prospective randomized evaluation against the incumbent under a rule frozen when the evaluation starts. `manual`: a candidate waits for an owner/admin promote or reject. `immediate`: publication is activation (the legacy behaviour).  Known values: ``evaluate``, ``manual``, ``immediate``. |
+| `mode` | `str` | yes | `evaluate`: a candidate must win a prospective randomized evaluation against the incumbent under a rule frozen when the evaluation starts; it serves a randomized share of eligible episodes during that comparison. `manual`: a candidate waits for an owner/admin promote or reject. `immediate`: publication is activation (the legacy behaviour).  Known values: ``evaluate``, ``manual``, ``immediate``. |
 | `noninferiority_margin_pp` | `float` | yes | `cost_noninferior`: the success non-inferiority margin in percentage points (default 5). |
 | `objective` | `str` | yes | `success`: a higher whole-task success rate (the one-sided lower bound of the difference > 0 and the point difference ≥ `min_effect_pp`). `cost_noninferior`: a lower mean cost per episode with success not worse than the incumbent by more than `noninferiority_margin_pp`.  Known values: ``success``, ``cost_noninferior``. |
 
@@ -3939,7 +3939,7 @@ A call type’s learning status.
 | `enabled` | `bool` | yes | Lessons are switched on for the call type. |
 | `evaluation` | `LearningEvaluation \| None` | yes | The RUNNING evaluation, if any. |
 | `evidence` | `LearningStatusEvidence` | yes | Evidence arrived vs verified vs incorporated vs pending. |
-| `governed` | `bool` | yes | Publication is not activation: candidates serve only once promoted. |
+| `governed` | `bool` | yes | Uses a configured promotion policy. In evaluate mode, candidates receive a randomized share of eligible episodes before any active-version change. |
 | `last_evaluation` | `LearningEvaluation \| None` | yes | The newest evaluation (any decision). |
 | `latest_candidate` | `LearningVersionRef \| None` | yes |  |
 | `object` | `str` | yes | Known values: ``learning``. |

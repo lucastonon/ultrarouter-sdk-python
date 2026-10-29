@@ -4,6 +4,11 @@
 client.outcomes.report(...)`, and `await client.outcomes.wait_for_receipt(...)`, which stops at once
 when its task is cancelled (the outcome is unaffected: the receipt is durable on the gateway).
 
+The verifier requires the trimmed answer to equal OK; a non-empty wrong answer fails.
+
+This example resolves or creates order-desk (config:read/write), and sends its slug on every call.
+Enable learning separately for its ct_... ID after full workspace learning consent.
+
 Run: ULTRAROUTER_API_KEY=... ULTRAROUTER_BASE_URL=... python examples/learning_async.py
 
 Expected output (mock gateway):
@@ -21,16 +26,22 @@ import os
 from ultrarouter import AsyncUltraRouter
 
 MODEL = os.environ.get("ULTRAROUTER_MODEL", "openai/gpt-5.2-mini")
-CALL_TYPE = os.environ.get("ULTRAROUTER_CALL_TYPE", "order-desk")
 
 
 async def main() -> int:
     async with AsyncUltraRouter() as client:
+        call_type = next(
+            (ct for ct in (await client.call_types.list()).data if ct.slug == "order-desk"), None
+        )
+        if call_type is None:
+            call_type = await client.call_types.create(slug="order-desk")
         async with client.episode() as episode:
             reply = await episode.chat.completions.create(
-                model=MODEL, messages=[{"role": "user", "content": "Say OK."}]
+                call_type=call_type.slug,
+                model=MODEL,
+                messages=[{"role": "user", "content": "Say OK."}],
             )
-            ok = bool((reply.choices[0].message.content or "").strip())
+            ok = (reply.choices[0].message.content or "").strip() == "OK"
             report = await episode.report("pass" if ok else "fail", source="verifier")
         if not report.reported or report.status != "delivered":
             print("not delivered:", report.status)
@@ -52,7 +63,7 @@ async def main() -> int:
 
         final = await asyncio.wait_for(client.outcomes.wait_for_receipt(report), timeout=35)
         print("receipt final:", final.status)
-        status = await client.learning.status(CALL_TYPE)
+        status = await client.learning.status(call_type.id)
         print("learning state:", status.state)
     return 0 if final.status == "applied" else 1
 

@@ -154,7 +154,7 @@ class Learning(SyncAPIResource):
         (:class:`~ultrarouter.LearningProviderUnavailableError`, ``detail`` names why).
 
         Args:
-            call_type_id: The call type id or slug.
+            call_type_id: The ct_... call type id, not its slug.
             reflection_model: The model the learner reflects with.
             lessons_mode: ``"only"`` (default) or ``"with_precedents"``.
             lessons_k: Lessons served per episode (1 to 20; default 8).
