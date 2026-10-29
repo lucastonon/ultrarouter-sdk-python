@@ -78,6 +78,61 @@ def test_order_desk_tool_results_reasons_and_evidence() -> None:
     assert result.evidence_hash == (
         "sha256:37596964bf2ce70faa5a0526d9badf1d6b1be4ed9793a5897f94212a77722b4a"
     )
+
+
+#: Evidence hashes of scenario s1 (SKU-RED: 5 in stock; A-100 orders 2) after one reservation.
+UNTOUCHED = "sha256:8c7746be601c608829c708340a9b6175aba76de70dc29086b9ced65a129a9307"
+RESERVED_1 = "sha256:58ac4208a1e9269cbe6f07315901a8d63a60be085d7ca6d5fc4d05b488aa559d"
+RESERVED_2 = "sha256:b4d0de7716447d2fea797c58dcb114e1a79b3530d05b41030922a47ca470ca9c"
+RESERVED_5 = "sha256:63fabe74deff62009380dd5d7d1c5d47357f172ddf8c280705d465d3df9a851b"
+INVALID = {"ok": False, "error": "INVALID_ARGUMENTS"}
+SHORT = {"ok": False, "error": "INSUFFICIENT_STOCK", "in_stock": 5}
+
+
+@pytest.mark.parametrize(
+    ("quantity", "expected", "evidence"),
+    [
+        # JSON Schema (and JavaScript) count an integral number as an integer: 2.0 is 2.
+        ("2", {"ok": True}, RESERVED_2),
+        ("2.0", {"ok": True}, RESERVED_2),
+        ("1e0", {"ok": True}, RESERVED_1),
+        ("5.0", {"ok": True}, RESERVED_5),
+        ("6.0", SHORT, UNTOUCHED),
+        ("1e300", SHORT, UNTOUCHED),
+        # Not integers, or below the minimum of 1.
+        ("2.5", INVALID, UNTOUCHED),
+        ("0.0", INVALID, UNTOUCHED),
+        ("-0.0", INVALID, UNTOUCHED),
+        ("-1.0", INVALID, UNTOUCHED),
+        ("true", INVALID, UNTOUCHED),
+        ('"2"', INVALID, UNTOUCHED),
+    ],
+)
+def test_integer_arguments_accept_integral_numbers(
+    quantity: str, expected: dict[str, Any], evidence: str
+) -> None:
+    desk = OrderDesk("s1")
+    arguments = '{"order_id":"A-100","sku":"SKU-RED","quantity":' + quantity + "}"
+    assert desk.call("reserve_stock", arguments) == expected
+    assert desk.verify().evidence_hash == evidence
+    # The state keeps integers, so the evidence hash never depends on how the number was written.
+    assert all(type(units) is int for units in desk.state()["stock"].values())
+    assert type(desk.state()["orders"]["A-100"]["reserved"]) is int
+
+
+def test_an_integral_float_completes_the_reference_procedure() -> None:
+    desk = OrderDesk("s1")
+    assert desk.call("reserve_stock", {"order_id": "A-100", "sku": "SKU-RED", "quantity": 2.0}) == {
+        "ok": True
+    }
+    assert desk.call("set_order_status", {"order_id": "A-100", "status": "reserved"}) == {
+        "ok": True
+    }
+    result = desk.verify()
+    assert (result.verdict, result.reasons) == ("pass", ())
+    assert result.evidence_hash == (
+        "sha256:67bf83dd4774e0c290513ecd9e6a34df0612bcae1cacc86399eb2a28dcdecfb6"
+    )
     solved = OrderDesk("s1")
     solved.call("reserve_stock", {"order_id": "A-100", "sku": "SKU-RED", "quantity": 2})
     solved.call("set_order_status", {"order_id": "A-100", "status": "reserved"})

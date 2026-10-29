@@ -3040,7 +3040,8 @@ print(NOTICE)
 
 The tools answer `{"ok": false, "error": ...}` with `UNKNOWN_ORDER`, `UNKNOWN_SKU`,
 `SKU_MISMATCH`, `ALREADY_RESERVED`, `INSUFFICIENT_STOCK` (with `in_stock`), `INVALID_ARGUMENTS`
-or `UNKNOWN_TOOL`, and an error changes nothing. The verifier handles orders in the order the
+or `UNKNOWN_TOOL`, and an error changes nothing. As in JSON Schema, `"quantity": 2.0` is the
+integer 2, while `2.5`, `true` and `"2"` are `INVALID_ARGUMENTS`. The verifier handles orders in the order the
 task names them: each must end `reserved` with its full quantity if the stock left covered it,
 otherwise `backordered` with nothing reserved, and each SKU's final stock must equal its starting
 stock minus what was reserved for it.

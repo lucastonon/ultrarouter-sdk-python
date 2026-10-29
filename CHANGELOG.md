@@ -75,7 +75,8 @@ advertise a registry install).
 - **A demonstration environment** (`ultrarouter.demo.OrderDesk`): the deterministic order-desk
   tools, exact rules and verifier (orders in task order, and each SKU's stock consistent with its
   reservations) from the fixture shared with the TypeScript SDK; labelled a demonstration, not
-  evidence that learning improves an agent.
+  evidence that learning improves an agent. As in JSON Schema, an integral number (`2.0`) is an
+  integer argument and `2.5` is not, so both SDKs answer every tool call identically.
 - The OpenAPI specification is resynced: the receipt, learning and episode-memory operations are
   generated models (`OutcomeReceiptRecord`, `OutcomeReceiptRecordList`, `RequestOutcomeResult`,
   `LearningStatus`, `LearningControl`, `LearningVersionList`, `LearningVersionDetail`,

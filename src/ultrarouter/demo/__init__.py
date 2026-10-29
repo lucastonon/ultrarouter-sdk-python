@@ -20,7 +20,8 @@ reserved in full or backordered:
 
 An unknown tool (``UNKNOWN_TOOL``) or malformed arguments (``INVALID_ARGUMENTS``: exactly the
 listed keys, strings, ``quantity`` an integer of at least 1) answer an error. Every error changes
-nothing.
+nothing. As in JSON Schema, an integral number such as ``2.0`` is an integer (it acts as ``2``),
+while ``2.5`` and booleans are not.
 Tool results, verifier reasons and the evidence hash are identical to the TypeScript SDK's
 ``createOrderDesk``.
 
@@ -75,24 +76,41 @@ def scenario_ids() -> list[str]:
     return [str(s["id"]) for s in order_desk_spec()["scenarios"]]
 
 
-def _valid_arguments(schema: Mapping[str, Any], args: Mapping[str, Any]) -> bool:
+def _integral(value: Any) -> int | None:
+    """``value`` as an int when JSON Schema calls it an integer (``2`` or ``2.0``, not ``2.5`` and
+    not a boolean), else ``None``. JavaScript reads ``2.0`` as ``2``, so both SDKs agree."""
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float) and value.is_integer():
+        return int(value)
+    return None
+
+
+def _checked_arguments(schema: Mapping[str, Any], args: Mapping[str, Any]) -> dict[str, Any] | None:
+    """The arguments normalized (integral floats become ints), or ``None`` when they do not match
+    the tool's schema: exactly the listed keys, strings, integers within their minimum, enums."""
     properties: Mapping[str, Any] = schema.get("properties", {})
     if any(name not in args for name in schema.get("required", ())):
-        return False
+        return None
     if schema.get("additionalProperties") is False and any(k not in properties for k in args):
-        return False
+        return None
+    checked: dict[str, Any] = {}
     for name, value in args.items():
         spec = properties.get(name, {})
         kind = spec.get("type")
         if kind == "string" and not isinstance(value, str):
-            return False
-        if kind == "integer" and (isinstance(value, bool) or not isinstance(value, int)):
-            return False
-        if "minimum" in spec and isinstance(value, int) and value < spec["minimum"]:
-            return False
+            return None
+        if kind == "integer":
+            number = _integral(value)
+            if number is None or ("minimum" in spec and number < spec["minimum"]):
+                return None
+            value = number
         if "enum" in spec and value not in spec["enum"]:
-            return False
-    return True
+            return None
+        checked[name] = value
+    return checked
 
 
 class OrderDesk:
@@ -173,8 +191,10 @@ class OrderDesk:
         schema = self._schemas.get(name)
         if schema is None:
             return {"ok": False, "error": "UNKNOWN_TOOL"}
-        if not isinstance(args, dict) or not _valid_arguments(schema, args):
+        checked = _checked_arguments(schema, args) if isinstance(args, dict) else None
+        if checked is None:
             return {"ok": False, "error": "INVALID_ARGUMENTS"}
+        args = checked
         if name == "check_stock":
             units = self.stock.get(args["sku"])
             if units is None:
