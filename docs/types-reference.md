@@ -373,9 +373,10 @@ One batch outcome’s result.
 | `latency_class` | `str \| None` | yes | Known values: ``instant``, ``delayed``. |
 | `learning_use` | `list[str] \| None` | yes | Known values: ``train``, ``calibrate``, ``rank``, ``audit``. |
 | `reason` | `str \| None` | yes | The rejection/conflict reason when not accepted. |
+| `receipt` | `OutcomeReceiptRecord \| None` | yes | The durable receipt of a `request_id` row (the same receipt the request-outcome route returns for the same `source_event_id`); null for an `artifact_id` / `artifact_key` row or a row refused before one. |
 | `source` | `str \| None` | yes | Known values: ``declared``, ``inferred``, ``gateway``, ``imported``. |
 | `source_event_id` | `str \| None` | yes |  |
-| `status` | `str` | yes | Per-event acceptance: accepted \| duplicate (no-op) \| conflict (409) \| rejected.  Known values: ``accepted``, ``duplicate``, ``conflict``, ``rejected``. |
+| `status` | `str` | yes | Per-row acceptance: accepted \| duplicate (no-op) \| conflict \| rejected \| pending — a `request_id` row whose request has not been recorded yet: stored durably and applied when it is (see `receipt`).  Known values: ``accepted``, ``duplicate``, ``conflict``, ``rejected``, ``pending``. |
 | `target_kind` | `str \| None` | yes | Known values: ``artifact``, ``claim``. |
 
 ### BatchOutcomesParams
@@ -401,6 +402,7 @@ The per-row batch results + a verdict rollup.
 | `data` | `list[BatchOutcomeResult]` | yes |  |
 | `duplicate` | `int` | yes |  |
 | `object` | `str` | yes | Known values: ``list``. |
+| `pending` | `int` | yes | Rows whose request has not been recorded yet (durable pending receipts). |
 | `rejected` | `int` | yes |  |
 
 ### BenchAllowance
@@ -1978,6 +1980,180 @@ The manual-eval trigger result: the enqueued run (202) or a documented no-op (20
 | `status` | `str \| None` | no | The prior run’s current status (`queued`\|`running`\|`scored`\|`failed`) — present only on a dedupe. |
 | `trigger` | `str \| None` | no | The prior run’s trigger (e.g. `manual`, `model.release`) — present only on a dedupe. |
 
+### EpisodeMemoryDisableResult
+
+*response model*
+
+The result of disabling episode memory (model-only serving within one 5 s window).
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `call_type_id` | `str` | yes |  |
+| `changed` | `bool` | yes | False when memory was already off (nothing written — idempotent). |
+| `config_version` | `int \| None` | yes |  |
+| `object` | `str` | yes | Known values: ``episode_memory_disable``. |
+| `previous` | `EpisodeMemoryStatusSetting \| None` | yes | The frozen episode-memory setting on a call-type config version. |
+
+### EpisodeMemoryEnableParams
+
+*request shape (TypedDict)*
+
+Enable episode memory for a call type (the lab-authorised, pre-evidence activation).
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `as_of` | `str \| None` | no | Serve only episodes verified at or before this instant (ISO) — a frozen memory version; null = live. |
+| `dedupe` | `bool` | no | Serve at most one of near-identical precedents (default false). |
+| `framing` | `Literal['reuse', 'adapt']` | no | How served precedents are framed: `reuse` (default) invites reusing their calls; `adapt` presents them as evidence of how the tools behave, not values to copy. |
+| `k` | `int` | no | Precedents served per episode (1..5; default 3). |
+| `lessons` | `EpisodeMemoryEnableParamsLessons` | no | The learned-playbook block (absent ⇒ lessons off, byte-identical). |
+| `max_chars_per_episode` | `int` | no | Characters of actions shown per precedent (500..8000; default 3500). |
+| `min_similarity` | `float` | no | Serve only precedents at least this similar to the task (0..1; default 0, no floor). |
+| `observation_chars` | `int` | no | Characters of each kept action’s observation shown under it (0 = actions only; default 0). |
+| `prefer_shorter` | `bool` | no | Among near-equally similar precedents, serve the shortest verified solutions first (default false). |
+| `record` | `bool` | no | Record this call type’s episodes so outcomes can verify them (default true); false = serve only. |
+| `retrieval_key` | `Literal['first_user_message', 'content_lines']` | no | What precedents are ranked on: the whole first user message (default) or its content lines — without lines carrying a personal identifier or a timestamp. |
+| `source_call_type_id` | `str \| None` | no | The call type whose verified episodes are served (same workspace); null = this call type. |
+
+### EpisodeMemoryEnableParamsLessons
+
+*request shape (TypedDict)*
+
+The learned-playbook block (absent ⇒ lessons off, byte-identical).
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `distiller_model` | `str \| None` | no | The model the distiller uses; null = the call type’s own model. |
+| `k` | `int` | no | Lessons served per episode (1..20; default 8). |
+| `mode` | `Required[Literal['off', 'only', 'with_precedents']]` | no | Serve a distilled playbook — `off` (default, byte-identical), `only` (lessons, no precedents), `with_precedents` (lessons before precedents). |
+| `recipe` | `LearnerRecipeParams` | no | The learner recipe the distiller runs (absent ⇒ the legacy learner). |
+| `version_id` | `str \| None` | no | A frozen-arm pin: serve exactly this playbook version (`epb_…`) of the source call type; null = the latest. |
+
+### EpisodeMemoryEnableResult
+
+*response model*
+
+The result of enabling episode memory (a refusal is a named HTTP error, never a 200).
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `call_type_id` | `str` | yes |  |
+| `config_version` | `int` | yes | The new config version carrying the setting. |
+| `enabled` | `bool` | yes | Known values: ``True``. |
+| `object` | `str` | yes | Known values: ``episode_memory_enable``. |
+| `previous` | `EpisodeMemoryStatusSetting \| None` | yes | The setting this one replaced (null when off). |
+| `setting` | `EpisodeMemoryStatusSetting` | yes | The frozen episode-memory setting on a call-type config version. |
+
+### EpisodeMemoryStatus
+
+*response model*
+
+A call type’s episode-memory status.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `call_type_id` | `str` | yes |  |
+| `config_version` | `int \| None` | yes |  |
+| `enabled` | `bool` | yes | Whether the active config version carries a readable EXPLICIT setting (false for the explicit-off marker, an unreadable value, or no setting). |
+| `lab_authorised` | `bool` | yes | The workspace’s staff-granted lab authorisation (`flywheel.episode_memory_lab`). |
+| `memory` | `EpisodeMemoryStatusMemory` | yes | A content-addressed preview of the memory the setting (or `?as_of`) would serve now. |
+| `object` | `str` | yes | Known values: ``episode_memory``. |
+| `playbook` | `EpisodeMemoryStatusPlaybook` | yes | The latest learned playbook of the source call type (version null when none). |
+| `setting` | `EpisodeMemoryStatusSetting \| None` | yes | The frozen episode-memory setting on a call-type config version. |
+| `source` | `str` | yes | The per-call-type state — `explicit` (a readable setting is stored), `off` (an explicit opt-out, or an unreadable value fail-closed), or `default` (nothing stored — the call type follows the workspace default `flywheel.episode_memory_default`).  Known values: ``explicit``, ``default``, ``off``. |
+| `traces` | `EpisodeMemoryStatusTraces` | yes | The call type’s episode-trace accounting (counts only). |
+
+### EpisodeMemoryStatusMemory
+
+*response model*
+
+A content-addressed preview of the memory the setting (or `?as_of`) would serve now.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `as_of` | `str \| None` | yes | The pin the digest was taken under (ISO), or null = live. |
+| `digest` | `str` | yes | `emd1_…` — a content address of the ordered eligible set (stable for a frozen checkpoint). |
+| `source_call_type_id` | `str` | yes | The call type whose verified episodes would be served. |
+| `verified_pass` | `int` | yes | Eligible verified pass episodes of the source (verified_at ≤ pin, or all when live). |
+
+### EpisodeMemoryStatusPlaybook
+
+*response model*
+
+The latest learned playbook of the source call type (version null when none).
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `active_lessons` | `int` | yes | The active-lesson count of the latest version. |
+| `cohort_size` | `int` | yes | The sealed cohort size of the latest version. |
+| `digest` | `str \| None` | yes | The latest version digest (`epb1_…`), or null. |
+| `source_call_type_id` | `str` | yes | The call type whose playbook is reported. |
+| `version` | `int \| None` | yes | The latest version number, or null when none. |
+| `version_id` | `str \| None` | yes | The latest version row id (`epb_…`), or null. |
+
+### EpisodeMemoryStatusSetting
+
+*response model*
+
+The frozen episode-memory setting on a call-type config version.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `as_of` | `str \| None` | yes | A frozen memory version (ISO), or null for live memory. |
+| `dedupe` | `bool \| None` | no | Present only when true. |
+| `framing` | `str \| None` | no | Present only when not the default `reuse`.  Known values: ``reuse``, ``adapt``. |
+| `k` | `int` | yes |  |
+| `lessons` | `EpisodeMemoryStatusSettingLessons \| None` | no | Present only when the learned-playbook mode is not `off`. |
+| `max_chars_per_episode` | `int` | yes |  |
+| `min_similarity` | `float \| None` | no | Present only when set (not 0). |
+| `observation_chars` | `int` | yes |  |
+| `prefer_shorter` | `bool \| None` | no | Present only when true. |
+| `record` | `bool` | yes |  |
+| `retrieval_key` | `str \| None` | no | Present only when not the default `first_user_message`.  Known values: ``first_user_message``, ``content_lines``. |
+| `rule_version` | `str` | yes | `epm1` — the pure rule version a stored setting is parsed under. |
+| `self_serve` | `bool \| None` | no | Present (true) only when learning was enabled self-serve through `POST /v1/call-types/{id}/learning/enable` — a published version is then a candidate, served only once promoted. |
+| `source_call_type_id` | `str \| None` | yes |  |
+
+### EpisodeMemoryStatusSettingLessons
+
+*response model*
+
+Present only when the learned-playbook mode is not `off`.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `distiller_model` | `str \| None` | yes |  |
+| `k` | `int` | yes |  |
+| `mode` | `str` | yes | Known values: ``off``, ``only``, ``with_precedents``. |
+| `recipe` | `EpisodeMemoryStatusSettingLessonsRecipe \| None` | no | Present only for a non-legacy learner recipe (absent ⇒ the legacy learner). |
+| `version_id` | `str \| None` | yes |  |
+
+### EpisodeMemoryStatusSettingLessonsRecipe
+
+*response model*
+
+Present only for a non-legacy learner recipe (absent ⇒ the legacy learner).
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `generation` | `str` | yes | Known values: ``bundled``, ``atomic``. |
+| `observations` | `str` | yes | Known values: ``legacy``, ``elo2``. |
+| `validator` | `str` | yes | Known values: ``elv1``, ``elv2``. |
+
+### EpisodeMemoryStatusTraces
+
+*response model*
+
+The call type’s episode-trace accounting (counts only).
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `fail` | `int` | yes |  |
+| `latest_verified_at` | `str \| None` | yes | The newest pass verification instant (ISO), or null. |
+| `pass` | `int` | yes | Episodes a whole-episode teaching outcome verified as passing. |
+| `total` | `int` | yes |  |
+| `unverified` | `int` | yes | Episodes still recording (no verdict yet). |
+
 ### EvalRun
 
 *response model*
@@ -3459,95 +3635,150 @@ Usage this period (from the live spend counters — never a scan of requests).
 | `workspace_spend_cap_micro_usd` | `int \| None` | yes | The per-workspace monthly hard cap; null = uncapped. |
 | `workspace_spent_micro_usd` | `int` | yes | The workspace's total spend this period. |
 
-### LearningArmEvidence
+### LearnerRecipeParams
 
-*response model*
+*request shape (TypedDict)*
 
-One arm's evidence in an evaluation.
-
-| Field | Type | Required | Description |
-| --- | --- | --- | --- |
-| `version_id` | `str \| None` | no | The version the arm served. |
-| `verified` | `int \| None` | no | Episodes with a verified verdict. |
-| `passed` | `int \| None` | no | Verified episodes that passed. |
-| `unknown` | `int \| None` | no | Episodes whose verdict stayed unknown. |
-
-### LearningBudget
-
-*response model*
-
-The learning budget: its state and what is left.
+The learner recipe the distiller runs (absent ⇒ the legacy learner).
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `state` | `str \| None` | no | Known values: ``ok``, ``exhausted``. |
-| `remaining_usd` | `float \| None` | no | What is left, in USD. |
+| `generation` | `Literal['bundled', 'atomic']` | no | Lesson generation: `bundled` (legacy, the default) or `atomic` (one complete rule per item with conditions, exceptions and required tools; never clipped). |
+| `observations` | `Literal['legacy', 'elo2']` | no | Observation selection: `legacy` (the default) or `elo2` (error→correction transitions, passed-case results and labelled user turns at the same total budget, with measured omissions). |
+| `validator` | `Literal['elv1', 'elv2']` | no | Lesson admission: `elv1` (legacy literal rule, the default) or `elv2` (provenance-aware: evidence support + value handling, documented constants scoped to their tool). |
+
+### LearningControl
+
+*response model*
+
+The result of a learning control.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `action` | `str` | yes | Known values: ``enable``, ``pause``, ``resume``, ``disable``, ``rollback``, ``promote``, ``reject``. |
+| `call_type_id` | `str` | yes |  |
+| `changed` | `bool` | yes | False when the control was already in effect (idempotent). |
+| `learning` | `LearningStatus` | yes | A call type’s learning status. |
+| `object` | `str` | yes | Known values: ``learning_control``. |
+| `stopped_evaluation_id` | `str \| None` | yes | A running evaluation the control stopped (`stopped_manual`). |
+| `version_id` | `str \| None` | yes | The version a rollback / promote / reject acted on. |
+
+### LearningEnableParams
+
+*request shape (TypedDict)*
+
+Enable learning for a call type (owner/admin session or a `config:write` key).
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `lessons_k` | `int` | no | Lessons served per episode (1..20; default 8). |
+| `lessons_mode` | `Literal['only', 'with_precedents']` | no | `only` (default): serve the learned lessons; `with_precedents`: lessons first, then similar verified past episodes. |
+| `promotion` | `LearningPromotionParams` | no | Promotion-policy changes, merged over the current policy (or the defaults). |
+| `recipe` | `LearnerRecipeParams` | no | The learner recipe the reflection runs — its validator, lesson generation and observation selection, each optional (an absent field is the legacy value). Stored on the call type’s episode-memory setting, the ONE place the recipe lives. Omitted: the call type keeps its current recipe (the legacy learner when it has none). |
+| `reflection_model` | `Required[str]` | no | The model the learner reflects with. It must resolve to a WORKSPACE-OWNED offer — one of the workspace’s custom providers, or a catalog provider the workspace stored its own key for. A platform-keyed model is refused; there is no paid fallback. |
 
 ### LearningEvaluation
 
 *response model*
 
-A prospective evaluation of a candidate against the incumbent.
+A prospective randomized evaluation of a candidate against the incumbent.
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `id` | `str` | yes | The evaluation id. |
-| `decision` | `str \| None` | no | ``running`` until it decides. Known values: ``running``, ``promoted``, ``retained``, ``inconclusive``, ``rejected``, ``stopped_budget``, ``stopped_manual``. |
-| `reason` | `str \| None` | no | Why it decided, when it has. |
-| `objective` | `str \| None` | no | The objective, frozen when the evaluation started. |
-| `rule` | `dict[str, Any] \| None` | no | The decision rule, frozen when the evaluation started (minimum and maximum verified episodes per arm, interval, minimum effect). |
-| `candidate` | `LearningArmEvidence \| None` | no | The candidate arm. |
-| `incumbent` | `LearningArmEvidence \| None` | no | The incumbent arm. |
-| `interval` | `LearningEvaluationInterval \| None` | no | The interval the rule reads. |
-| `started_at` | `str \| None` | no | When it started (ISO-8601). |
-| `decided_at` | `str \| None` | no | When it decided (ISO-8601), else ``None``. |
+| `arms` | `LearningEvaluationArms` | yes |  |
+| `call_type_id` | `str` | yes |  |
+| `candidate_version_id` | `str` | yes |  |
+| `decided_at` | `str \| None` | yes | ISO 8601 instant. |
+| `decided_by` | `LearningEvaluationDecidedBy \| None` | yes |  |
+| `decision` | `str` | yes | Every decision except `promoted` keeps the incumbent.  Known values: ``running``, ``promoted``, ``retained``, ``inconclusive``, ``rejected``, ``stopped_budget``, ``stopped_manual``. |
+| `decision_reason` | `str` | yes |  |
+| `difference` | `LearningEvaluationDifference \| None` | yes | candidate − incumbent success (a fraction) with one-sided bounds at the frozen alpha; null until both arms have a verified episode. |
+| `id` | `str` | yes | `lev_…` |
+| `incumbent_version_id` | `str \| None` | yes | Null: the candidate is compared with serving no lessons. |
+| `object` | `str` | yes | Known values: ``learning_evaluation``. |
+| `rule` | `LearningEvaluationRule \| None` | yes | The decision rule frozen when the evaluation started. |
+| `rule_hash` | `str` | yes | `lrh1_…` content address of the frozen rule. |
+| `started_at` | `str` | yes | ISO 8601 instant. |
 
-### LearningEvaluationInterval
+### LearningEvaluationArm
 
 *response model*
 
-The one-sided interval on (candidate − incumbent) success, in percentage points.
+Response shape `LearningEvaluationArm`.
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `lower` | `float \| None` | no | Lower bound. |
-| `upper` | `float \| None` | no | Upper bound. |
+| `cost_micro_usd` | `int \| None` | yes | Summed request cost of the verified episodes (cost objective only). |
+| `mean_cost_micro_usd` | `float \| None` | yes |  |
+| `pass` | `int` | yes |  |
+| `success_rate` | `float \| None` | yes |  |
+| `unknown` | `int` | yes | Episodes assigned the arm with no verdict yet — excluded from the comparison. |
+| `verified` | `int` | yes | Episodes with a verified teaching outcome. |
+
+### LearningEvaluationArms
+
+*response model*
+
+Response shape `LearningEvaluationArms`.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `candidate` | `LearningEvaluationArm` | yes |  |
+| `incumbent` | `LearningEvaluationArm` | yes |  |
+
+### LearningEvaluationDecidedBy
+
+*response model*
+
+Response shape `LearningEvaluationDecidedBy`.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `id` | `str \| None` | yes |  |
+| `type` | `str` | yes | Known values: ``system``, ``user``, ``api_key``. |
+
+### LearningEvaluationDifference
+
+*response model*
+
+candidate − incumbent success (a fraction) with one-sided bounds at the frozen alpha; null until both arms have a verified episode.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `lower` | `float` | yes |  |
+| `point` | `float` | yes |  |
+| `upper` | `float` | yes |  |
 
 ### LearningEvaluationList
 
 *response model*
 
-Evaluations, newest first (`GET /v1/call-types/{id}/learning/evaluations`).
+The evaluations, newest first.
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `data` | `list[LearningEvaluation]` | no | The evaluations. |
+| `data` | `list[LearningEvaluation]` | yes |  |
+| `object` | `str` | yes | Known values: ``list``. |
 
-### LearningEvidenceCounts
+### LearningEvaluationRule
 
 *response model*
 
-Outcome evidence that arrived, was verified, was incorporated, and is still pending.
+The decision rule frozen when the evaluation started.
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `arrived` | `int \| None` | no | Outcomes that arrived. |
-| `verified` | `int \| None` | no | Outcomes verified against an episode. |
-| `incorporated` | `int \| None` | no | Verified outcomes already used to learn. |
-| `pending` | `int \| None` | no | Outcomes still waiting (for example on a pending receipt). |
-
-### LearningLesson
-
-*response model*
-
-One lesson of a learned version.
-
-| Field | Type | Required | Description |
-| --- | --- | --- | --- |
-| `id` | `str \| None` | no | The lesson id (stable across versions). |
-| `text` | `str \| None` | no | The lesson text. |
-| `tool` | `str \| None` | no | The tool the lesson is scoped to, or ``None`` for general guidance. |
-| `evidence_count` | `int \| None` | no | How many evidence cases support it. |
+| `alpha_one_sided` | `float` | yes |  |
+| `candidate_share` | `float` | yes |  |
+| `interval` | `str` | yes | `newcombe_hybrid_score`. |
+| `max_duration_hours` | `int` | yes |  |
+| `max_verified_per_arm` | `int` | yes |  |
+| `min_effect_pp` | `float` | yes |  |
+| `min_verified_per_arm` | `int` | yes |  |
+| `noninferiority_margin_pp` | `float` | yes |  |
+| `objective` | `str` | yes | `success`: a higher whole-task success rate (the one-sided lower bound of the difference > 0 and the point difference ≥ `min_effect_pp`). `cost_noninferior`: a lower mean cost per episode with success not worse than the incumbent by more than `noninferiority_margin_pp`.  Known values: ``success``, ``cost_noninferior``. |
+| `outcome_source` | `str` | yes | `verified_teaching_episode`. |
+| `rule_version` | `str` | yes |  |
 
 ### LearningPlan
 
@@ -3647,102 +3878,329 @@ One learning-plan proposal in the discovery list (metadata only, never a body).
 | `review_state` | `str` | yes | The learning-plan lifecycle state.  Known values: ``proposed``, ``confirmed``, ``declined``, ``deferred``, ``stale``. |
 | `workflow_id` | `str` | yes |  |
 
+### LearningPromotionParams
+
+*request shape (TypedDict)*
+
+Promotion-policy changes, merged over the current policy (or the defaults).
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `alpha` | `float` | no | One-sided significance level of the interval on the difference (default 0.05). |
+| `candidate_share` | `float` | no | The share of NEW episodes assigned the candidate while an evaluation runs (default 0.5). |
+| `max_duration_hours` | `int` | no | An evaluation whose window has not closed after this long stops (`stopped_budget`; default 720). |
+| `max_verified_per_arm` | `int` | no | …or when EITHER arm reaches this many; each arm counts at most this many (default 200). |
+| `min_effect_pp` | `float` | no | `success`: the minimum point improvement in percentage points (default 0). |
+| `min_verified_per_arm` | `int` | no | The window closes when BOTH arms have this many verified episodes (default 30). |
+| `mode` | `Literal['evaluate', 'manual', 'immediate']` | no | `evaluate`: a candidate must win a prospective randomized evaluation against the incumbent under a rule frozen when the evaluation starts. `manual`: a candidate waits for an owner/admin promote or reject. `immediate`: publication is activation (the legacy behaviour). |
+| `noninferiority_margin_pp` | `float` | no | `cost_noninferior`: the success non-inferiority margin in percentage points (default 5). |
+| `objective` | `Literal['success', 'cost_noninferior']` | no | `success`: a higher whole-task success rate (the one-sided lower bound of the difference > 0 and the point difference ≥ `min_effect_pp`). `cost_noninferior`: a lower mean cost per episode with success not worse than the incumbent by more than `noninferiority_margin_pp`. |
+
 ### LearningPromotionPolicy
 
 *response model*
 
-How a candidate becomes active.
+The promotion policy. Defaults: evaluate / success / 30–200 verified episodes per arm / one-sided alpha 0.05 / 0 pp minimum effect / 5 pp margin / 0.5 candidate share / 720 h. Changeable before an evaluation starts; a running evaluation keeps the rule it froze.
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `mode` | `str \| None` | no | Known values: ``evaluate`` (a randomized evaluation against the incumbent, under a rule frozen before it starts), ``manual`` (an owner or admin decides), ``immediate`` (publication is activation). |
-| `objective` | `str \| None` | no | What an evaluation must show. Known values: ``success``, ``cost_noninferior``. |
+| `alpha` | `float` | yes | One-sided significance level of the interval on the difference (default 0.05). |
+| `candidate_share` | `float` | yes | The share of NEW episodes assigned the candidate while an evaluation runs (default 0.5). |
+| `max_duration_hours` | `int` | yes | An evaluation whose window has not closed after this long stops (`stopped_budget`; default 720). |
+| `max_verified_per_arm` | `int` | yes | …or when EITHER arm reaches this many; each arm counts at most this many (default 200). |
+| `min_effect_pp` | `float` | yes | `success`: the minimum point improvement in percentage points (default 0). |
+| `min_verified_per_arm` | `int` | yes | The window closes when BOTH arms have this many verified episodes (default 30). |
+| `mode` | `str` | yes | `evaluate`: a candidate must win a prospective randomized evaluation against the incumbent under a rule frozen when the evaluation starts. `manual`: a candidate waits for an owner/admin promote or reject. `immediate`: publication is activation (the legacy behaviour).  Known values: ``evaluate``, ``manual``, ``immediate``. |
+| `noninferiority_margin_pp` | `float` | yes | `cost_noninferior`: the success non-inferiority margin in percentage points (default 5). |
+| `objective` | `str` | yes | `success`: a higher whole-task success rate (the one-sided lower bound of the difference > 0 and the point difference ≥ `min_effect_pp`). `cost_noninferior`: a lower mean cost per episode with success not worse than the incumbent by more than `noninferiority_margin_pp`.  Known values: ``success``, ``cost_noninferior``. |
 
-### LearningProvenance
+### LearningRollbackParams
 
-*response model*
+*request shape (TypedDict)*
 
-Where a version's lessons came from.
-
-| Field | Type | Required | Description |
-| --- | --- | --- | --- |
-| `episodes` | `int \| None` | no | Episodes the lessons were learned from. |
-| `outcomes` | `int \| None` | no | Outcomes behind them. |
-
-### LearningProvider
-
-*response model*
-
-The workspace provider that runs reflection and evaluation for a call type.
+Roll the active pointer back to an earlier immutable version.
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `model` | `str \| None` | no | The reflection model id. |
-| `state` | `str \| None` | no | Whether it is usable. Known values: ``ready``, ``unavailable``, ``quota_exhausted``. |
+| `version_id` | `str` | no | The EARLIER version to make active (`epb_…`). Omitted: the version that was active immediately before the current one. |
 
 ### LearningStatus
 
 *response model*
 
-The learning state of one call type (`GET /v1/call-types/{id}/learning`).
-
-The control routes (enable, pause, resume, disable, rollback) answer with this too.
+A call type’s learning status.
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `call_type_id` | `str \| None` | no | The call type id. |
-| `state` | `str \| None` | no | Known values: ``not_enabled``, ``active``, ``paused``, ``disabled``, ``unavailable`` (no usable learning provider), ``quota_exhausted``, ``budget_exhausted``. A stopped learner always says why, never silently. |
-| `reason` | `str \| None` | no | A stable machine reason for the state, when there is one (for example ``provider_missing``). |
-| `provider` | `LearningProvider \| None` | no | The learning provider: the reflection model and whether it is usable. |
-| `promotion` | `LearningPromotionPolicy \| None` | no | The promotion policy. |
-| `active` | `LearningVersionRef \| None` | no | The version serving now (the incumbent). |
-| `candidate` | `LearningVersionRef \| None` | no | The newest candidate. |
-| `evaluation` | `LearningEvaluation \| None` | no | The running or latest evaluation. |
-| `evidence` | `LearningEvidenceCounts \| None` | no | Evidence arrived, verified, incorporated and pending. |
-| `backlog` | `int \| None` | no | Outcomes waiting to be learned from. |
-| `budget` | `LearningBudget \| None` | no | The learning budget. |
+| `active_version` | `LearningVersionRef \| None` | yes | The incumbent served outside an evaluation. |
+| `budget` | `LearningStatusBudget` | yes |  |
+| `call_type_id` | `str` | yes |  |
+| `config_version` | `int \| None` | yes |  |
+| `enabled` | `bool` | yes | Lessons are switched on for the call type. |
+| `evaluation` | `LearningEvaluation \| None` | yes | The RUNNING evaluation, if any. |
+| `evidence` | `LearningStatusEvidence` | yes | Evidence arrived vs verified vs incorporated vs pending. |
+| `governed` | `bool` | yes | Publication is not activation: candidates serve only once promoted. |
+| `last_evaluation` | `LearningEvaluation \| None` | yes | The newest evaluation (any decision). |
+| `latest_candidate` | `LearningVersionRef \| None` | yes |  |
+| `object` | `str` | yes | Known values: ``learning``. |
+| `outcome_receipts` | `LearningStatusOutcomeReceipts` | yes | Outcome receipts (`POST /v1/requests/{id}/outcomes`) attributed to this call type’s requests, by state: a receipt counts once its request or its episode has been recorded for the call type. Settled receipts are counted until they are purged (30 days). |
+| `paused` | `bool` | yes |  |
+| `promotion` | `LearningPromotionPolicy \| None` | yes | The promotion policy (null for an ungoverned study learner — its latest version serves). |
+| `reason` | `str` | yes | A bounded code explaining the state. |
+| `recipe` | `LearningStatusRecipe \| None` | yes | The learner recipe the next reflection runs, read from the call type’s episode-memory setting (the one place it lives); null when the call type has no explicit setting. |
+| `reflection` | `LearningStatusReflection` | yes |  |
+| `self_serve` | `bool` | yes | Enabled through this API (not a staff-granted study). |
+| `state` | `str` | yes | `collecting` (enabled, waiting for evidence), `learning` (a reflection is due or an evaluation runs), `paused`, `disabled` (the kill switch), `unavailable` (consent, provider or repeated failures), `quota_exhausted` / `budget_exhausted` (refused for resources — retried with backoff), `off`.  Known values: ``off``, ``collecting``, ``learning``, ``paused``, ``disabled``, ``unavailable``, ``quota_exhausted``, ``budget_exhausted``. |
+| `usage` | `LearningStatusUsage` | yes | Subscription / token usage, recorded separately from cash. |
+
+### LearningStatusBudget
+
+*response model*
+
+Response shape `LearningStatusBudget`.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `consecutive_refusals` | `int` | yes |  |
+| `failure_ceiling` | `int` | yes |  |
+| `failures_since_reset` | `int` | yes |  |
+| `last_refusal_at` | `str \| None` | yes | ISO 8601 instant. |
+| `state` | `str` | yes | Known values: ``ok``, ``quota_exhausted``, ``budget_exhausted``. |
+
+### LearningStatusEvidence
+
+*response model*
+
+Evidence arrived vs verified vs incorporated vs pending.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `backlog` | `int` | yes | Verified, not yet reflected over. |
+| `consumed` | `int` | yes | Verified episodes the learner has reflected over (its working line). |
+| `incorporated_active` | `int` | yes | Verified episodes in the ACTIVE version’s line — arrived is not incorporated. |
+| `latest_verified_at` | `str \| None` | yes | ISO 8601 instant. |
+| `pending_reflection` | `int` | yes |  |
+| `recorded` | `int` | yes | Episodes recorded. |
+| `unknown` | `int` | yes | Recorded without a verdict — never counted as success or failure. |
+| `verified` | `int` | yes |  |
+| `verified_fail` | `int` | yes |  |
+| `verified_pass` | `int` | yes |  |
+
+### LearningStatusOutcomeReceipts
+
+*response model*
+
+Outcome receipts (`POST /v1/requests/{id}/outcomes`) attributed to this call type’s requests, by state: a receipt counts once its request or its episode has been recorded for the call type. Settled receipts are counted until they are purged (30 days).
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `applied` | `int` | yes | Recorded against the request. |
+| `episode_pending` | `int` | yes | Applied teaching outcomes still waiting for their episode to be recorded. |
+| `expired` | `int` | yes | The request was never recorded within the receipt’s time limit. |
+| `failed` | `int` | yes | Given up after repeated database errors while applying. |
+| `pending` | `int` | yes | Accepted, waiting for the request to be recorded. |
+| `rejected` | `int` | yes | Refused (validation or conflict). |
+
+### LearningStatusRecipe
+
+*response model*
+
+The learner recipe the next reflection runs, read from the call type’s episode-memory setting (the one place it lives); null when the call type has no explicit setting.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `generation` | `str` | yes | Known values: ``bundled``, ``atomic``. |
+| `legacy` | `bool` | yes | All three are the legacy values (the original learner). |
+| `observations` | `str` | yes | Known values: ``legacy``, ``elo2``. |
+| `validator` | `str` | yes | Known values: ``elv1``, ``elv2``. |
+
+### LearningStatusReflection
+
+*response model*
+
+Response shape `LearningStatusReflection`.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `last_attempt_at` | `str \| None` | yes | ISO 8601 instant. |
+| `last_attempt_reason` | `str \| None` | yes |  |
+| `last_attempt_status` | `str \| None` | yes |  |
+| `last_published_at` | `str \| None` | yes | ISO 8601 instant. |
+| `model` | `str \| None` | yes |  |
+| `next` | `LearningStatusReflectionNext` | yes | Whether the next server reflection scan will reflect, and why (not). |
+| `provider` | `LearningStatusReflectionProvider` | yes |  |
+
+### LearningStatusReflectionNext
+
+*response model*
+
+Whether the next server reflection scan will reflect, and why (not).
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `idle_minutes` | `int` | yes |  |
+| `min_episodes` | `int` | yes |  |
+| `reason` | `str` | yes |  |
+| `retry_at` | `str \| None` | yes | ISO 8601 instant. |
+| `will_run` | `bool` | yes |  |
+
+### LearningStatusReflectionProvider
+
+*response model*
+
+Response shape `LearningStatusReflectionProvider`.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `available` | `bool` | yes |  |
+| `ownership` | `str \| None` | yes | Known values: ``custom``, ``byok``, ``platform``. |
+| `provider_slug` | `str \| None` | yes |  |
+| `reason` | `str \| None` | yes | Why it is unavailable: `no_reflection_model`, `no_offer`, `platform_offer_only`, `no_workspace_key`, `model_denied_by_policy`. |
+
+### LearningStatusUsage
+
+*response model*
+
+Subscription / token usage, recorded separately from cash.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `cash_micro_usd` | `int` | yes |  |
+| `failed_calls` | `int` | yes |  |
+| `input_tokens` | `int` | yes |  |
+| `output_tokens` | `int` | yes |  |
+| `reflections` | `int` | yes |  |
 
 ### LearningVersion
 
 *response model*
 
-One immutable learned version; only its state moves.
-
-The single-version read (`learning.version`) also fills `lessons` and `provenance`.
+A learned playbook version.
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `id` | `str` | yes | The version id. |
-| `state` | `str \| None` | no | Known values: ``candidate``, ``evaluating``, ``active``, ``retired``, ``rejected``, ``superseded``. |
-| `state_reason` | `str \| None` | no | Why the version is in this state (a stable machine code), when known. |
-| `parent_version_id` | `str \| None` | no | The version this one was derived from. |
-| `lesson_count` | `int \| None` | no | The number of lessons. |
-| `evaluation_id` | `str \| None` | no | The evaluation that decided this version, when one did. |
-| `created_at` | `str \| None` | no | When the version was created (ISO-8601). |
-| `lessons` | `list[LearningLesson] \| None` | no | The lessons (on the single-version read). |
-| `provenance` | `LearningProvenance \| None` | no | A summary of where the lessons came from (on the single-version read). |
+| `active_lessons` | `int` | yes |  |
+| `cohort` | `LearningVersionCohort` | yes | The verified episodes the version was learned from. |
+| `created_at` | `str` | yes | ISO 8601 instant. |
+| `digest` | `str` | yes | A content address of the version’s active lessons (`epb1_…`). |
+| `evaluation_id` | `str \| None` | yes | The evaluation that set the state, if any. |
+| `id` | `str` | yes | The immutable version id (`epb_…`). |
+| `object` | `str` | yes | Known values: ``learning_version``. |
+| `parent_id` | `str \| None` | yes |  |
+| `recipe` | `str` | yes |  |
+| `reflection_model` | `str \| None` | yes |  |
+| `state` | `str` | yes | `candidate` (published, waiting), `evaluating`, `active` (served outside an evaluation), `retired` (replaced), `rejected` (lost / stopped / rejected by an owner), `superseded` (a newer candidate, or identical to the active version).  Known values: ``candidate``, ``evaluating``, ``active``, ``retired``, ``rejected``, ``superseded``. |
+| `state_reason` | `str \| None` | yes | Why it entered its state (a bounded code); null when the state is derived. |
+| `state_since` | `str \| None` | yes | ISO 8601 instant. |
+| `version` | `int` | yes |  |
+
+### LearningVersionCohort
+
+*response model*
+
+The verified episodes the version was learned from.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `fail` | `int` | yes |  |
+| `pass` | `int` | yes |  |
+| `size` | `int` | yes |  |
+
+### LearningVersionDetail
+
+*response model*
+
+One version’s lessons and provenance summary.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `active_lessons` | `int` | yes |  |
+| `cohort` | `LearningVersionCohort` | yes | The verified episodes the version was learned from. |
+| `created_at` | `str` | yes | ISO 8601 instant. |
+| `digest` | `str` | yes | A content address of the version’s active lessons (`epb1_…`). |
+| `distiller` | `LearningVersionDetailDistiller` | yes | The body-free reflection receipt (hashes and token counts only). |
+| `evaluation_id` | `str \| None` | yes | The evaluation that set the state, if any. |
+| `id` | `str` | yes | The immutable version id (`epb_…`). |
+| `known_functions` | `int` | yes |  |
+| `lessons` | `list[LearningVersionDetailLesson]` | yes | The version’s active lessons, in served-ranking order input. |
+| `object` | `str` | yes | Known values: ``learning_version``. |
+| `parent_id` | `str \| None` | yes |  |
+| `recipe` | `str` | yes |  |
+| `reflection_model` | `str \| None` | yes |  |
+| `retired_lessons` | `int` | yes |  |
+| `state` | `str` | yes | `candidate` (published, waiting), `evaluating`, `active` (served outside an evaluation), `retired` (replaced), `rejected` (lost / stopped / rejected by an owner), `superseded` (a newer candidate, or identical to the active version).  Known values: ``candidate``, ``evaluating``, ``active``, ``retired``, ``rejected``, ``superseded``. |
+| `state_reason` | `str \| None` | yes | Why it entered its state (a bounded code); null when the state is derived. |
+| `state_since` | `str \| None` | yes | ISO 8601 instant. |
+| `transitions` | `list[LearningVersionDetailTransition]` | yes | Every recorded state transition, oldest first. |
+| `version` | `int` | yes |  |
+
+### LearningVersionDetailDistiller
+
+*response model*
+
+The body-free reflection receipt (hashes and token counts only).
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `input_tokens` | `int \| None` | yes |  |
+| `model` | `str \| None` | yes |  |
+| `output_tokens` | `int \| None` | yes |  |
+| `provider` | `str \| None` | yes |  |
+| `request_hash` | `str \| None` | yes |  |
+| `response_hash` | `str \| None` | yes |  |
+
+### LearningVersionDetailLesson
+
+*response model*
+
+Response shape `LearningVersionDetailLesson`.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `evidence_cases` | `int` | yes |  |
+| `id` | `str` | yes |  |
+| `text` | `str` | yes |  |
+
+### LearningVersionDetailTransition
+
+*response model*
+
+Response shape `LearningVersionDetailTransition`.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `actor_id` | `str \| None` | yes |  |
+| `actor_type` | `str` | yes | Known values: ``system``, ``user``, ``api_key``. |
+| `at` | `str` | yes | ISO 8601 instant. |
+| `evaluation_id` | `str \| None` | yes |  |
+| `reason` | `str` | yes |  |
+| `state` | `str` | yes | `candidate` (published, waiting), `evaluating`, `active` (served outside an evaluation), `retired` (replaced), `rejected` (lost / stopped / rejected by an owner), `superseded` (a newer candidate, or identical to the active version).  Known values: ``candidate``, ``evaluating``, ``active``, ``retired``, ``rejected``, ``superseded``. |
 
 ### LearningVersionList
 
 *response model*
 
-Version history, newest first (`GET /v1/call-types/{id}/learning/versions`).
+The version history, newest first.
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `data` | `list[LearningVersion]` | no | The versions. |
+| `data` | `list[LearningVersion]` | yes |  |
+| `object` | `str` | yes | Known values: ``list``. |
 
 ### LearningVersionRef
 
 *response model*
 
-A short reference to a learned version inside a status.
+The incumbent served outside an evaluation.
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `id` | `str` | yes | The version id. |
-| `state` | `str \| None` | no | The version state (see :class:`LearningVersion`). |
-| `created_at` | `str \| None` | no | When the version was created (ISO-8601). |
+| `active_lessons` | `int` | yes |  |
+| `created_at` | `str` | yes | ISO 8601 instant. |
+| `digest` | `str` | yes |  |
+| `id` | `str` | yes |  |
+| `state` | `str` | yes | `candidate` (published, waiting), `evaluating`, `active` (served outside an evaluation), `retired` (replaced), `rejected` (lost / stopped / rejected by an owner), `superseded` (a newer candidate, or identical to the active version).  Known values: ``candidate``, ``evaluating``, ``active``, ``retired``, ``rejected``, ``superseded``. |
+| `version` | `int` | yes |  |
 
 ### ManifestWireEntryParam
 
@@ -4485,39 +4943,50 @@ A single outcome event to record (the server assigns provenance + learning_use).
 
 *response model*
 
-The durable receipt of one reported outcome (`GET /v1/outcome-receipts/{id}`).
-
-A report made before the gateway has persisted the request is accepted at once as
-`pending` and applied when the request lands; `status` then moves to `applied` (or
-`rejected` / `failed` / `expired` with a `reason`).
+A durable receipt for one reported outcome.
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `id` | `str` | yes | The receipt id. |
-| `object` | `str \| None` | no | Known values: ``outcome_receipt``. |
-| `status` | `str` | yes | Known values: ``pending``, ``applied``, ``rejected``, ``failed``, ``expired``. |
-| `reason` | `str \| None` | no | Why the receipt was rejected, failed or expired (for example ``request_not_found``). |
-| `episode` | `str \| None` | no | Episode association. Known values: ``associated``, ``pending``, ``not_recorded``, ``not_applicable``. |
-| `request_id` | `str \| None` | no | The request the outcome was reported on. |
-| `channel` | `str \| None` | no | The outcome channel. |
-| `kind` | `str \| None` | no | The channel kind. |
-| `source_event_id` | `str \| None` | no | The idempotency discriminator the report carried. |
-| `outcome_event_id` | `str \| None` | no | The recorded outcome event, once applied. |
-| `created_at` | `str \| None` | no | When the report was received (ISO-8601). |
-| `updated_at` | `str \| None` | no | When the receipt last changed (ISO-8601). |
-| `applied_at` | `str \| None` | no | When the outcome was applied (ISO-8601). |
-| `expires_at` | `str \| None` | no | When a still-pending receipt expires (ISO-8601). |
+| `applied_at` | `str \| None` | yes | When the outcome was recorded. |
+| `artifact_id` | `str \| None` | yes | The artifact the outcome landed on, once applied. |
+| `attempts` | `int` | yes | Recording attempts that hit an internal error (bounded; then `failed`). |
+| `channel` | `str` | yes | The outcome channel as sent. |
+| `created_at` | `str` | yes | When the outcome was accepted. |
+| `episode` | `OutcomeReceiptRecordEpisode` | yes | The episode association of an applied teaching outcome. |
+| `expires_at` | `str` | yes | The receipt’s next deadline: while `pending`, when it expires; while its episode association is `pending`, when that becomes `not_recorded`; once settled, when the receipt itself is deleted (30 days). |
+| `id` | `str` | yes | The receipt id (`ocr_…`). |
+| `kind` | `str` | yes | The outcome kind as sent. |
+| `object` | `str` | yes | Known values: ``outcome_receipt``. |
+| `outcome_event_id` | `str \| None` | yes | The recorded outcome event (`oev_…`) once applied. |
+| `outcome_status` | `str \| None` | yes | Whether applying recorded the event for the first time (`accepted`) or found it (`duplicate`).  Known values: ``accepted``, ``duplicate``. |
+| `reason` | `str \| None` | yes | A stable machine reason when not applied: `request_not_found`, `idempotency_conflict`, `apply_failed`, or the validation reason. |
+| `request_id` | `str` | yes | The request the outcome names. |
+| `source_event_id` | `str` | yes | Your idempotency discriminator, or a server-minted one when none was sent (then a retry is a new outcome). |
+| `status` | `str` | yes | `pending` — the request has not been recorded yet; `applied` — the outcome is recorded; `rejected` — it failed validation once the request was known (see `reason`); `failed` — recording kept hitting an internal error; `expired` — no request with this id appeared in your workspace within 15 minutes (`reason: request_not_found`).  Known values: ``pending``, ``applied``, ``rejected``, ``failed``, ``expired``. |
+| `updated_at` | `str` | yes |  |
+
+### OutcomeReceiptRecordEpisode
+
+*response model*
+
+The episode association of an applied teaching outcome.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `status` | `str` | yes | `associated` — the episode holding this request carries a verdict; `pending` — a teaching outcome waiting for its episode to be recorded; `not_recorded` — no episode held the request within 15 minutes (episode memory or recording off, a held-out request, no consent); `not_applicable` — the outcome does not teach (a proxy, behavioral or mechanical signal) or was not applied.  Known values: ``associated``, ``pending``, ``not_recorded``, ``not_applicable``. |
+| `trace_id` | `str \| None` | yes | The episode (`ept_…`) the outcome was associated with, once associated. |
+| `verdict` | `str \| None` | yes | What the outcome did to the episode: `recorded` — it is the episode verdict; `kept_earlier` — the episode already had a verdict (the first verdict wins); `revised` — it superseded the verdict (`supersedes_event_id`) before any learned version used the episode, so the verdict was replaced; `revised_after_incorporation` — the superseded verdict was already used by a learned version: the revision is recorded and counted, the episode is not silently unlearned.  Known values: ``recorded``, ``kept_earlier``, ``revised``, ``revised_after_incorporation``. |
 
 ### OutcomeReceiptRecordList
 
 *response model*
 
-Every receipt for one request (`GET /v1/requests/{id}/outcome-receipts`).
+Every outcome receipt for one request in your workspace, oldest first.
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `object` | `str \| None` | no | Known values: ``list``. |
-| `data` | `list[OutcomeReceiptRecord]` | no | The receipts, oldest first. |
+| `data` | `list[OutcomeReceiptRecord]` | yes |  |
+| `object` | `str` | yes | Known values: ``list``. |
 
 ### OutcomeResult
 
@@ -4873,6 +5342,28 @@ The per-event results (202 only after the durable insert).
 | --- | --- | --- | --- |
 | `data` | `list[OutcomeResult]` | yes |  |
 | `object` | `str` | yes | Known values: ``list``. |
+
+### RequestOutcomeResult
+
+*response model*
+
+One request-shortcut outcome result with its durable receipt.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `artifact_id` | `str \| None` | yes | The artifact the outcome landed on (null while `pending`). |
+| `artifact_version` | `int \| None` | yes |  |
+| `canonical_target_id` | `str \| None` | yes |  |
+| `id` | `str \| None` | yes | The outcome-event id when accepted/duplicate; else null. |
+| `latency_class` | `str \| None` | yes | Known values: ``instant``, ``delayed``. |
+| `learning_use` | `list[str] \| None` | yes | Known values: ``train``, ``calibrate``, ``rank``, ``audit``. |
+| `object` | `str` | yes | Known values: ``outcome``. |
+| `reason` | `str \| None` | yes | The rejection/conflict reason when not accepted. |
+| `receipt` | `OutcomeReceiptRecord` | yes | A durable receipt for one reported outcome. |
+| `source` | `str \| None` | yes | Known values: ``declared``, ``inferred``, ``gateway``, ``imported``. |
+| `source_event_id` | `str \| None` | yes |  |
+| `status` | `str` | yes | `accepted` — recorded now; `duplicate` — a retry of an outcome already recorded (no-op); `pending` — the request has not been recorded yet: the outcome is stored durably and applied when it is (poll the `receipt`). A conflict is answered 409 and a rejection 400 on this route.  Known values: ``accepted``, ``duplicate``, ``conflict``, ``rejected``, ``pending``. |
+| `target_kind` | `str \| None` | yes | Known values: ``artifact``, ``claim``. |
 
 ### ResponseFormatJsonObjectParam
 

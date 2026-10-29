@@ -101,8 +101,8 @@ Async: `AsyncUltraRouter` has the same methods; `await` them and use `async with
 - **A report is idempotent by identity** (`request_id`, `verdict`, `source`, `idempotency_key`):
   repeats replay the same event; give two genuinely different verdicts different
   `idempotency_key`s, and pass `observed_at` when a report may be repeated from another process.
-- **The receipt and learning models are provisional** (hand-written ahead of the specification);
-  read unknown fields from `model_extra`.
+- **Learning controls return a `LearningControl`**; the status is `control.learning`. A refusal
+  is a `LearningError` subclass: branch on `reason`, show `action`.
 - **`ultrarouter.demo` is a demonstration**, not evidence that learning improves an agent.
 
 ### Where to look
@@ -155,9 +155,9 @@ published release or a manual run.
 - `src/ultrarouter/_data/outcome_verdicts.json` and `_data/toy_env.json` are byte-for-byte copies
   of fixtures shared with the TypeScript SDK (also under `tests/fixtures/`, sha256 pinned in
   `tests/test_outcome_report.py` and `tests/test_demo.py`). Never edit them here.
-- The learning-loop endpoints the spec does not describe yet are listed in `PROVISIONAL` in
-  `tests/coverage_map.py`; when a spec sync adds one, map it in `COVERAGE` and reconcile
-  `types/_learning.py`.
+- After a spec sync adds operations, run `make generate`, give new response and request models
+  public names in the tables at the top of `scripts/gen_types.py`, and map each new API-key
+  operation in `tests/coverage_map.py`.
 - Cross-language behaviour (context runtime, placement, rendering, diff stats, canonical JSON) is
   pinned by `tests/fixtures/parity/`; regenerate with
   `node scripts/gen_parity_goldens.mjs --ts-sdk <path to the TypeScript SDK>`.
@@ -171,7 +171,6 @@ published release or a manual run.
 ```
 src/ultrarouter/          the package (clients, transport, resources, helpers)
   types/_generated.py     generated models and request shapes
-  types/_learning.py      hand-written, provisional learning-loop models (receipts, learning)
   _data/                  shared fixtures shipped in the package (verdict mapping, toy environment)
   adapters/               outcome adapters (verifiers, business rules, signed webhooks)
   demo/                   the deterministic demonstration environment

@@ -13,9 +13,9 @@ promotes it only when the evaluation justifies it. Your part is small:
 A working integration (calls correlated, outcomes accepted) is not evidence that learning helps
 your agent: that is decided by the evaluations, against the incumbent, on your own traffic.
 
-The receipts and learning endpoints are newer than the API specification this SDK syncs, so their
-response models are hand-written and provisional (`ultrarouter.types` `OutcomeReceiptRecord`,
-`LearningStatus`, ...); unknown fields are kept in `model_extra`.
+Every response is a typed model generated from the API specification (`OutcomeReceiptRecord`,
+`LearningStatus`, `LearningControl`, ... in `ultrarouter.types`); unknown fields are kept in
+`model_extra`.
 
 ## Correlation
 
@@ -164,12 +164,21 @@ print(again.outcome_status)  # duplicate
 
 ## Immediate outcomes and receipts
 
-The gateway stores request logs asynchronously. An outcome reported before that write lands is
-accepted at once with `status: "pending"` and a durable receipt, then applied when the request
-lands, so you never sleep before reporting. A receipt moves from `pending` to `applied`,
-`rejected`, `failed` or `expired` (an unknown or foreign request id expires with
-`request_not_found`); its `episode` field says whether the verdict was associated with the
-request's episode (`associated`, `pending`, `not_recorded`, `not_applicable`).
+The gateway records requests asynchronously. An outcome reported before that write lands is
+accepted at once with `status: "pending"` and a durable receipt (`ocr_...`), then applied when the
+request lands, so you never sleep before reporting. Every answer carries the receipt; a retry with
+the same identity returns the same receipt. A receipt moves from `pending` to `applied` (with
+`outcome_status` `accepted` or `duplicate`), `rejected` (see `reason`), `failed` (recording kept
+hitting an internal error) or `expired` (no such request appeared in your workspace within 15
+minutes: `reason` is `request_not_found`). Its `episode` says how an applied teaching outcome
+relates to the request's episode: `status` is `associated`, `pending`, `not_recorded` or
+`not_applicable`, with the episode's `trace_id` and what the outcome did to its `verdict`
+(`recorded`, `kept_earlier`, `revised`, `revised_after_incorporation`).
+
+The report call itself can be refused: a gateway-minted id too old to still be in flight is a 404
+(the report comes back `rejected`); the same identity with a different payload is a 409; when the
+workspace already holds 5,000 pending receipts the gateway answers 429 `outcome_backlog_full`
+(`OutcomeBacklogFullError`) with `Retry-After`, which the SDK honours, and the report stays queued.
 
 ```python
 from ultrarouter import UltraRouter
@@ -182,7 +191,7 @@ report = client.outcomes.report(reply.ur.request_id, "pass", source="verifier")
 print(report.is_pending, report.receipt_id)
 
 final = client.outcomes.wait_for_receipt(report, timeout=30)  # bounded backoff polling
-print(final.status, final.episode)
+print(final.status, final.outcome_status, final.episode.status)
 
 for receipt in client.outcomes.receipts_for_request(reply.ur.request_id).data:
     print(receipt.id, receipt.status)
@@ -329,7 +338,9 @@ another payload shape; `WebhookVerifier.verify(body, headers)` alone raises a
 ## Learning controls
 
 `client.learning` steers learning for one call type at a time (reads need `config:read`, controls
-`config:write`; manual promote and reject need an owner or admin):
+`config:write`; manual promote and reject need an owner or admin). Every control returns a
+`LearningControl`: the `action`, whether it `changed` anything (controls are idempotent), the
+version it acted on, an evaluation it stopped, and the resulting `learning` status.
 
 ```python
 from ultrarouter import UltraRouter
@@ -337,43 +348,58 @@ from ultrarouter import UltraRouter
 client = UltraRouter()
 learning = client.learning
 
-status = learning.enable(
+control = learning.enable(
     "support-reply",
-    reflection_model="openai/gpt-5.2-mini",  # a model your workspace has configured
-    promotion="evaluate",  # or "manual" / "immediate"
+    reflection_model="openai/gpt-5.2-mini",  # must resolve to a workspace-owned offer
+    promotion={"mode": "evaluate", "objective": "success", "min_verified_per_arm": 30},
+    recipe={"validator": "elv2", "generation": "atomic", "observations": "elo2"},
 )
-print(status.state, status.active.id if status.active else None)
+status = control.learning
+print(status.state, status.reason, status.active_version.id if status.active_version else None)
 
-learning.pause("support-reply")  # stop learning and evaluation; keep serving the active version
+learning.pause("support-reply")  # stop reflecting and deciding; the active version keeps serving
 learning.resume("support-reply")
 
 for version in learning.versions("support-reply").data:
-    print(version.id, version.state)
-detail = learning.version("support-reply", "lv_2")  # lessons and provenance summary
+    print(version.id, version.version, version.state)
+detail = learning.version("support-reply", "epb_3")  # lessons, reflection receipt, transitions
 for evaluation in learning.evaluations("support-reply").data:
-    print(evaluation.id, evaluation.decision, evaluation.rule)
+    print(evaluation.id, evaluation.decision, evaluation.arms.candidate.verified)
 
-learning.rollback("support-reply", version_id="lv_1", reason="regression")
-learning.disable("support-reply")  # stop serving learned versions (the kill switch)
+learning.promote("support-reply", "epb_3")  # an owner/admin decision; a running evaluation stops
+learning.rollback("support-reply", version_id="epb_1")  # point the active version at an earlier one
+learning.disable("support-reply")  # stop serving learned lessons (the kill switch)
 ```
 
-`status(...)` reports the state (`not_enabled`, `active`, `paused`, `disabled`, `unavailable`,
-`quota_exhausted`, `budget_exhausted`: a stopped learner always says why), the provider, the
-promotion policy, the active and candidate versions, the running evaluation, evidence arrived vs
-verified vs incorporated vs pending, the backlog and the budget. `promote(call_type, version_id)`
-and `reject(...)` decide a candidate by hand.
+`status(...)` reports the `state` with a `reason`: `off`, `collecting` (enabled, waiting for
+evidence), `learning` (a reflection is due or an evaluation runs), `paused`, `disabled`,
+`unavailable` (no workspace-owned reflection provider; `reflection.provider.reason` says why),
+`quota_exhausted` or `budget_exhausted`; a stopped learner always says why. It also carries the
+active version and the latest candidate, the running and the latest evaluation (frozen rule,
+arms, the interval on the difference, the decision), the promotion policy, the learner recipe,
+the `evidence` (recorded, verified pass / fail, unknown, consumed, incorporated by the active
+version, backlog), the `outcome_receipts` by state, the `budget` and the subscription `usage`
+(recorded apart from cash). With promotion mode `evaluate` a candidate becomes active only by
+winning a prospective randomized evaluation against the incumbent; every other decision keeps
+the incumbent.
 
-Refusals raise an actionable `LearningError` subclass whose `reason` names the problem and whose
-`action` (also appended to the message) says what to do:
+The gateway names each refusal with a code at the start of its message
+(`corrections_consent_required: ...`, `promotion_invalid (alpha_range)`). The SDK raises an
+actionable `LearningError` subclass (the TypeScript SDK's vocabulary) whose `reason` names the
+problem, `refusal` the gateway's named refusal (else the error code), `detail` the sub-reason in
+parentheses, and `action` (also appended to the message) what to do:
 
-| Exception | `reason` | Typical cause |
+| Exception | `reason` | Gateway refusal |
 | --- | --- | --- |
-| `LearningConsentRequiredError` | `missing_consent` | the workspace's corrections consent is off |
-| `LearningProviderUnavailableError` | `provider_unavailable` | no workspace provider serves the reflection model (there is no paid fallback) |
+| `LearningConsentRequiredError` | `missing_consent` | 409 `corrections_consent_required` |
+| `LearningProviderUnavailableError` | `provider_unavailable` | 400 `reflection_model_not_workspace_owned (<detail>)`: `no_offer`, `platform_offer_only`, `no_workspace_key`, `model_denied_by_policy`, `workspace_funding_not_byok` or `workspace_funding_frozen` |
+| `LearningPolicyInvalidError` | `invalid_promotion` | 400 `promotion_invalid (<field>)` |
+| `LearningNotEnabledError` | `not_enabled` | 409 `learning_not_enabled` |
+| `LearningVersionConflictError` | `version_conflict` | 409 `version_already_active` (promote), `version_active` (reject: roll back instead), `no_rollback_target` / `rollback_target_not_earlier` (rollback) |
 | `LearningQuotaExhaustedError` | `quota_exhausted` | the learning provider refused for quota |
 | `LearningBudgetExhaustedError` | `budget_exhausted` | the learning budget is spent |
-| `LearningNotFoundError` (also a `NotFoundError`) | `not_found` | unknown call type or version |
-| `LearningForbiddenError` (also a `PermissionDeniedError`) | `forbidden` | the key lacks the scope, or promote/reject without owner/admin |
+| `LearningNotFoundError` (also a `NotFoundError`) | `not_found` | 404 `not_found`: unknown call type or version |
+| `LearningForbiddenError` (also a `PermissionDeniedError`) | `forbidden` | 403 `permission`: the key lacks the scope |
 
 ```python
 from ultrarouter import LearningError, UltraRouter
@@ -384,6 +410,10 @@ try:
 except LearningError as exc:
     print(exc.reason, "->", exc.action)
 ```
+
+`client.call_types.episode_memory` (`get`, `enable`, `disable`) reads and switches the lower-level
+episode-memory setting learning writes; `enable` there is a lab-authorised lever, so use
+`client.learning.enable` for learning.
 
 ## A demonstration environment
 

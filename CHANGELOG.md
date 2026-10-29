@@ -41,15 +41,27 @@ advertise a registry install).
   the request lands); the shared queue-retention fixture, copied again from the TypeScript SDK,
   has 273 cases including the two `pending` ones. `outcomes.receipt(id)`,
   `outcomes.receipts_for_request(request_id)` and `outcomes.wait_for_receipt(receipt, timeout=)`
-  (bounded backoff polling of the public receipt endpoint; cancellable on the async client;
-  `ReceiptWaitTimeoutError` carries the last receipt read).
+  (bounded backoff polling of the public receipt endpoint, 250 ms doubling to 4 s, 30 s by
+  default; a read that timed out or failed retryably is one missed poll; cancellable on the async
+  client; `ReceiptWaitTimeoutError` carries the last receipt read). A receipt (`ocr_...`) carries
+  its status, reason, `outcome_status`, episode association (`status`, `trace_id`, `verdict`) and
+  deadline.
 - **Learning controls.** `client.learning.status / enable / pause / resume / disable / versions /
-  version / rollback / promote / reject / evaluations(call_type_id, ...)`, sync and async, with
-  typed models (`LearningStatus`, `LearningVersion`, `LearningEvaluation`, ...) and actionable typed
-  errors: `LearningConsentRequiredError`, `LearningProviderUnavailableError`,
+  version / rollback / promote / reject / evaluations(call_type_id, ...)`, sync and async. `status`
+  returns a `LearningStatus` (state, reason, active version and latest candidate, running and
+  latest evaluation, promotion policy, recipe, evidence, outcome receipts by state, reflection
+  provider, budget, usage); every control returns a `LearningControl` (`action`, `changed`, the
+  version acted on, a stopped evaluation, the resulting status). Refusals raise actionable typed
+  errors recognised from the gateway's refusal code (the first token of its message), each with
+  `reason`, `refusal`, `detail` and `action`: `LearningConsentRequiredError`,
+  `LearningProviderUnavailableError`, `LearningPolicyInvalidError`, `LearningNotEnabledError`,
+  `LearningVersionConflictError`,
   `LearningQuotaExhaustedError`, `LearningBudgetExhaustedError`, `LearningNotFoundError`,
-  `LearningForbiddenError` (each with `reason` and `action`). `OutcomeBacklogFullError` for
-  `outcome_backlog_full` (429).
+  `LearningForbiddenError`.
+- **Episode memory.** `client.call_types.episode_memory.get / enable / disable`, the lower-level
+  setting learning writes (`enable` is a lab-authorised lever).
+- `outcome_backlog_full` (429, retryable after `Retry-After`) joins the error taxonomy as
+  `OutcomeBacklogFullError`.
 - **Outcome adapters** (`ultrarouter.adapters`), with the TypeScript SDK's semantics, reasons and
   hashes: `run_verifier`, `verdict_from_command` and `run_test_suite` (a computable check, a
   command's exit code or a test suite as a verdict; a check that cannot decide is `unknown`),
@@ -64,9 +76,12 @@ advertise a registry install).
   tools, exact rules and verifier (orders in task order, and each SKU's stock consistent with its
   reservations) from the fixture shared with the TypeScript SDK; labelled a demonstration, not
   evidence that learning improves an agent.
-- The response models for the receipt and learning endpoints are hand-written and provisional
-  (`ultrarouter.types`, module `_learning`) until the specification describes them; the endpoints
-  are listed under "not yet in the specification" in `docs/api-coverage.md`.
+- The OpenAPI specification is resynced: the receipt, learning and episode-memory operations are
+  generated models (`OutcomeReceiptRecord`, `OutcomeReceiptRecordList`, `RequestOutcomeResult`,
+  `LearningStatus`, `LearningControl`, `LearningVersionList`, `LearningVersionDetail`,
+  `LearningEvaluationList`, `LearningEnableParams`, `EpisodeMemoryStatus`, ...) and every one is
+  mapped in the API coverage table, sync and async. `is_terminal_receipt_status()` and
+  `RECEIPT_TERMINAL_STATUSES` tell a final receipt status.
 - New guide `docs/learning.md`; eight runnable examples (`examples/learning_*.py`: the `openai`
   package, a native verifier, a tool episode, an immediate outcome, a delayed webhook,
   acknowledgement loss, learning controls, the async client). The mock gateway in

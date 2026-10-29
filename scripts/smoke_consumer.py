@@ -33,7 +33,7 @@ from ultrarouter import (
 from ultrarouter.adapters import WebhookOutcomeHandler, WebhookVerifier, sign_webhook
 from ultrarouter.context import from_messages, to_messages
 from ultrarouter.demo import OrderDesk
-from ultrarouter.types import LearningStatus, OutcomeReceiptRecord
+from ultrarouter.types import LearningControl, LearningStatus, OutcomeReceiptRecord
 
 #: The shared fixtures the wheel must ship unchanged.
 FIXTURE_SHA256 = {
@@ -112,8 +112,10 @@ def check_learning() -> None:
         assert silent.status == "not_reported"
         final: OutcomeReceiptRecord = client.outcomes.wait_for_receipt(report, timeout=10)
         assert final.status == "applied"
-        status: LearningStatus = client.learning.enable("smoke", reflection_model=MODEL)
-        assert status.state == "active"
+        control: LearningControl = client.learning.enable("smoke", reflection_model=MODEL)
+        status: LearningStatus = control.learning
+        assert control.changed
+        assert status.state == "learning"
         refusal: LearningNotFoundError | None = None
         try:
             client.learning.status("ct_missing")
@@ -139,7 +141,7 @@ async def check_learning_async() -> None:
             await episode.chat.completions.create(model=MODEL, messages=MESSAGES)
             report = await episode.report("fail", source="business_rule")
         assert report.reported
-        assert (await client.learning.status("smoke-async")).state == "not_enabled"
+        assert (await client.learning.status("smoke-async")).state == "off"
 
 
 def check_context() -> None:

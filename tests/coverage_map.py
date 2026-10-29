@@ -77,6 +77,14 @@ COVERAGE: dict[str, str] = {
     "deactivateHostedPrompt": 'client.call_types.prompts.deactivate("support-reply")',
     "getHostedPromptProposal": 'client.call_types.prompts.proposal("support-reply")',
     "getVerifiedMemory": 'client.call_types.verified_memory.get("support-reply")',
+    "getEpisodeMemory": (
+        'client.call_types.episode_memory.get("support-reply", as_of="2026-10-01T00:00:00Z")'
+    ),
+    "enableEpisodeMemory": (
+        'client.call_types.episode_memory.enable("support-reply", k=3, record=True, '
+        'lessons={"mode": "only", "recipe": {"validator": "elv2"}})'
+    ),
+    "disableEpisodeMemory": 'client.call_types.episode_memory.disable("support-reply")',
     "enableVerifiedMemory": (
         'client.call_types.verified_memory.enable("support-reply", target_precision=0.95)'
     ),
@@ -123,6 +131,25 @@ COVERAGE: dict[str, str] = {
     "recordArtifactOutcomes": (
         'client.outcomes.record("art_123", {"channel": "behavioral", "kind": "accepted"})'
     ),
+    # Outcome receipts (request shortcut)
+    "getOutcomeReceipt": 'client.outcomes.receipt("ocr_sample")',
+    "listRequestOutcomeReceipts": 'client.outcomes.receipts_for_request("req_123")',
+    # Learning controls
+    "getLearningStatus": 'client.learning.status("support-reply")',
+    "enableLearning": (
+        'client.learning.enable("support-reply", reflection_model="openai/gpt-5.2-mini", '
+        'lessons_mode="only", lessons_k=8, promotion={"mode": "evaluate", "objective": "success"}, '
+        'recipe={"validator": "elv2", "generation": "atomic", "observations": "elo2"})'
+    ),
+    "pauseLearning": 'client.learning.pause("support-reply")',
+    "resumeLearning": 'client.learning.resume("support-reply")',
+    "disableLearning": 'client.learning.disable("support-reply")',
+    "rollbackLearning": 'client.learning.rollback("support-reply", version_id="epb_1")',
+    "listLearningVersions": 'client.learning.versions("support-reply")',
+    "getLearningVersion": 'client.learning.version("support-reply", "epb_3")',
+    "promoteLearningVersion": 'client.learning.promote("support-reply", "epb_3")',
+    "rejectLearningVersion": 'client.learning.reject("support-reply", "epb_3")',
+    "listLearningEvaluations": 'client.learning.evaluations("support-reply")',
     "recordRequestOutcome": (
         'client.outcomes.record({"request": "req_123"}, {"channel": "behavioral", '
         '"kind": "accepted"})'
@@ -212,94 +239,3 @@ COVERAGE: dict[str, str] = {
 EXCLUDED: dict[str, str] = {
     "echo": "Diagnostic auth echo; client.key.get() verifies a key and returns more.",
 }
-
-
-#: Learning-loop endpoints the SDK calls that the synced specification does not describe yet:
-#: (method, path, SDK call expression, tests). ``tests/test_api_coverage.py`` fails once the
-#: specification gains one, so it moves into :data:`COVERAGE`.
-PROVISIONAL: list[tuple[str, str, str, str]] = [
-    (
-        "POST",
-        "/v1/requests/{id}/outcomes",
-        'client.outcomes.report("req_c_1", "pass", source="verifier")',
-        "`tests/test_outcome_report.py` (the existing operation, now answering `pending` + `receipt`)",
-    ),
-    (
-        "GET",
-        "/v1/outcome-receipts/{id}",
-        'client.outcomes.receipt("ork_1")',
-        "`tests/test_outcome_report.py`",
-    ),
-    (
-        "GET",
-        "/v1/requests/{id}/outcome-receipts",
-        'client.outcomes.receipts_for_request("req_c_1")',
-        "`tests/test_outcome_report.py`",
-    ),
-    (
-        "GET",
-        "/v1/call-types/{id}/learning",
-        'client.learning.status("ct")',
-        "`tests/test_learning_controls.py`",
-    ),
-    (
-        "POST",
-        "/v1/call-types/{id}/learning/enable",
-        'client.learning.enable("ct", reflection_model="m")',
-        "`tests/test_learning_controls.py`",
-    ),
-    (
-        "POST",
-        "/v1/call-types/{id}/learning/pause",
-        'client.learning.pause("ct")',
-        "`tests/test_learning_controls.py`",
-    ),
-    (
-        "POST",
-        "/v1/call-types/{id}/learning/resume",
-        'client.learning.resume("ct")',
-        "`tests/test_learning_controls.py`",
-    ),
-    (
-        "POST",
-        "/v1/call-types/{id}/learning/disable",
-        'client.learning.disable("ct")',
-        "`tests/test_learning_controls.py`",
-    ),
-    (
-        "GET",
-        "/v1/call-types/{id}/learning/versions",
-        'client.learning.versions("ct")',
-        "`tests/test_learning_controls.py`",
-    ),
-    (
-        "GET",
-        "/v1/call-types/{id}/learning/versions/{version_id}",
-        'client.learning.version("ct", "lv_1")',
-        "`tests/test_learning_controls.py`",
-    ),
-    (
-        "POST",
-        "/v1/call-types/{id}/learning/rollback",
-        'client.learning.rollback("ct", version_id="lv_1")',
-        "`tests/test_learning_controls.py`",
-    ),
-    (
-        "POST",
-        "/v1/call-types/{id}/learning/versions/{version_id}/promote",
-        'client.learning.promote("ct", "lv_2")',
-        "`tests/test_learning_controls.py`",
-    ),
-    (
-        "POST",
-        "/v1/call-types/{id}/learning/versions/{version_id}/reject",
-        'client.learning.reject("ct", "lv_2")',
-        "`tests/test_learning_controls.py`",
-    ),
-    (
-        "GET",
-        "/v1/call-types/{id}/learning/evaluations",
-        'client.learning.evaluations("ct")',
-        "`tests/test_learning_controls.py`",
-    ),
-]

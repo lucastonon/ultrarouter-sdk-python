@@ -790,6 +790,57 @@ client.call_types.verified_memory.disable(
 
 Turn verified memory off (the kill switch).
 
+### client.call_types.episode_memory
+
+`client.call_types.episode_memory`: the episode-memory setting behind learning.
+
+Learning (`client.learning`) is the supported way to turn lessons on; this is the lower-level
+setting it writes. `get` reads it with a content-addressed preview of what it would serve;
+`disable` is the kill switch; `enable` is a lab-authorised lever (a 403 without that
+grant).
+
+#### client.call_types.episode_memory.get
+
+```python
+client.call_types.episode_memory.get(
+    call_type: str,
+    *,
+    as_of: str | None = None,
+    options: RequestOptions | None = None,
+) -> EpisodeMemoryStatus
+```
+
+Read the setting, the episode-trace accounting and a preview of the memory it would
+serve (`as_of` overrides the pinned instant for this read only).
+
+#### client.call_types.episode_memory.enable
+
+```python
+client.call_types.episode_memory.enable(
+    call_type: str,
+    *,
+    options: RequestOptions | None = None,
+    **params: Unpack[EpisodeMemoryEnableParams],
+) -> EpisodeMemoryEnableResult
+```
+
+Freeze an episode-memory setting on a new config version (lab-authorised).
+
+Accepts the fields of `EpisodeMemoryEnableParams` (`k`,
+`lessons`, `record`, `as_of`, ...). Prefer `client.learning.enable` for learning.
+
+#### client.call_types.episode_memory.disable
+
+```python
+client.call_types.episode_memory.disable(
+    call_type: str,
+    *,
+    options: RequestOptions | None = None,
+) -> EpisodeMemoryDisableResult
+```
+
+Turn episode memory off (the kill switch; `changed` is `False` when already off).
+
 ### client.requests
 
 `client.requests`: act on a served request by its `req_...` id.
@@ -1226,7 +1277,9 @@ client.outcomes.receipt(
 ) -> OutcomeReceiptRecord
 ```
 
-One outcome receipt (`GET /v1/outcome-receipts/{id}`): status, reason, episode.
+One outcome receipt (`GET /v1/outcome-receipts/{id}`): status (`pending`,
+`applied`, `rejected`, `failed`, `expired`), reason, episode association,
+outcome status and deadline.
 
 #### client.outcomes.receipts_for_request
 
@@ -1927,9 +1980,10 @@ client.learning.status(
 
 The learning status of a call type (`GET /v1/call-types/{id}/learning`).
 
-`state` is one of `not_enabled`, `active`, `paused`, `disabled`,
-`unavailable` (no usable provider), `quota_exhausted` or `budget_exhausted`: a
-stopped learner always says why, never silently.
+`state` is `off`, `collecting` (enabled, waiting for evidence), `learning` (a
+reflection is due or an evaluation runs), `paused`, `disabled` (the kill switch),
+`unavailable` (no workspace-owned reflection provider), `quota_exhausted` or
+`budget_exhausted`, with `reason` explaining it: a stopped learner always says why.
 
 #### client.learning.enable
 
@@ -1938,27 +1992,30 @@ client.learning.enable(
     call_type_id: str,
     *,
     reflection_model: str,
-    promotion: PromotionMode | Mapping[str, Any] | None = None,
-    objective: LearningObjective | None = None,
-    recipe: str | None = None,
+    lessons_mode: LessonsMode | None = None,
+    lessons_k: int | None = None,
+    promotion: LearningPromotionParams | Mapping[str, Any] | PromotionMode | None = None,
+    recipe: LearnerRecipeParams | Mapping[str, Any] | None = None,
     options: RequestOptions | None = None,
-) -> LearningStatus
+) -> LearningControl
 ```
 
-Turn learning on for a call type (`POST .../learning/enable`), self-serve.
+Turn learning on for a call type, self-serve (`POST .../learning/enable`).
 
 Needs a `config:write` key (or an owner/admin session) and the workspace's corrections
-consent; raises `LearningConsentRequiredError` without it and
-`LearningProviderUnavailableError` when the reflection model has no
-usable workspace provider (learning never falls back to a platform or paid provider).
+consent (`LearningConsentRequiredError` otherwise). The reflection
+model must resolve to a workspace-owned offer: one of the workspace's custom providers, or
+a provider it stored its own key for; there is no platform or paid fallback
+(`LearningProviderUnavailableError`, `detail` names why).
 
 **Args**
 
 - `call_type_id`: The call type id or slug.
-- `reflection_model`: The model (one the workspace has configured) that writes candidate adaptations.
-- `promotion`: How a candidate becomes active: `"evaluate"` (the gateway's default: a randomized evaluation against the incumbent, under a rule frozen before it starts), `"manual"` (an owner or admin decides) or `"immediate"` (publication is activation); or a policy mapping `{"mode", "objective"}`.
-- `objective`: What an evaluation must show: `"success"` or `"cost_noninferior"`.
-- `recipe`: A named learning recipe (default: the gateway's default recipe).
+- `reflection_model`: The model the learner reflects with.
+- `lessons_mode`: `"only"` (default) or `"with_precedents"`.
+- `lessons_k`: Lessons served per episode (1 to 20; default 8).
+- `promotion`: The promotion policy changes, merged over the current policy: a mapping (`mode`, `objective`, `min_verified_per_arm`, `max_verified_per_arm`, `alpha`, `min_effect_pp`, `noninferiority_margin_pp`, `candidate_share`, `max_duration_hours`), or just the mode (`"evaluate"`, `"manual"`, `"immediate"`).
+- `recipe`: The learner recipe (`validator`, `generation`, `observations`); an absent field is the legacy value.
 - `options`: Per-call request options.
 
 #### client.learning.pause
@@ -1968,10 +2025,10 @@ client.learning.pause(
     call_type_id: str,
     *,
     options: RequestOptions | None = None,
-) -> LearningStatus
+) -> LearningControl
 ```
 
-Stop reflecting and evaluating; keep serving the active version.
+Stop reflecting and evaluation decisions; the active version keeps serving.
 
 #### client.learning.resume
 
@@ -1980,10 +2037,10 @@ client.learning.resume(
     call_type_id: str,
     *,
     options: RequestOptions | None = None,
-) -> LearningStatus
+) -> LearningControl
 ```
 
-Resume a paused (or quota- or budget-stopped) learner.
+Resume a paused learner.
 
 #### client.learning.disable
 
@@ -1992,10 +2049,10 @@ client.learning.disable(
     call_type_id: str,
     *,
     options: RequestOptions | None = None,
-) -> LearningStatus
+) -> LearningControl
 ```
 
-Stop learning and stop serving learned lessons for the call type (the kill switch).
+Stop serving learned lessons for the call type (the kill switch).
 
 #### client.learning.versions
 
@@ -2003,13 +2060,11 @@ Stop learning and stop serving learned lessons for the call type (the kill switc
 client.learning.versions(
     call_type_id: str,
     *,
-    limit: int | None = None,
-    cursor: str | None = None,
     options: RequestOptions | None = None,
 ) -> LearningVersionList
 ```
 
-Version history with each version's state (`GET .../learning/versions`).
+The immutable versions, newest first, each with its state, why and since when.
 
 #### client.learning.version
 
@@ -2019,10 +2074,11 @@ client.learning.version(
     version_id: str,
     *,
     options: RequestOptions | None = None,
-) -> LearningVersion
+) -> LearningVersionDetail
 ```
 
-One version's lessons and provenance summary (`GET .../learning/versions/{id}`).
+One version: its lessons, the reflection receipt (hashes and token counts only) and
+every state transition.
 
 #### client.learning.rollback
 
@@ -2030,14 +2086,13 @@ One version's lessons and provenance summary (`GET .../learning/versions/{id}`).
 client.learning.rollback(
     call_type_id: str,
     *,
-    version_id: str,
-    reason: str | None = None,
+    version_id: str | None = None,
     options: RequestOptions | None = None,
-) -> LearningStatus
+) -> LearningControl
 ```
 
-Point the active version at an exact earlier, immutable version (`reason` is recorded
-with the audit event).
+Point the active version at an earlier immutable version: `version_id`, or the version
+active immediately before the current one. A running evaluation stops.
 
 #### client.learning.promote
 
@@ -2046,13 +2101,11 @@ client.learning.promote(
     call_type_id: str,
     version_id: str,
     *,
-    reason: str | None = None,
     options: RequestOptions | None = None,
-) -> LearningVersion
+) -> LearningControl
 ```
 
-Manually promote a candidate version to active (owner or admin); `reason` is recorded
-with the audit event.
+Make a version active now (owner/admin decision); a running evaluation stops.
 
 #### client.learning.reject
 
@@ -2061,12 +2114,11 @@ client.learning.reject(
     call_type_id: str,
     version_id: str,
     *,
-    reason: str | None = None,
     options: RequestOptions | None = None,
-) -> LearningVersion
+) -> LearningControl
 ```
 
-Manually reject a candidate version; the incumbent stays active (owner or admin).
+Never activate a candidate (owner/admin decision); its running evaluation stops.
 
 #### client.learning.evaluations
 
@@ -2074,13 +2126,12 @@ Manually reject a candidate version; the incumbent stays active (owner or admin)
 client.learning.evaluations(
     call_type_id: str,
     *,
-    limit: int | None = None,
-    cursor: str | None = None,
     options: RequestOptions | None = None,
 ) -> LearningEvaluationList
 ```
 
-Evaluations with their frozen rule, arms, interval and decision.
+Every evaluation, newest first: the frozen rule and its hash, each arm's verified / pass
+/ unknown episodes, the interval on the difference, and the decision.
 
 Async differences: on `AsyncUltraRouter`, `client.reviewer.record(...)` and
 `client.reviewer.dead_letters()` stay synchronous (they never touch the network).
@@ -2260,16 +2311,19 @@ Base class of every typed response returned by the SDK.
 | `LearningConsentRequiredError` | `LearningError` | (any) | `missing_consent`: learning needs the workspace's corrections consent, which is off. |
 | `LearningError` | `APIStatusError` | (any) | A learning control refused for a reason you can act on. |
 | `LearningForbiddenError` | `LearningError` | `permission` | `forbidden`: the key or user may not do this (reads need `config:read`, controls `config:write`, manual promote/reject an owner or admin). |
+| `LearningNotEnabledError` | `LearningError` | `conflict` | `not_enabled` (409 `learning_not_enabled`): the control needs learning enabled through the learning API first. |
 | `LearningNotFoundError` | `LearningError` | `not_found` | `not_found`: the call type, version or evaluation does not exist in this workspace. |
-| `LearningProviderUnavailableError` | `LearningError` | (any) | `provider_unavailable`: the reflection model has no usable workspace provider. |
+| `LearningPolicyInvalidError` | `LearningError` | `invalid_request` | `invalid_promotion` (400 `promotion_invalid (<reason>)`): the promotion policy is not valid; `detail` names the field. |
+| `LearningProviderUnavailableError` | `LearningError` | (any) | `provider_unavailable`: the reflection model has no usable workspace-owned provider. |
 | `LearningQuotaExhaustedError` | `LearningError` | (any) | `quota_exhausted`: the learning provider refused for quota. |
+| `LearningVersionConflictError` | `LearningError` | `conflict` | `version_conflict` (409 `version_already_active` / `version_active` / `no_rollback_target` / `rollback_target_not_earlier`): promoting the active version, rejecting it (roll back instead), or rolling back with no earlier version to go to. |
 | `ManifestInvalidError` | `APIStatusError` | `manifest_invalid` | `manifest_invalid` (400): a declared `ur.manifest` is structurally invalid. |
 | `ManifestMismatchError` | `APIStatusError` | `manifest_mismatch` | `manifest_mismatch` (400): a declared manifest hash does not match the bytes sent. |
 | `MaxCostExceededError` | `APIStatusError` | `max_cost_exceeded` | `max_cost_exceeded` (402): the estimated call cost exceeds `ur.max_cost_usd`. |
 | `ModelDeniedByPolicyError` | `APIStatusError` | `model_denied_by_policy` | `model_denied_by_policy` (403): the workspace model policy forbids this model. |
 | `ModelUnpricedError` | `APIStatusError` | `model_unpriced` | `model_unpriced` (403): the requested model has no usable price. |
 | `NotFoundError` | `APIStatusError` | `not_found` | `not_found` (404): unknown model, request, call type or other resource. |
-| `OutcomeBacklogFullError` | `RateLimitError` | `outcome_backlog_full` | `outcome_backlog_full` (429): too many outcomes are still pending for this workspace. |
+| `OutcomeBacklogFullError` | `RateLimitError` | `outcome_backlog_full` | `outcome_backlog_full` (429): the workspace already holds the maximum number of pending outcome receipts (5,000), outcomes reported for requests not recorded yet. |
 | `OutcomeStoreError` | `UltraRouterError` | `outcome_store` | A durable queue store could not be read or written (for example a damaged queue file). |
 | `PermissionDeniedError` | `APIStatusError` | `permission` | `permission` (403): the key is valid but lacks the scope this endpoint needs. |
 | `PromptVariablesMissingError` | `APIStatusError` | `prompt_variables_missing` | `prompt_variables_missing` (400): a required hosted-prompt variable was not supplied. |
@@ -2468,6 +2522,14 @@ is_retryable_status(status: int) -> bool
 
 Return `True` for HTTP statuses the SDK may retry: 408, 429 and 5xx.
 
+### is_terminal_receipt_status
+
+```python
+is_terminal_receipt_status(status: str) -> bool
+```
+
+Whether a receipt status is final: `applied`, `rejected`, `failed` or `expired`.
+
 ### is_valid_request_id
 
 ```python
@@ -2492,10 +2554,11 @@ Return the index right after the leading run of `system` messages.
 
 The message `apply_learned_context` inserts.
 
-- `LEARNING_ERROR_ACTIONS` = `{'missing_consent': "A workspace owner or admin must turn on the workspace's corrections consent before learning can be enabled.", 'provider_unavailable': 'Configure a provider key for the reflecti...`
-- `LEARNING_ERROR_CODES` = `{'missing_consent': ('consent_required', 'corrections_consent_required', 'learning_consent_required'), 'provider_unavailable': ('learning_provider_unavailable', 'reflection_provider_unavailable', '...`
-- `LEARNING_ERROR_REASONS` = `('missing_consent', 'provider_unavailable', 'quota_exhausted', 'budget_exhausted', 'not_found', 'forbidden')`
+- `LEARNING_ERROR_ACTIONS` = `{'missing_consent': "A workspace owner or admin must turn on the workspace's corrections consent before learning can be enabled.", 'provider_unavailable': 'Give the reflection model a workspace-own...`
+- `LEARNING_ERROR_CODES` = `{'missing_consent': ('corrections_consent_required',), 'provider_unavailable': ('reflection_model_not_workspace_owned',), 'not_enabled': ('learning_not_enabled',), 'invalid_promotion': ('promotion_...`
+- `LEARNING_ERROR_REASONS` = `('missing_consent', 'provider_unavailable', 'not_enabled', 'invalid_promotion', 'version_conflict', 'quota_exhausted', 'budget_exhausted', 'not_found', 'forbidden')`
 - `LearningObjective` = `typing.Literal['success', 'cost_noninferior']`
+- `LessonsMode` = `typing.Literal['only', 'with_precedents']`
 ### MemoryOutcomeStore
 
 The default in-process store: durable for the lifetime of the client, FIFO order.

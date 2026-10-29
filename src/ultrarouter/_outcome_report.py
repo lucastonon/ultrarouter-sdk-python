@@ -17,21 +17,34 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Literal
 
+import pydantic
+
 from ._correlation import validate_request_id
 from ._errors import InvalidRequestError, UltraRouterError
 from ._queue import OutcomeReceipt
 from ._verdicts import VerdictEvent, report_source_event_id, verdict_event
-from .types._learning import OutcomeReceiptRecord
+from .types import OutcomeReceiptRecord
 
 __all__ = [
+    "RECEIPT_TERMINAL_STATUSES",
     "NotReportedOutcome",
     "OutcomeReport",
     "ProxyOutcomeReport",
     "ReportDeliveryStatus",
     "TeachingOutcomeReport",
     "build_report_event",
+    "is_terminal_receipt_status",
     "report_from_receipt",
 ]
+
+#: Receipt statuses that never change again (everything but ``pending``).
+RECEIPT_TERMINAL_STATUSES: tuple[str, ...] = ("applied", "rejected", "failed", "expired")
+
+
+def is_terminal_receipt_status(status: str) -> bool:
+    """Whether a receipt status is final: ``applied``, ``rejected``, ``failed`` or ``expired``."""
+    return status in RECEIPT_TERMINAL_STATUSES
+
 
 ReportDeliveryStatus = Literal["delivered", "queued", "rejected"]
 """Local delivery: ``delivered`` (the gateway answered), ``queued`` (kept in the durable queue
@@ -103,24 +116,29 @@ class _ReportedOutcome:
 
     @property
     def outcome_status(self) -> str | None:
-        """The gateway's status for the event: ``accepted``, ``duplicate``, ``pending`` (accepted
-        before the request was persisted; see ``receipt``), ``conflict`` or ``rejected``."""
+        """The gateway's status for the event: ``accepted``, ``duplicate`` or ``pending`` (accepted
+        before the request was recorded; see ``receipt``)."""
         status = (self.result or {}).get("status")
         return status if isinstance(status, str) else None
 
     @property
     def receipt(self) -> OutcomeReceiptRecord | None:
-        """The durable receipt the gateway returned, when it returned one."""
+        """The durable receipt the gateway returned, typed, when it returned a complete one (the raw
+        object stays in ``result["receipt"]``)."""
         raw = (self.result or {}).get("receipt")
         if not isinstance(raw, dict):
             return None
-        return OutcomeReceiptRecord.model_validate(raw)
+        try:
+            return OutcomeReceiptRecord.model_validate(raw)
+        except pydantic.ValidationError:
+            return None
 
     @property
     def receipt_id(self) -> str | None:
-        """The receipt id, for ``outcomes.receipt`` / ``outcomes.wait_for_receipt``."""
-        receipt = self.receipt
-        return receipt.id if receipt is not None else None
+        """The receipt id (``ocr_...``) for ``outcomes.receipt`` and ``wait_for_receipt``."""
+        raw = (self.result or {}).get("receipt")
+        value = raw.get("id") if isinstance(raw, dict) else None
+        return value if isinstance(value, str) and value else None
 
     @property
     def outcome_event_id(self) -> str | None:
@@ -128,8 +146,9 @@ class _ReportedOutcome:
         value = (self.result or {}).get("id")
         if isinstance(value, str) and value:
             return value
-        receipt = self.receipt
-        return receipt.outcome_event_id if receipt is not None else None
+        raw = (self.result or {}).get("receipt")
+        found = raw.get("outcome_event_id") if isinstance(raw, dict) else None
+        return found if isinstance(found, str) and found else None
 
     @property
     def is_pending(self) -> bool:

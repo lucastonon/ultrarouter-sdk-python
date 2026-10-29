@@ -25,6 +25,7 @@ from .._outcome_report import (
     ProxyOutcomeReport,
     TeachingOutcomeReport,
     build_report_event,
+    is_terminal_receipt_status,
     report_from_receipt,
 )
 from .._queue import OutcomeFlushReport, OutcomeReceipt
@@ -44,9 +45,10 @@ from ..types import (
     ImportList,
     ImprovementReads,
     OutcomeParams,
+    OutcomeReceiptRecord,
+    OutcomeReceiptRecordList,
     PendingClaimList,
 )
-from ..types._learning import OutcomeReceiptRecord, OutcomeReceiptRecordList
 from ._base import AsyncAPIResource, SyncAPIResource, build, seg
 
 __all__ = [
@@ -135,7 +137,8 @@ def _receipt_list_body(data: Any) -> Any:
     if isinstance(data, list):
         return {"object": "list", "data": data}
     if isinstance(data, dict) and "data" not in data and isinstance(data.get("receipts"), list):
-        return {**{k: v for k, v in data.items() if k != "receipts"}, "data": data["receipts"]}
+        rest = {k: v for k, v in data.items() if k != "receipts"}
+        return {"object": "list", **rest, "data": data["receipts"]}
     return data
 
 
@@ -473,7 +476,9 @@ class Outcomes(SyncAPIResource):
     def receipt(
         self, receipt_id: str, *, options: RequestOptions | None = None
     ) -> OutcomeReceiptRecord:
-        """One outcome receipt (``GET /v1/outcome-receipts/{id}``): status, reason, episode."""
+        """One outcome receipt (``GET /v1/outcome-receipts/{id}``): status (``pending``,
+        ``applied``, ``rejected``, ``failed``, ``expired``), reason, episode association,
+        outcome status and deadline."""
         return self._client.request_model(
             build("GET", f"/v1/outcome-receipts/{seg(receipt_id)}", options=options),
             OutcomeReceiptRecord,
@@ -531,7 +536,7 @@ class Outcomes(SyncAPIResource):
                 if not _keep_polling(error):
                     raise
             else:
-                if last.is_terminal:
+                if is_terminal_receipt_status(last.status):
                     return last
             remaining = deadline - clock()
             if remaining <= 0:
@@ -943,7 +948,7 @@ class AsyncOutcomes(AsyncAPIResource):
                 if not _keep_polling(error):
                     raise
             else:
-                if last.is_terminal:
+                if is_terminal_receipt_status(last.status):
                     return last
             remaining = deadline - clock()
             if remaining <= 0:

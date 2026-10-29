@@ -31,9 +31,11 @@ a served request is "persisted" ``persist_delay_s`` (default 0.25 s) later. ``PO
 (a replay is ``duplicate``, a different payload ``409 conflict``); an unknown id stays pending
 until ``pending_ttl_s`` and then expires with ``request_not_found``; ``req_missing`` is refused at
 once (404). ``GET /v1/outcome-receipts/{id}`` and ``GET /v1/requests/{id}/outcome-receipts`` read
-receipts. ``/v1/call-types/{id}/learning*`` keeps a per-call-type learning state machine; the call
-types ``no-consent``, ``no-provider``, ``quota-out``, ``budget-out``, ``read-only`` and
-``ct_missing`` exercise the refusals.
+receipts. ``/v1/call-types/{id}/learning*`` keeps a per-call-type learning state machine with
+spec-shaped answers; the call types ``no-consent``, ``no-provider``, ``quota-out``,
+``budget-out``, ``read-only`` and ``ct_missing`` exercise the refusals and stopped states, and
+``support-reply`` starts enabled with versions ``epb_1`` (retired), ``epb_2`` (active) and
+``epb_3`` (evaluating). ``GET /v1/outcome-receipts/ocr_sample`` answers a sample receipt.
 
 Control endpoints (not part of the API): ``GET /__mock__/requests`` lists recorded requests,
 ``POST /__mock__/reset`` clears state, ``POST /__mock__/fail`` queues failures
@@ -66,7 +68,7 @@ from urllib.parse import parse_qs, unquote, urlsplit
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from spec import operations, path_regex, resolve, sample, success_schema
+from spec import load_spec, operations, path_regex, resolve, sample, success_schema
 
 MOCK_REPLY = "Hello from the mock gateway."
 ORACLE_SECRET = "orsec_mock_signing_secret"
@@ -646,6 +648,17 @@ def _iso(at: float) -> str:
     return time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime(at)) + f".{int(at * 1000) % 1000:03d}Z"
 
 
+def _component(name: str) -> Any:
+    """A deterministic sample of a component schema (the base every hand-written answer
+    overrides, so the answer always has the specification's shape)."""
+    return sample(resolve(load_spec()["components"]["schemas"][name]), name)
+
+
+def _op_sample(op_id: str) -> Any:
+    _, schema = success_schema(operations()[op_id][2])
+    return sample(resolve(schema)) if schema is not None else {}
+
+
 def _refresh(receipt: dict[str, Any]) -> dict[str, Any]:
     """Reconcile a pending receipt: apply it once its request landed, or expire it."""
     if receipt["status"] != "pending":
@@ -654,23 +667,30 @@ def _refresh(receipt: dict[str, Any]) -> dict[str, Any]:
     request_id = receipt["request_id"]
     if _persisted(request_id):
         served = STATE.served[request_id]
+        teaching = receipt["channel"] != "proxy" and bool(served.get("episode"))
         receipt.update(
             status="applied",
+            outcome_status="accepted",
             outcome_event_id=STATE.next_id("oev"),
+            artifact_id="art_" + hashlib.sha256(request_id.encode()).hexdigest()[:16],
             applied_at=_iso(now),
             updated_at=_iso(now),
-            episode=(
-                "not_applicable"
-                if receipt["channel"] == "proxy" or not served.get("episode")
-                else "associated"
-            ),
+            expires_at=_iso(now + STATE.pending_ttl_s),
+            episode={
+                "status": "associated" if teaching else "not_applicable",
+                "trace_id": "ept_"
+                + hashlib.sha256(str(served.get("episode")).encode()).hexdigest()[:12]
+                if teaching
+                else None,
+                "verdict": "recorded" if teaching else None,
+            },
         )
     elif now >= receipt["_expires"]:
         receipt.update(
             status="expired",
             reason="request_not_found",
             updated_at=_iso(now),
-            episode="not_recorded",
+            episode={"status": "not_applicable", "trace_id": None, "verdict": None},
         )
     return receipt
 
@@ -681,7 +701,10 @@ def _public(receipt: dict[str, Any]) -> dict[str, Any]:
 
 def _request_outcome(request_id: str, body: dict[str, Any]) -> tuple[int, Any]:
     if request_id == "req_missing":
-        return _error("not_found", f"unknown request {request_id}")
+        return _error(
+            "not_found",
+            f"request_not_found: '{request_id}' is too old (or too far ahead) to still be in flight",
+        )
     if not body.get("channel") or not body.get("kind"):
         return _error("invalid_request", "channel and kind are required")
     key = json.dumps([request_id, body.get("kind"), body.get("source_event_id")])
@@ -696,16 +719,19 @@ def _request_outcome(request_id: str, body: dict[str, Any]) -> tuple[int, Any]:
             return 202, _outcome_answer(receipt, "duplicate")
         now = time.time()
         receipt = {
-            "id": STATE.next_id("ork"),
+            "id": STATE.next_id("ocr"),
             "object": "outcome_receipt",
             "request_id": request_id,
             "status": "pending",
             "reason": None,
-            "episode": "pending",
+            "episode": {"status": "pending", "trace_id": None, "verdict": None},
             "channel": body.get("channel"),
             "kind": body.get("kind"),
-            "source_event_id": body.get("source_event_id"),
+            "source_event_id": body.get("source_event_id") or STATE.next_id("sev"),
             "outcome_event_id": None,
+            "outcome_status": None,
+            "artifact_id": None,
+            "attempts": 0,
             "created_at": _iso(now),
             "updated_at": _iso(now),
             "applied_at": None,
@@ -721,19 +747,22 @@ def _request_outcome(request_id: str, body: dict[str, Any]) -> tuple[int, Any]:
 
 def _outcome_answer(receipt: dict[str, Any], status: str) -> dict[str, Any]:
     teaches = receipt["channel"] != "proxy"
-    return {
-        "id": receipt["outcome_event_id"],
-        "status": status,
-        "source_event_id": receipt["source_event_id"],
-        "source": "declared",
-        "latency_class": "instant",
-        "learning_use": ["train", "calibrate"] if teaches else ["rank"],
-        "target_kind": "artifact",
-        "canonical_target_id": None,
-        "artifact_version": None,
-        "reason": None,
-        "receipt": _public(receipt),
-    }
+    answer = _op_sample("recordRequestOutcome")
+    answer.update(
+        id=receipt["outcome_event_id"],
+        status=status,
+        source_event_id=receipt["source_event_id"],
+        source="declared",
+        latency_class="instant",
+        learning_use=["train", "calibrate"] if teaches else ["rank"],
+        target_kind="artifact",
+        artifact_id=receipt["artifact_id"],
+        canonical_target_id=receipt["artifact_id"],
+        artifact_version=1 if receipt["artifact_id"] else None,
+        reason=None,
+        receipt=_public(receipt),
+    )
+    return answer
 
 
 _LEARNING = re.compile(r"^/v1/call-types/([^/]+)/learning(?:/(.*))?$")
@@ -742,13 +771,17 @@ _REQUEST_RECEIPTS = re.compile(r"^/v1/requests/([^/]+)/outcome-receipts$")
 
 
 def _learning_routes(method: str, path: str, body: dict[str, Any]) -> tuple[int, Any] | None:
-    """The hand-written learning-loop routes (not yet in the specification)."""
+    """Stateful answers for the learning loop (receipts and learning controls)."""
     match = _RECEIPT.match(path)
     if match and method == "GET":
+        if unquote(match.group(1)) == "ocr_sample":
+            sample_receipt = _op_sample("getOutcomeReceipt")
+            sample_receipt.update(id="ocr_sample", status="applied")
+            return 200, sample_receipt
         with STATE.lock:
             receipt = STATE.receipts.get(unquote(match.group(1)))
             if receipt is None:
-                return _error("not_found", "unknown receipt")
+                return _error("not_found", "receipt not found")
             return 200, _public(_refresh(receipt))
     match = _REQUEST_RECEIPTS.match(path)
     if match and method == "GET":
@@ -766,200 +799,345 @@ def _learning_routes(method: str, path: str, body: dict[str, Any]) -> tuple[int,
     return _learning(method, unquote(match.group(1)), match.group(2) or "", body)
 
 
+_DEFAULT_POLICY = {
+    "mode": "evaluate",
+    "objective": "success",
+    "min_verified_per_arm": 30,
+    "max_verified_per_arm": 200,
+    "alpha": 0.05,
+    "min_effect_pp": 0.0,
+    "noninferiority_margin_pp": 5.0,
+    "candidate_share": 0.5,
+    "max_duration_hours": 720,
+}
+
+
 def _learning_state(call_type: str) -> dict[str, Any]:
     state = STATE.learning.get(call_type)
     if state is None:
         state = STATE.learning[call_type] = {
-            "state": "not_enabled",
-            "reason": None,
-            "promotion": None,
-            "provider": None,
-            "active": None,
+            "enabled": False,
+            "governed": False,
+            "paused": False,
+            "disabled": False,
+            "policy": None,
+            "model": None,
+            "recipe": None,
             "versions": [],
+            "active": None,
             "evaluations": [],
         }
+        if call_type == "support-reply":  # an already-enabled call type, for one-call examples
+            state.update(
+                enabled=True,
+                governed=True,
+                policy=dict(_DEFAULT_POLICY),
+                model="openai/gpt-5.2-mini",
+                recipe={
+                    "validator": "elv2",
+                    "generation": "atomic",
+                    "observations": "elo2",
+                    "legacy": False,
+                },
+            )
+            _seed_versions(state)
     return state
 
 
-def _status(call_type: str, state: dict[str, Any]) -> dict[str, Any]:
-    versions = {v["id"]: v for v in state["versions"]}
+def _version(state: dict[str, Any], version_id: str) -> dict[str, Any] | None:
+    return next((v for v in state["versions"] if v["id"] == version_id), None)
+
+
+def _version_ref(version: dict[str, Any] | None) -> dict[str, Any] | None:
+    if version is None:
+        return None
+    return {
+        k: version[k] for k in ("id", "version", "state", "digest", "active_lessons", "created_at")
+    }
+
+
+def _version_row(version: dict[str, Any]) -> dict[str, Any]:
+    row = _component("LearningVersion")
+    row.update({k: v for k, v in version.items() if k in row})
+    return row
+
+
+def _version_detail(version: dict[str, Any]) -> dict[str, Any]:
+    detail = _component("LearningVersionDetail")
+    detail.update({k: v for k, v in version.items() if k in detail})
+    detail["lessons"] = version["lessons"]
+    detail["transitions"] = version["transitions"]
+    return detail
+
+
+def _learning_status(call_type: str, state: dict[str, Any]) -> dict[str, Any]:
+    status = _component("LearningStatus")
+    running = next((e for e in state["evaluations"] if e["decision"] == "running"), None)
     candidate = next(
         (v for v in reversed(state["versions"]) if v["state"] in ("candidate", "evaluating")), None
     )
-    active = versions.get(state["active"]) if state["active"] else None
+    if not state["enabled"]:
+        code, reason = ("disabled", "disabled") if state["disabled"] else ("off", "not_enabled")
+    elif call_type == "quota-out":
+        code, reason = "quota_exhausted", "provider_quota_exhausted"
+    elif call_type == "budget-out":
+        code, reason = "budget_exhausted", "failure_ceiling_reached"
+    elif state["paused"]:
+        code, reason = "paused", "paused"
+    elif running is not None:
+        code, reason = "learning", "evaluation_running"
+    else:
+        code, reason = "collecting", "waiting_for_evidence"
+    status.update(
+        object="learning",
+        call_type_id=call_type,
+        enabled=state["enabled"],
+        governed=state["governed"],
+        self_serve=state["governed"],
+        paused=state["paused"],
+        state=code,
+        reason=reason,
+        active_version=_version_ref(_version(state, state["active"]) if state["active"] else None),
+        latest_candidate=_version_ref(candidate),
+        evaluation=running,
+        last_evaluation=state["evaluations"][-1] if state["evaluations"] else None,
+        promotion=state["policy"],
+        recipe=state["recipe"],
+    )
+    status["budget"]["state"] = code if code in ("quota_exhausted", "budget_exhausted") else "ok"
+    status["reflection"]["model"] = state["model"]
+    status["reflection"]["provider"].update(
+        available=state["enabled"], reason=None if state["enabled"] else "no_reflection_model"
+    )
+    status["evidence"].update(recorded=12, verified=9, verified_pass=6, verified_fail=3, unknown=3)
+    return status
 
-    def ref(version: dict[str, Any] | None) -> dict[str, Any] | None:
-        if version is None:
-            return None
-        return {"id": version["id"], "state": version["state"], "created_at": version["created_at"]}
 
-    return {
-        "object": "learning_status",
+def _control(
+    call_type: str,
+    state: dict[str, Any],
+    action: str,
+    changed: bool = True,
+    version_id: str | None = None,
+    stopped: str | None = None,
+) -> tuple[int, Any]:
+    return 200, {
+        "object": "learning_control",
+        "action": action,
         "call_type_id": call_type,
-        "state": state["state"],
-        "reason": state["reason"],
-        "provider": state["provider"],
-        "promotion": state["promotion"],
-        "active": ref(active),
-        "candidate": ref(candidate),
-        "evaluation": state["evaluations"][-1] if state["evaluations"] else None,
-        "evidence": {"arrived": 12, "verified": 9, "incorporated": 6, "pending": 1},
-        "backlog": 3,
-        "budget": {
-            "state": "exhausted" if state["state"] == "budget_exhausted" else "ok",
-            "remaining_usd": 0.0 if state["state"] == "budget_exhausted" else 4.5,
-        },
+        "changed": changed,
+        "version_id": version_id,
+        "stopped_evaluation_id": stopped,
+        "learning": _learning_status(call_type, state),
     }
 
 
-def _seed_versions(call_type: str, state: dict[str, Any]) -> None:
+_SEEDED = ("epb_1", "retired"), ("epb_2", "active"), ("epb_3", "evaluating")
+
+
+def _day(number: int) -> str:
+    """Midnight UTC on day ``number`` of October 2026, ISO-8601 with milliseconds."""
+    return time.strftime(
+        "%Y-%m-%dT%H:%M:%S.000Z", time.gmtime(1_790_812_800 + 86_400 * (number - 1))
+    )
+
+
+_LESSONS = [
+    {"id": "lsn_1", "text": "Check stock before reserving.", "evidence_cases": 4},
+    {"id": "lsn_2", "text": "Backorder when stock is short.", "evidence_cases": 3},
+    {"id": "lsn_3", "text": "Handle orders in the order the task names them.", "evidence_cases": 2},
+]
+
+
+def _seed_versions(state: dict[str, Any]) -> None:
+    """Three versions (``epb_1`` retired, ``epb_2`` active, ``epb_3`` evaluating) and the running
+    evaluation ``lev_1`` of ``epb_3`` against ``epb_2``."""
     if state["versions"]:
         return
-    lesson = {
-        "id": "lsn_1",
-        "text": "Check stock before reserving.",
-        "tool": "check_stock",
-        "evidence_count": 4,
-    }
-    state["versions"] = [
-        {
-            "id": "lv_1",
-            "object": "learning_version",
-            "state": "active",
-            "state_reason": None,
-            "parent_version_id": None,
-            "lesson_count": 1,
-            "evaluation_id": None,
-            "created_at": "2026-10-01T00:00:00.000Z",
-            "lessons": [lesson],
-            "provenance": {"episodes": 8, "outcomes": 8},
-        },
-        {
-            "id": "lv_2",
-            "object": "learning_version",
-            "state": "evaluating",
-            "state_reason": None,
-            "parent_version_id": "lv_1",
-            "lesson_count": 2,
-            "evaluation_id": "lev_1",
-            "created_at": "2026-10-02T00:00:00.000Z",
-            "lessons": [
-                lesson,
+    for number, (version_id, version_state) in enumerate(_SEEDED, start=1):
+        version = _component("LearningVersionDetail")
+        version.update(
+            id=version_id,
+            version=number,
+            state=version_state,
+            state_reason=None,
+            parent_id=f"epb_{number - 1}" if number > 1 else None,
+            active_lessons=number,
+            digest=f"epb1_{number:032x}",
+            created_at=_day(number),
+            evaluation_id="lev_1" if version_state == "evaluating" else None,
+            reflection_model=state["model"],
+            recipe="elv2-atomic-elo2",
+            lessons=_LESSONS[:number],
+            transitions=[
                 {
-                    "id": "lsn_2",
-                    "text": "Backorder when stock is short.",
-                    "tool": "set_order_status",
-                    "evidence_count": 3,
-                },
+                    "state": version_state,
+                    "reason": "published",
+                    "at": _day(number),
+                    "actor_type": "system",
+                    "actor_id": None,
+                    "evaluation_id": None,
+                }
             ],
-            "provenance": {"episodes": 12, "outcomes": 12},
+        )
+        version["cohort"] = {"size": 4 * number, "pass": 3 * number, "fail": number}
+        state["versions"].append(version)
+    state["active"] = "epb_2"
+    evaluation = _component("LearningEvaluation")
+    evaluation.update(
+        id="lev_1",
+        object="learning_evaluation",
+        candidate_version_id="epb_3",
+        incumbent_version_id="epb_2",
+        decision="running",
+        decision_reason="window_open",
+        decided_at=None,
+        decided_by=None,
+        difference={"lower": -0.125, "point": 0.2, "upper": 0.52},
+    )
+    evaluation["arms"] = {
+        "candidate": {
+            "verified": 7,
+            "pass": 5,
+            "unknown": 1,
+            "success_rate": 5 / 7,
+            "cost_micro_usd": None,
+            "mean_cost_micro_usd": None,
         },
-    ]
-    state["active"] = "lv_1"
-    state["evaluations"] = [
-        {
-            "id": "lev_1",
-            "object": "learning_evaluation",
-            "decision": "running",
-            "reason": None,
-            "objective": "success",
-            "rule": {
-                "min_verified_per_arm": 20,
-                "max_verified_per_arm": 200,
-                "alpha": 0.05,
-                "min_effect_pp": 3,
-            },
-            "candidate": {"version_id": "lv_2", "verified": 7, "passed": 5, "unknown": 1},
-            "incumbent": {"version_id": "lv_1", "verified": 6, "passed": 3, "unknown": 0},
-            "interval": {"lower": -12.5, "upper": None},
-            "started_at": "2026-10-02T00:00:00.000Z",
-            "decided_at": None,
+        "incumbent": {
+            "verified": 6,
+            "pass": 3,
+            "unknown": 0,
+            "success_rate": 0.5,
+            "cost_micro_usd": None,
+            "mean_cost_micro_usd": None,
         },
-    ]
+    }
+    state["evaluations"] = [evaluation]
+
+
+def _stop_running(state: dict[str, Any]) -> str | None:
+    for evaluation in state["evaluations"]:
+        if evaluation["decision"] == "running":
+            evaluation.update(decision="stopped_manual", decision_reason="manual_decision")
+            return str(evaluation["id"])
+    return None
 
 
 def _learning(method: str, call_type: str, rest: str, body: dict[str, Any]) -> tuple[int, Any]:
     if call_type == "ct_missing":
-        return _error("not_found", f"unknown call type {call_type}")
-    writes = method == "POST"
-    if writes and call_type == "read-only":
+        return _error("not_found", f"call type '{call_type}' not found")
+    if method == "POST" and call_type == "read-only":
         return _error("permission", "this key lacks the config:write scope")
     with STATE.lock:
         state = _learning_state(call_type)
         if method == "GET" and rest == "":
-            return 200, _status(call_type, state)
+            return 200, _learning_status(call_type, state)
         if method == "POST" and rest == "enable":
             if call_type == "no-consent":
                 return _error(
-                    "consent_required", "consent_required: corrections consent is off", 403
+                    "conflict",
+                    "corrections_consent_required: learning stores episode content, so the "
+                    "workspace corrections consent must be on",
                 )
-            if not body.get("reflection_model"):
-                return _error("invalid_request", "reflection_model is required")
             if call_type == "no-provider":
                 return _error(
-                    "learning_provider_unavailable",
-                    "no workspace provider serves the reflection model",
-                    409,
+                    "invalid_request",
+                    f"reflection_model_not_workspace_owned (no_workspace_key): "
+                    f"'{body.get('reflection_model')}' must resolve to a workspace-owned offer",
                 )
-            promotion = body.get("promotion") or "evaluate"
-            if isinstance(promotion, str):
-                promotion = {"mode": promotion, "objective": "success"}
+            promotion = body.get("promotion") or {}
+            if int(promotion.get("min_verified_per_arm", 30)) < 1:
+                return _error("invalid_request", "promotion_invalid (min_verified_per_arm_range)")
+            policy = {**(state["policy"] or _DEFAULT_POLICY), **promotion}
+            changed = not state["enabled"]
             state.update(
-                state="active",
-                reason=None,
-                promotion=promotion,
-                provider={"model": body["reflection_model"], "state": "ready"},
+                enabled=True,
+                governed=True,
+                disabled=False,
+                policy=policy,
+                model=body.get("reflection_model"),
+                recipe={
+                    "validator": "elv1",
+                    "generation": "bundled",
+                    "observations": "legacy",
+                    **(body.get("recipe") or {}),
+                    "legacy": not body.get("recipe"),
+                },
             )
-            if call_type == "quota-out":
-                state.update(state="quota_exhausted", reason="provider_quota_exhausted")
-                state["provider"]["state"] = "quota_exhausted"
-            if call_type == "budget-out":
-                state.update(state="budget_exhausted", reason="budget_exhausted")
-            _seed_versions(call_type, state)
-            return 200, _status(call_type, state)
+            _seed_versions(state)
+            return _control(call_type, state, "enable", changed)
         if method == "POST" and rest in ("pause", "resume", "disable"):
-            if rest == "resume" and state["state"] == "quota_exhausted":
-                return _error("quota_exhausted", "the learning provider's quota is exhausted", 429)
-            if rest == "resume" and state["state"] == "budget_exhausted":
-                return _error("budget_exhausted", "the learning budget is spent", 402)
-            state["state"] = {"pause": "paused", "resume": "active", "disable": "disabled"}[rest]
-            return 200, _status(call_type, state)
+            if rest != "disable" and not state["governed"]:
+                return _error(
+                    "conflict",
+                    "learning_not_enabled: learning is not enabled for this call type through "
+                    "the learning API — POST …/learning/enable first",
+                )
+            before = (state["paused"], state["enabled"])
+            if rest == "pause":
+                state["paused"] = True
+            elif rest == "resume":
+                state["paused"] = False
+            else:
+                state.update(enabled=False, disabled=True)
+            return _control(call_type, state, rest, (state["paused"], state["enabled"]) != before)
         if method == "GET" and rest == "versions":
-            rows = [
-                {k: v for k, v in r.items() if k not in ("lessons", "provenance")}
-                for r in reversed(state["versions"])
-            ]
+            rows = [_version_row(v) for v in reversed(state["versions"])]
             return 200, {"object": "list", "data": rows}
         if method == "GET" and rest == "evaluations":
             return 200, {"object": "list", "data": list(reversed(state["evaluations"]))}
         if method == "POST" and rest == "rollback":
-            target = next((v for v in state["versions"] if v["id"] == body.get("version_id")), None)
+            if not state["governed"]:
+                return _error("conflict", "learning_not_enabled: enable learning first")
+            target_id = body.get("version_id")
+            active = _version(state, state["active"]) if state["active"] else None
+            target = _version(state, target_id) if target_id else None
+            if target_id is None:
+                earlier = [
+                    v for v in state["versions"] if active and v["version"] < active["version"]
+                ]
+                target = earlier[-1] if earlier else None
+                if target is None:
+                    return _error("conflict", "no_rollback_target: there is no earlier version")
             if target is None:
-                return _error("not_found", "unknown version")
-            for version in state["versions"]:
-                if version["state"] == "active":
-                    version["state"] = "retired"
+                return _error("not_found", f"version '{target_id}' not found")
+            if active is not None and target["version"] >= active["version"]:
+                return _error(
+                    "conflict",
+                    "rollback_target_not_earlier: pick a version older than the active one",
+                )
+            stopped = _stop_running(state)
+            if active is not None:
+                active["state"] = "retired"
             target["state"] = "active"
             state["active"] = target["id"]
-            return 200, _status(call_type, state)
+            return _control(call_type, state, "rollback", True, target["id"], stopped)
         parts = rest.split("/")
         if len(parts) >= 2 and parts[0] == "versions":
-            version = next((v for v in state["versions"] if v["id"] == unquote(parts[1])), None)
+            version = _version(state, unquote(parts[1]))
             if version is None:
-                return _error("not_found", "unknown version")
+                return _error("not_found", f"version '{unquote(parts[1])}' not found")
             if method == "GET" and len(parts) == 2:
-                return 200, version
+                return 200, _version_detail(version)
             if method == "POST" and len(parts) == 3 and parts[2] in ("promote", "reject"):
+                if not state["governed"]:
+                    return _error("conflict", "learning_not_enabled: enable learning first")
                 if parts[2] == "promote":
+                    if version["id"] == state["active"]:
+                        return _error("conflict", "version_already_active: it is already active")
+                    stopped = _stop_running(state)
                     for other in state["versions"]:
                         if other["state"] == "active":
                             other["state"] = "retired"
-                    version["state"] = "active"
+                    version.update(state="active", state_reason="manual_promote")
                     state["active"] = version["id"]
                 else:
-                    version["state"] = "rejected"
-                version["state_reason"] = f"manual_{parts[2]}"
-                return 200, {k: v for k, v in version.items() if k not in ("lessons",)}
+                    if version["id"] == state["active"]:
+                        return _error("conflict", "version_active: roll back instead")
+                    stopped = _stop_running(state)
+                    version.update(state="rejected", state_reason="manual_reject")
+                return _control(call_type, state, parts[2], True, version["id"], stopped)
     return _error("not_found", f"no learning route {method} {rest}")
 
 

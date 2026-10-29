@@ -184,7 +184,7 @@ def _md_escape(text: str) -> str:
 def _attribute_docs() -> dict[tuple[str, str], str]:
     """(class name, attribute) -> attribute docstring, parsed from the types modules' source."""
     docs: dict[tuple[str, str], str] = {}
-    for module_name in ("_generated", "_chunk", "_requests", "_learning"):
+    for module_name in ("_generated", "_chunk", "_requests"):
         path = ROOT / "src" / "ultrarouter" / "types" / f"{module_name}.py"
         tree = ast.parse(path.read_text(encoding="utf-8"))
         for node in tree.body:
@@ -494,7 +494,7 @@ def types_reference() -> str:
 def api_coverage() -> str:
     from spec import api_key_operations, operations
 
-    from coverage_map import COVERAGE, EXCLUDED, PROVISIONAL
+    from coverage_map import COVERAGE, EXCLUDED
 
     ops = operations()
     key_ops = api_key_operations()
@@ -525,19 +525,6 @@ def api_coverage() -> str:
     for op_id, reason in sorted(EXCLUDED.items()):
         method, path, _ = ops[op_id]
         out.append(f"| `{method} {path}` | `{op_id}` | {reason} |")
-    out += [
-        "",
-        "## Learning-loop endpoints not yet in the specification",
-        "",
-        "The SDK calls these newer endpoints with hand-written, provisional models",
-        "(`ultrarouter.types._learning`); they move to the table above when the specification",
-        "gains them (`tests/test_api_coverage.py` fails until they do).",
-        "",
-        "| Endpoint | SDK method | Tests |",
-        "| --- | --- | --- |",
-    ]
-    for method, path, expression, tests in PROVISIONAL:
-        out.append(f"| `{method} {path}` | `{method_of(expression)}` | {tests} |")
     session_only = sorted(
         (path, method, op_id) for op_id, (method, path, op) in ops.items() if op_id not in key_ops
     )

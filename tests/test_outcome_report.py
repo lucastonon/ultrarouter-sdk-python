@@ -27,6 +27,7 @@ from ultrarouter import (
     ReceiptWaitTimeoutError,
     TeachingOutcomeReport,
     UltraRouter,
+    is_terminal_receipt_status,
     report_source_event_id,
     source_teaches,
     verdict_event,
@@ -477,10 +478,10 @@ def test_ack_loss_over_real_http(mock_gateway: MockGateway) -> None:
 @pytest.mark.parametrize(
     ("answer", "is_result"),
     [
-        ({"status": "pending", "receipt": {"id": "ork_1", "status": "pending"}}, True),
+        ({"status": "pending", "receipt": {"id": "ocr_1", "status": "pending"}}, True),
         ({"status": "pending"}, True),
         ({"status": "accepted"}, True),
-        ({"status": "PENDING", "receipt": {"id": "ork_1"}}, False),
+        ({"status": "PENDING", "receipt": {"id": "ocr_1"}}, False),
         ({"status": "waiting"}, False),
         (["pending"], False),
     ],
@@ -517,19 +518,23 @@ def test_receipt_reads_and_wait_until_applied(mock_gateway: MockGateway) -> None
         )
         report = client.outcomes.report(reply.ur.request_id, "pass", source="verifier")
         assert report.is_pending and report.receipt is not None
-        assert report.receipt.status == "pending" and not report.receipt.is_terminal
+        assert report.receipt.status == "pending"
+        assert not is_terminal_receipt_status(report.receipt.status)
+        assert report.receipt_id is not None and report.receipt_id.startswith("ocr_")
         read = client.outcomes.receipt(report.receipt.id)
         assert read.id == report.receipt.id and read.request_id == reply.ur.request_id
         final = client.outcomes.wait_for_receipt(report, timeout=10, poll_interval=0.05)
-        assert final.status == "applied" and final.is_terminal
-        assert final.episode == "associated" and final.outcome_event_id
+        assert final.status == "applied" and is_terminal_receipt_status(final.status)
+        assert final.outcome_status == "accepted" and final.outcome_event_id
+        assert final.episode.status == "associated" and final.episode.verdict == "recorded"
+        assert final.episode.trace_id is not None
         listed = client.outcomes.receipts_for_request(reply.ur.request_id)
         assert [r.id for r in listed.data] == [final.id]
         late = client.outcomes.report(reply.ur.request_id, "fail", source="verifier")
         assert late.outcome_status == "accepted" and late.receipt is not None
         assert late.receipt.status == "applied"
         proxy = client.outcomes.report(reply.ur.request_id, "pass", source="self_rating")
-        assert proxy.receipt is not None and proxy.receipt.episode == "not_applicable"
+        assert proxy.receipt is not None and proxy.receipt.episode.status == "not_applicable"
 
 
 async def test_async_receipts(mock_gateway: MockGateway) -> None:
@@ -562,15 +567,15 @@ def test_an_unknown_request_expires_and_a_refused_id_is_404(mock_gateway: MockGa
         with UltraRouter(api_key=TEST_KEY, base_url=mock_gateway.url, max_retries=0) as client:
             report = client.outcomes.report("req_c_never", "pass", source="verifier")
             final = client.outcomes.wait_for_receipt(report, timeout=5, poll_interval=0.05)
-            assert (final.status, final.reason, final.episode) == (
+            assert (final.status, final.reason, final.episode.status) == (
                 "expired",
                 "request_not_found",
-                "not_recorded",
+                "not_applicable",
             )
             refused = client.outcomes.report("req_missing", "pass", source="verifier")
             assert refused.status == "rejected" and isinstance(refused.error, NotFoundError)
             with pytest.raises(NotFoundError):
-                client.outcomes.receipt("ork_unknown")
+                client.outcomes.receipt("ocr_unknown")
     finally:
         mock_gateway.reset()
 
@@ -609,34 +614,56 @@ def _receipt_client(
     return client, seen
 
 
+def _receipt_body(status: str, **extra: Any) -> dict[str, Any]:
+    """A complete receipt object, as the gateway answers it."""
+    return {
+        "id": "ocr_1",
+        "object": "outcome_receipt",
+        "request_id": "req_1",
+        "status": status,
+        "reason": None,
+        "episode": {"status": "pending", "trace_id": None, "verdict": None},
+        "channel": "computable",
+        "kind": "oracle_pass",
+        "source_event_id": "rpt_1",
+        "outcome_event_id": None,
+        "outcome_status": None,
+        "artifact_id": None,
+        "attempts": 0,
+        "created_at": "2026-10-29T00:00:00.000Z",
+        "updated_at": "2026-10-29T00:00:00.000Z",
+        "applied_at": None,
+        "expires_at": "2026-10-29T00:15:00.000Z",
+        **extra,
+    }
+
+
 def _receipt(status: str, **extra: Any) -> httpx.Response:
-    return httpx.Response(200, json={"id": "ork_1", "status": status, **extra})
+    return httpx.Response(200, json=_receipt_body(status, **extra))
 
 
 def test_wait_backs_off_and_times_out_with_the_last_receipt() -> None:
     clock = _Clock()
-    client, seen = _receipt_client(lambda _n: _receipt("pending", request_id="req_1"), clock)
+    client, seen = _receipt_client(lambda _n: _receipt("pending"), clock)
     with pytest.raises(ReceiptWaitTimeoutError) as info:
-        client.outcomes.wait_for_receipt("ork_1", timeout=10, poll_interval=0.25)
+        client.outcomes.wait_for_receipt("ocr_1", timeout=10, poll_interval=0.25)
     error = info.value
-    assert error.receipt_id == "ork_1" and error.code == "timeout"
+    assert error.receipt_id == "ocr_1" and error.code == "timeout"
     assert error.last_receipt is not None and error.last_receipt.status == "pending"
     assert error.request_id == "req_1"
     assert clock.sleeps[:5] == [0.25, 0.5, 1.0, 2.0, 4.0]
     assert max(clock.sleeps) <= 4.0 and sum(clock.sleeps) <= 10.0
-    assert all(r.url.path == "/v1/outcome-receipts/ork_1" for r in seen)
+    assert all(r.url.path == "/v1/outcome-receipts/ocr_1" for r in seen)
 
 
 def test_wait_returns_the_terminal_receipt_and_accepts_wrapped_bodies() -> None:
     clock = _Clock()
     states = {
         1: _receipt("pending"),
-        2: httpx.Response(
-            200, json={"receipt": {"id": "ork_1", "status": "rejected", "reason": "x"}}
-        ),
+        2: httpx.Response(200, json={"receipt": _receipt_body("rejected", reason="x")}),
     }
     client, seen = _receipt_client(lambda n: states[n], clock)
-    final = client.outcomes.wait_for_receipt("ork_1")
+    final = client.outcomes.wait_for_receipt("ocr_1")
     assert final.status == "rejected" and final.reason == "x" and len(seen) == 2
 
 
@@ -657,7 +684,7 @@ def test_wait_keeps_polling_through_transient_failures_but_raises_refusals() -> 
         2: _receipt("applied"),
     }
     client, _ = _receipt_client(lambda n: answers[n], clock)
-    assert client.outcomes.wait_for_receipt("ork_1").status == "applied"
+    assert client.outcomes.wait_for_receipt("ocr_1").status == "applied"
     refused, _ = _receipt_client(
         lambda _n: httpx.Response(
             404,
@@ -673,7 +700,7 @@ def test_wait_keeps_polling_through_transient_failures_but_raises_refusals() -> 
         _Clock(),
     )
     with pytest.raises(NotFoundError):
-        refused.outcomes.wait_for_receipt("ork_1")
+        refused.outcomes.wait_for_receipt("ocr_1")
 
 
 def test_wait_needs_a_receipt() -> None:
@@ -697,15 +724,15 @@ def test_wait_needs_a_receipt() -> None:
 @pytest.mark.parametrize(
     "body",
     [
-        {"object": "list", "data": [{"id": "ork_1", "status": "pending"}]},
-        {"receipts": [{"id": "ork_1", "status": "pending"}]},
-        [{"id": "ork_1", "status": "pending"}],
+        {"object": "list", "data": [_receipt_body("pending")]},
+        {"receipts": [_receipt_body("pending")]},
+        [_receipt_body("pending")],
     ],
 )
 def test_receipt_list_shapes(body: Any) -> None:
     client, _ = _receipt_client(lambda _n: httpx.Response(200, json=body), _Clock())
     listed = client.outcomes.receipts_for_request("req_1")
-    assert [r.id for r in listed.data] == ["ork_1"]
+    assert [r.id for r in listed.data] == ["ocr_1"]
 
 
 async def test_async_wait_is_cancellable_and_times_out() -> None:
@@ -718,16 +745,16 @@ async def test_async_wait_is_cancellable_and_times_out() -> None:
         http_client=httpx.AsyncClient(transport=httpx.MockTransport(handler)),
     ) as client:
         task = asyncio.ensure_future(
-            client.outcomes.wait_for_receipt("ork_1", timeout=30, poll_interval=0.05)
+            client.outcomes.wait_for_receipt("ocr_1", timeout=30, poll_interval=0.05)
         )
         await asyncio.sleep(0.12)
         task.cancel()
         with pytest.raises(asyncio.CancelledError):
             await task
         with pytest.raises(asyncio.TimeoutError):
-            await asyncio.wait_for(client.outcomes.wait_for_receipt("ork_1", timeout=30), 0.1)
+            await asyncio.wait_for(client.outcomes.wait_for_receipt("ocr_1", timeout=30), 0.1)
         with pytest.raises(ReceiptWaitTimeoutError):
-            await client.outcomes.wait_for_receipt("ork_1", timeout=0.15, poll_interval=0.05)
+            await client.outcomes.wait_for_receipt("ocr_1", timeout=0.15, poll_interval=0.05)
 
 
 def test_wait_ends_on_a_non_retryable_server_error_and_survives_a_read_timeout() -> None:
@@ -744,7 +771,7 @@ def test_wait_ends_on_a_non_retryable_server_error_and_survives_a_read_timeout()
         clock,
     )
     with pytest.raises(InternalServerError):
-        broken.outcomes.wait_for_receipt("ork_1")
+        broken.outcomes.wait_for_receipt("ocr_1")
 
     calls = {"n": 0}
 
@@ -762,5 +789,5 @@ def test_wait_ends_on_a_non_retryable_server_error_and_survives_a_read_timeout()
         _sleep=clock.sleep,
         _clock=clock.time,
     )
-    assert client.outcomes.wait_for_receipt("ork_1").status == "applied"
+    assert client.outcomes.wait_for_receipt("ocr_1").status == "applied"
     assert calls["n"] == 2  # the timed-out read was one missed poll

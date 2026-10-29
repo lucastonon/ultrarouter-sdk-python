@@ -10,7 +10,7 @@ Expected output (mock gateway):
     episode: 1 step, reported pass (gateway status pending)
     wait cancelled; the outcome is unaffected
     receipt final: applied
-    learning state: not_enabled
+    learning state: off
 """
 
 from __future__ import annotations

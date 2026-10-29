@@ -69,9 +69,12 @@ from ._errors import (
     LearningConsentRequiredError,
     LearningError,
     LearningForbiddenError,
+    LearningNotEnabledError,
     LearningNotFoundError,
+    LearningPolicyInvalidError,
     LearningProviderUnavailableError,
     LearningQuotaExhaustedError,
+    LearningVersionConflictError,
     ManifestInvalidError,
     ManifestMismatchError,
     MaxCostExceededError,
@@ -103,10 +106,12 @@ from ._learned_placement import (
 )
 from ._models import BaseModel
 from ._outcome_report import (
+    RECEIPT_TERMINAL_STATUSES,
     NotReportedOutcome,
     OutcomeReport,
     ProxyOutcomeReport,
     TeachingOutcomeReport,
+    is_terminal_receipt_status,
 )
 from ._preflight import (
     DEFAULT_PREFLIGHT_CACHE_SIZE,
@@ -141,7 +146,7 @@ from ._queue import (
     ReviewerFlushReport,
 )
 from ._resources.flywheel import EXPERIMENT_EXECUTION_HEADER, candidate_decision_callback_id
-from ._resources.learning import LearningObjective, PromotionMode
+from ._resources.learning import LearningObjective, LessonsMode, PromotionMode
 from ._signing import (
     REVIEWER_SIGNATURE_HEADER,
     REVIEWER_TIMESTAMP_HEADER,
@@ -180,7 +185,6 @@ from .types import (
     PreflightResponse,
     UrBlock,
 )
-from .types._learning import RECEIPT_TERMINAL_STATUSES
 
 __all__ = [
     "DEFAULT_MAX_RETRIES",
@@ -246,10 +250,14 @@ __all__ = [
     "LearningConsentRequiredError",
     "LearningError",
     "LearningForbiddenError",
+    "LearningNotEnabledError",
     "LearningNotFoundError",
     "LearningObjective",
+    "LearningPolicyInvalidError",
     "LearningProviderUnavailableError",
     "LearningQuotaExhaustedError",
+    "LearningVersionConflictError",
+    "LessonsMode",
     "ManifestInvalidError",
     "ManifestMismatchError",
     "MaxCostExceededError",
@@ -313,6 +321,7 @@ __all__ = [
     "error_class_for",
     "is_gateway_error_code",
     "is_retryable_status",
+    "is_terminal_receipt_status",
     "is_valid_request_id",
     "learned_placement_index",
     "new_episode_key",

@@ -1,9 +1,12 @@
-"""``client.call_types``: call types, their config, evals, hosted prompts and verified memory."""
+"""``client.call_types``: call types, their config, evals, hosted prompts, verified memory and
+episode memory."""
 
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from typing import Any, Literal
+
+from typing_extensions import Unpack
 
 from .._base_client import RequestOptions
 from .._types import NOT_GIVEN, NotGiven, compact, is_given
@@ -11,6 +14,10 @@ from ..types import (
     CallType,
     CallTypeList,
     EnqueueEvalResponse,
+    EpisodeMemoryDisableResult,
+    EpisodeMemoryEnableParams,
+    EpisodeMemoryEnableResult,
+    EpisodeMemoryStatus,
     EvalRunList,
     HostedPrompt,
     HostedPromptActivation,
@@ -26,9 +33,11 @@ from ._base import AsyncAPIResource, SyncAPIResource, build, seg
 
 __all__ = [
     "AsyncCallTypes",
+    "AsyncEpisodeMemory",
     "AsyncHostedPrompts",
     "AsyncVerifiedMemory",
     "CallTypes",
+    "EpisodeMemory",
     "HostedPrompts",
     "VerifiedMemory",
 ]
@@ -201,6 +210,68 @@ class VerifiedMemory(SyncAPIResource):
         )
 
 
+class EpisodeMemory(SyncAPIResource):
+    """``client.call_types.episode_memory``: the episode-memory setting behind learning.
+
+    Learning (``client.learning``) is the supported way to turn lessons on; this is the lower-level
+    setting it writes. ``get`` reads it with a content-addressed preview of what it would serve;
+    ``disable`` is the kill switch; ``enable`` is a lab-authorised lever (a 403 without that
+    grant).
+    """
+
+    def get(
+        self,
+        call_type: str,
+        *,
+        as_of: str | None = None,
+        options: RequestOptions | None = None,
+    ) -> EpisodeMemoryStatus:
+        """Read the setting, the episode-trace accounting and a preview of the memory it would
+        serve (``as_of`` overrides the pinned instant for this read only)."""
+        return self._client.request_model(
+            build(
+                "GET",
+                f"/v1/call-types/{seg(call_type)}/episode-memory",
+                query={"as_of": as_of},
+                options=options,
+            ),
+            EpisodeMemoryStatus,
+        )
+
+    def enable(
+        self,
+        call_type: str,
+        *,
+        options: RequestOptions | None = None,
+        **params: Unpack[EpisodeMemoryEnableParams],
+    ) -> EpisodeMemoryEnableResult:
+        """Freeze an episode-memory setting on a new config version (lab-authorised).
+
+        Accepts the fields of :class:`~ultrarouter.types.EpisodeMemoryEnableParams` (``k``,
+        ``lessons``, ``record``, ``as_of``, ...). Prefer ``client.learning.enable`` for learning.
+        """
+        return self._client.request_model(
+            build(
+                "POST",
+                f"/v1/call-types/{seg(call_type)}/episode-memory/enable",
+                body=dict(params),
+                options=options,
+            ),
+            EpisodeMemoryEnableResult,
+        )
+
+    def disable(
+        self, call_type: str, *, options: RequestOptions | None = None
+    ) -> EpisodeMemoryDisableResult:
+        """Turn episode memory off (the kill switch; ``changed`` is ``False`` when already off)."""
+        return self._client.request_model(
+            build(
+                "POST", f"/v1/call-types/{seg(call_type)}/episode-memory/disable", options=options
+            ),
+            EpisodeMemoryDisableResult,
+        )
+
+
 class CallTypes(SyncAPIResource):
     """``client.call_types``: the units your traffic is grouped into, and their configuration."""
 
@@ -210,6 +281,8 @@ class CallTypes(SyncAPIResource):
         """Hosted prompt versions."""
         self.verified_memory = VerifiedMemory(client)
         """Verified-memory controls."""
+        self.episode_memory = EpisodeMemory(client)
+        """The episode-memory setting behind learning."""
 
     def list(self, *, options: RequestOptions | None = None) -> CallTypeList:
         """List the workspace's call types (``GET /v1/call-types``)."""
@@ -443,6 +516,57 @@ class AsyncVerifiedMemory(AsyncAPIResource):
         )
 
 
+class AsyncEpisodeMemory(AsyncAPIResource):
+    """``client.call_types.episode_memory`` on :class:`~ultrarouter.AsyncUltraRouter`."""
+
+    async def get(
+        self,
+        call_type: str,
+        *,
+        as_of: str | None = None,
+        options: RequestOptions | None = None,
+    ) -> EpisodeMemoryStatus:
+        """Read the episode-memory setting; async twin of :meth:`EpisodeMemory.get`."""
+        return await self._client.request_model(
+            build(
+                "GET",
+                f"/v1/call-types/{seg(call_type)}/episode-memory",
+                query={"as_of": as_of},
+                options=options,
+            ),
+            EpisodeMemoryStatus,
+        )
+
+    async def enable(
+        self,
+        call_type: str,
+        *,
+        options: RequestOptions | None = None,
+        **params: Unpack[EpisodeMemoryEnableParams],
+    ) -> EpisodeMemoryEnableResult:
+        """Enable episode memory; async twin of :meth:`EpisodeMemory.enable`."""
+        return await self._client.request_model(
+            build(
+                "POST",
+                f"/v1/call-types/{seg(call_type)}/episode-memory/enable",
+                body=dict(params),
+                options=options,
+            ),
+            EpisodeMemoryEnableResult,
+        )
+
+    async def disable(
+        self, call_type: str, *, options: RequestOptions | None = None
+    ) -> EpisodeMemoryDisableResult:
+        """Turn episode memory off; async twin of :meth:`EpisodeMemory.disable`."""
+        return await self._client.request_model(
+            build(
+                "POST", f"/v1/call-types/{seg(call_type)}/episode-memory/disable", options=options
+            ),
+            EpisodeMemoryDisableResult,
+        )
+
+
 class AsyncCallTypes(AsyncAPIResource):
     """``client.call_types`` on :class:`~ultrarouter.AsyncUltraRouter`."""
 
@@ -452,6 +576,8 @@ class AsyncCallTypes(AsyncAPIResource):
         """Hosted prompt versions."""
         self.verified_memory = AsyncVerifiedMemory(client)
         """Verified-memory controls."""
+        self.episode_memory = AsyncEpisodeMemory(client)
+        """The episode-memory setting behind learning."""
 
     async def list(self, *, options: RequestOptions | None = None) -> CallTypeList:
         """List call types; async twin of :meth:`CallTypes.list`."""

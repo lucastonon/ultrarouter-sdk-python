@@ -8,7 +8,6 @@ response must parse into the typed model the generated ``OPERATIONS`` table decl
 
 from __future__ import annotations
 
-import contextlib
 from typing import Any
 
 import pytest
@@ -16,7 +15,7 @@ from spec import api_key_operations, operations, path_regex, request_schema, val
 
 import ultrarouter
 from conftest import TEST_KEY, MockGateway
-from coverage_map import COVERAGE, EXCLUDED, PROVISIONAL
+from coverage_map import COVERAGE, EXCLUDED
 from ultrarouter import AsyncUltraRouter, BaseModel, OutcomeReceipt, UltraRouter
 from ultrarouter import types as types_module
 from ultrarouter.types import OPERATIONS
@@ -98,42 +97,3 @@ async def test_operation_async(op_id: str, mock_gateway: MockGateway) -> None:
         _check_request(op_id, mock_gateway)
     finally:
         await client.close()
-
-
-def _template(path: str) -> str:
-    """A path template with every parameter name replaced by ``{}`` (names differ by source)."""
-    import re
-
-    return re.sub(r"\{[^}]+\}", "{}", path)
-
-
-def test_provisional_learning_endpoints_are_not_in_the_spec_yet() -> None:
-    """The learning-loop endpoints the SDK calls with hand-written models. Once the synced
-    specification describes one, map it in COVERAGE (and reconcile its model) instead."""
-    in_spec = {(method, _template(path)) for method, path, _ in operations().values()}
-    for method, path, _expression, _tests in PROVISIONAL:
-        if path == "/v1/requests/{id}/outcomes":
-            assert (method, _template(path)) in in_spec  # the existing route, extended
-            continue
-        assert (method, _template(path)) not in in_spec, (
-            f"{method} {path} is now in the specification: map it in COVERAGE"
-        )
-
-
-@pytest.mark.parametrize("entry", PROVISIONAL, ids=[f"{m} {p}" for m, p, _, _ in PROVISIONAL])
-def test_provisional_expressions_call_their_endpoint(
-    entry: tuple[str, str, str, str], mock_gateway: MockGateway
-) -> None:
-    """Each listed expression sends exactly its request (a refusal from the mock is fine: only the
-    request is checked here; the behaviour is tested in the files the table names)."""
-    method, template, expression, _tests = entry
-    client = UltraRouter(api_key=TEST_KEY, base_url=mock_gateway.url, max_retries=0)
-    try:
-        with contextlib.suppress(ultrarouter.UltraRouterError):
-            eval(expression, {"client": client})  # noqa: S307
-        regex = path_regex(template)
-        assert [(r["method"], bool(regex.match(r["path"]))) for r in mock_gateway.requests] == [
-            (method, True)
-        ]
-    finally:
-        client.close()

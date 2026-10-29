@@ -2,7 +2,7 @@
 
 # API coverage
 
-Every endpoint in `openapi/openapi.yaml` that accepts an API key (82 operations):
+Every endpoint in `openapi/openapi.yaml` that accepts an API key (98 operations):
 the SDK method that calls it, sync and async, and the tests that call it against the mock
 gateway and validate the request body against the specification
 (`tests/test_api_coverage.py`).
@@ -30,8 +30,22 @@ gateway and validate the request body against the specification
 | `POST /v1/call-types` | `createCallType` | `client.call_types.create(...)` | `await client.call_types.create(...)` | `test_operation_sync[createCallType]`, `test_operation_async[createCallType]` |
 | `GET /v1/call-types/{id}` | `getCallType` | `client.call_types.get(...)` | `await client.call_types.get(...)` | `test_operation_sync[getCallType]`, `test_operation_async[getCallType]` |
 | `PATCH /v1/call-types/{id}` | `updateCallType` | `client.call_types.update(...)` | `await client.call_types.update(...)` | `test_operation_sync[updateCallType]`, `test_operation_async[updateCallType]` |
+| `GET /v1/call-types/{id}/episode-memory` | `getEpisodeMemory` | `client.call_types.episode_memory.get(...)` | `await client.call_types.episode_memory.get(...)` | `test_operation_sync[getEpisodeMemory]`, `test_operation_async[getEpisodeMemory]` |
+| `POST /v1/call-types/{id}/episode-memory/disable` | `disableEpisodeMemory` | `client.call_types.episode_memory.disable(...)` | `await client.call_types.episode_memory.disable(...)` | `test_operation_sync[disableEpisodeMemory]`, `test_operation_async[disableEpisodeMemory]` |
+| `POST /v1/call-types/{id}/episode-memory/enable` | `enableEpisodeMemory` | `client.call_types.episode_memory.enable(...)` | `await client.call_types.episode_memory.enable(...)` | `test_operation_sync[enableEpisodeMemory]`, `test_operation_async[enableEpisodeMemory]` |
 | `GET /v1/call-types/{id}/evals` | `listCallTypeEvals` | `client.call_types.list_evals(...)` | `await client.call_types.list_evals(...)` | `test_operation_sync[listCallTypeEvals]`, `test_operation_async[listCallTypeEvals]` |
 | `POST /v1/call-types/{id}/evals` | `enqueueCallTypeEval` | `client.call_types.enqueue_eval(...)` | `await client.call_types.enqueue_eval(...)` | `test_operation_sync[enqueueCallTypeEval]`, `test_operation_async[enqueueCallTypeEval]` |
+| `GET /v1/call-types/{id}/learning` | `getLearningStatus` | `client.learning.status(...)` | `await client.learning.status(...)` | `test_operation_sync[getLearningStatus]`, `test_operation_async[getLearningStatus]` |
+| `POST /v1/call-types/{id}/learning/disable` | `disableLearning` | `client.learning.disable(...)` | `await client.learning.disable(...)` | `test_operation_sync[disableLearning]`, `test_operation_async[disableLearning]` |
+| `POST /v1/call-types/{id}/learning/enable` | `enableLearning` | `client.learning.enable(...)` | `await client.learning.enable(...)` | `test_operation_sync[enableLearning]`, `test_operation_async[enableLearning]` |
+| `GET /v1/call-types/{id}/learning/evaluations` | `listLearningEvaluations` | `client.learning.evaluations(...)` | `await client.learning.evaluations(...)` | `test_operation_sync[listLearningEvaluations]`, `test_operation_async[listLearningEvaluations]` |
+| `POST /v1/call-types/{id}/learning/pause` | `pauseLearning` | `client.learning.pause(...)` | `await client.learning.pause(...)` | `test_operation_sync[pauseLearning]`, `test_operation_async[pauseLearning]` |
+| `POST /v1/call-types/{id}/learning/resume` | `resumeLearning` | `client.learning.resume(...)` | `await client.learning.resume(...)` | `test_operation_sync[resumeLearning]`, `test_operation_async[resumeLearning]` |
+| `POST /v1/call-types/{id}/learning/rollback` | `rollbackLearning` | `client.learning.rollback(...)` | `await client.learning.rollback(...)` | `test_operation_sync[rollbackLearning]`, `test_operation_async[rollbackLearning]` |
+| `GET /v1/call-types/{id}/learning/versions` | `listLearningVersions` | `client.learning.versions(...)` | `await client.learning.versions(...)` | `test_operation_sync[listLearningVersions]`, `test_operation_async[listLearningVersions]` |
+| `GET /v1/call-types/{id}/learning/versions/{version_id}` | `getLearningVersion` | `client.learning.version(...)` | `await client.learning.version(...)` | `test_operation_sync[getLearningVersion]`, `test_operation_async[getLearningVersion]` |
+| `POST /v1/call-types/{id}/learning/versions/{version_id}/promote` | `promoteLearningVersion` | `client.learning.promote(...)` | `await client.learning.promote(...)` | `test_operation_sync[promoteLearningVersion]`, `test_operation_async[promoteLearningVersion]` |
+| `POST /v1/call-types/{id}/learning/versions/{version_id}/reject` | `rejectLearningVersion` | `client.learning.reject(...)` | `await client.learning.reject(...)` | `test_operation_sync[rejectLearningVersion]`, `test_operation_async[rejectLearningVersion]` |
 | `GET /v1/call-types/{id}/prompts` | `listHostedPrompts` | `client.call_types.prompts.list(...)` | `await client.call_types.prompts.list(...)` | `test_operation_sync[listHostedPrompts]`, `test_operation_async[listHostedPrompts]` |
 | `POST /v1/call-types/{id}/prompts` | `createHostedPrompt` | `client.call_types.prompts.create(...)` | `await client.call_types.prompts.create(...)` | `test_operation_sync[createHostedPrompt]`, `test_operation_async[createHostedPrompt]` |
 | `POST /v1/call-types/{id}/prompts/deactivate` | `deactivateHostedPrompt` | `client.call_types.prompts.deactivate(...)` | `await client.call_types.prompts.deactivate(...)` | `test_operation_sync[deactivateHostedPrompt]`, `test_operation_async[deactivateHostedPrompt]` |
@@ -84,10 +98,12 @@ gateway and validate the request body against the specification
 | `POST /v1/messages` | `createMessage` | `client.request_model(...)` | `await client.request_model(...)` | `test_operation_sync[createMessage]`, `test_operation_async[createMessage]` |
 | `GET /v1/models` | `listModels` | `client.models.list(...)` | `await client.models.list(...)` | `test_operation_sync[listModels]`, `test_operation_async[listModels]` |
 | `GET /v1/models/{id}` | `getModel` | `client.models.retrieve(...)` | `await client.models.retrieve(...)` | `test_operation_sync[getModel]`, `test_operation_async[getModel]` |
+| `GET /v1/outcome-receipts/{id}` | `getOutcomeReceipt` | `client.outcomes.receipt(...)` | `await client.outcomes.receipt(...)` | `test_operation_sync[getOutcomeReceipt]`, `test_operation_async[getOutcomeReceipt]` |
 | `POST /v1/outcomes/batch` | `recordOutcomesBatch` | `client.outcomes.batch(...)` | `await client.outcomes.batch(...)` | `test_operation_sync[recordOutcomesBatch]`, `test_operation_async[recordOutcomesBatch]` |
 | `GET /v1/outcomes/pending` | `listPendingOutcomes` | `client.outcomes.pending(...)` | `await client.outcomes.pending(...)` | `test_operation_sync[listPendingOutcomes]`, `test_operation_async[listPendingOutcomes]` |
 | `POST /v1/preflight` | `preflight` | `client.preflight(...)` | `await client.preflight(...)` | `test_operation_sync[preflight]`, `test_operation_async[preflight]` |
 | `POST /v1/requests/{id}/feedback` | `submitFeedback` | `client.requests.feedback(...)` | `await client.requests.feedback(...)` | `test_operation_sync[submitFeedback]`, `test_operation_async[submitFeedback]` |
+| `GET /v1/requests/{id}/outcome-receipts` | `listRequestOutcomeReceipts` | `client.outcomes.receipts_for_request(...)` | `await client.outcomes.receipts_for_request(...)` | `test_operation_sync[listRequestOutcomeReceipts]`, `test_operation_async[listRequestOutcomeReceipts]` |
 | `POST /v1/requests/{id}/outcomes` | `recordRequestOutcome` | `client.outcomes.record(...)` | `await client.outcomes.record(...)` | `test_operation_sync[recordRequestOutcome]`, `test_operation_async[recordRequestOutcome]` |
 | `POST /v1/responses` | `createResponse` | `client.request_model(...)` | `await client.request_model(...)` | `test_operation_sync[createResponse]`, `test_operation_async[createResponse]` |
 
@@ -96,29 +112,6 @@ gateway and validate the request body against the specification
 | Endpoint | Operation | Reason |
 | --- | --- | --- |
 | `GET /v1/echo` | `echo` | Diagnostic auth echo; client.key.get() verifies a key and returns more. |
-
-## Learning-loop endpoints not yet in the specification
-
-The SDK calls these newer endpoints with hand-written, provisional models
-(`ultrarouter.types._learning`); they move to the table above when the specification
-gains them (`tests/test_api_coverage.py` fails until they do).
-
-| Endpoint | SDK method | Tests |
-| --- | --- | --- |
-| `POST /v1/requests/{id}/outcomes` | `client.outcomes.report(...)` | `tests/test_outcome_report.py` (the existing operation, now answering `pending` + `receipt`) |
-| `GET /v1/outcome-receipts/{id}` | `client.outcomes.receipt(...)` | `tests/test_outcome_report.py` |
-| `GET /v1/requests/{id}/outcome-receipts` | `client.outcomes.receipts_for_request(...)` | `tests/test_outcome_report.py` |
-| `GET /v1/call-types/{id}/learning` | `client.learning.status(...)` | `tests/test_learning_controls.py` |
-| `POST /v1/call-types/{id}/learning/enable` | `client.learning.enable(...)` | `tests/test_learning_controls.py` |
-| `POST /v1/call-types/{id}/learning/pause` | `client.learning.pause(...)` | `tests/test_learning_controls.py` |
-| `POST /v1/call-types/{id}/learning/resume` | `client.learning.resume(...)` | `tests/test_learning_controls.py` |
-| `POST /v1/call-types/{id}/learning/disable` | `client.learning.disable(...)` | `tests/test_learning_controls.py` |
-| `GET /v1/call-types/{id}/learning/versions` | `client.learning.versions(...)` | `tests/test_learning_controls.py` |
-| `GET /v1/call-types/{id}/learning/versions/{version_id}` | `client.learning.version(...)` | `tests/test_learning_controls.py` |
-| `POST /v1/call-types/{id}/learning/rollback` | `client.learning.rollback(...)` | `tests/test_learning_controls.py` |
-| `POST /v1/call-types/{id}/learning/versions/{version_id}/promote` | `client.learning.promote(...)` | `tests/test_learning_controls.py` |
-| `POST /v1/call-types/{id}/learning/versions/{version_id}/reject` | `client.learning.reject(...)` | `tests/test_learning_controls.py` |
-| `GET /v1/call-types/{id}/learning/evaluations` | `client.learning.evaluations(...)` | `tests/test_learning_controls.py` |
 
 ## Endpoints that do not accept an API key
 
@@ -158,10 +151,18 @@ an API-key SDK cannot call them:
 - `POST /v1/workspaces` (`createWorkspace`)
 - `DELETE /v1/workspaces/{id}` (`deleteWorkspace`)
 - `PATCH /v1/workspaces/{id}` (`renameWorkspace`)
+- `POST /v1/workspaces/{id}/adaptive-rollouts/activate` (`activateAdaptiveRollout`)
+- `POST /v1/workspaces/{id}/adaptive-rollouts/revoke` (`revokeAdaptiveRollout`)
 - `GET /v1/workspaces/{id}/api-keys` (`listApiKeys`)
 - `POST /v1/workspaces/{id}/api-keys` (`createApiKey`)
 - `DELETE /v1/workspaces/{id}/api-keys/{keyId}` (`revokeApiKey`)
+- `PATCH /v1/workspaces/{id}/api-keys/{keyId}` (`updateApiKey`)
 - `POST /v1/workspaces/{id}/api-keys/{keyId}/roll` (`rollApiKey`)
+- `GET /v1/workspaces/{id}/billing/account` (`getPrepaidAccount`)
+- `POST /v1/workspaces/{id}/billing/credit-checkout` (`createCreditCheckout`)
+- `POST /v1/workspaces/{id}/billing/funding` (`setPrepaidFunding`)
+- `POST /v1/workspaces/{id}/billing/pro-cancel` (`cancelProRenewal`)
+- `POST /v1/workspaces/{id}/billing/pro-checkout` (`createProCheckout`)
 - `GET /v1/workspaces/{id}/experiment-packs` (`listExperimentPacks`)
 - `POST /v1/workspaces/{id}/experiment-packs` (`createExperimentPack`)
 - `DELETE /v1/workspaces/{id}/experiment-packs/{packId}` (`revokeExperimentPack`)
@@ -186,6 +187,8 @@ an API-key SDK cannot call them:
 - `DELETE /v1/workspaces/{id}/providers/{providerId}` (`deleteCustomProvider`)
 - `GET /v1/workspaces/{id}/providers/{providerId}` (`getCustomProvider`)
 - `PATCH /v1/workspaces/{id}/providers/{providerId}` (`updateCustomProvider`)
+- `GET /v1/workspaces/{id}/self-learning` (`getSelfLearning`)
+- `PUT /v1/workspaces/{id}/self-learning` (`putSelfLearning`)
 - `GET /v1/workspaces/{id}/site-brief` (`getSiteBrief`)
 - `PUT /v1/workspaces/{id}/site-brief` (`putSiteBrief`)
 - `GET /v1/workspaces/{id}/training` (`getTrainingStatus`)

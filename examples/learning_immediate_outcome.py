@@ -9,8 +9,8 @@ Run: ULTRAROUTER_API_KEY=... ULTRAROUTER_BASE_URL=... python examples/learning_i
 
 Expected output (mock gateway; ids differ):
     request: req_...
-    reported at once: gateway status pending, receipt ork_...
-    receipt final: applied (episode: not_applicable)
+    reported at once: gateway status pending, receipt ocr_...
+    receipt final: applied (outcome accepted, episode not_applicable)
 """
 
 from __future__ import annotations
@@ -43,7 +43,8 @@ def main() -> int:
         except ReceiptWaitTimeoutError as exc:
             print(f"still pending after the wait: {exc.receipt_id} (it keeps reconciling)")
             return 1
-    print(f"receipt final: {final.status} (episode: {final.episode})")
+    outcome, episode = final.outcome_status, final.episode.status
+    print(f"receipt final: {final.status} (outcome {outcome}, episode {episode})")
     return 0 if final.status == "applied" else 1
 
 

@@ -115,6 +115,8 @@ COMPONENT_NAMES: dict[str, str] = {
     "ImprovementReadsResponse": "ImprovementReads",
     "MoatNextResponse": "MoatNext",
     "ConfirmationStatusResponse": "ConfirmationStatus",
+    "LearningControlResponse": "LearningControl",
+    "EnableLearningRequest": "LearningEnableParams",
 }
 
 #: Names for inline (non-component) response bodies, keyed by operationId.
@@ -150,6 +152,14 @@ RESPONSE_NAMES: dict[str, str] = {
     "recordFlywheelExperimentExecutionOutcome": "ExperimentExecutionOutcome",
     "evaluateFlywheelExperimentScreen": "ExperimentScreenEvaluation",
     "evaluateFlywheelExperimentTest": "ExperimentTestEvaluation",
+    "recordRequestOutcome": "RequestOutcomeResult",
+    "getOutcomeReceipt": "OutcomeReceiptRecord",
+    "listRequestOutcomeReceipts": "OutcomeReceiptRecordList",
+    "listLearningVersions": "LearningVersionList",
+    "listLearningEvaluations": "LearningEvaluationList",
+    "getEpisodeMemory": "EpisodeMemoryStatus",
+    "enableEpisodeMemory": "EpisodeMemoryEnableResult",
+    "disableEpisodeMemory": "EpisodeMemoryDisableResult",
 }
 
 #: Names for inline (non-component) request bodies, keyed by operationId.
@@ -170,10 +180,17 @@ PARAMS_NAMES: dict[str, str] = {
     "gradeVerdictSourceCheck": "VerdictSourceGradeParams",
     "enrolFlywheelExperimentExecution": "ExperimentEnrolParams",
     "recordFlywheelExperimentExecutionOutcome": "ExperimentOutcomeParams",
+    "rollbackLearning": "LearningRollbackParams",
+    "enableEpisodeMemory": "EpisodeMemoryEnableParams",
 }
 
 #: Renames for automatically-derived nested class names (auto name -> public name).
 NESTED_NAMES: dict[str, str] = {
+    # learning loop
+    "LearningStatusActiveVersion": "LearningVersionRef",
+    "LearningEvaluationArmsCandidate": "LearningEvaluationArm",
+    "LearningEnableParamsPromotion": "LearningPromotionParams",
+    "EpisodeMemoryEnableParamsLessonsRecipe": "LearnerRecipeParams",
     # chat
     "ChatCompletionCreateParamsMessage": "ChatMessageParam",
     "ChatMessageParamContentItem": "ChatContentPartParam",

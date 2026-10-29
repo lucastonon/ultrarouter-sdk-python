@@ -25,6 +25,7 @@ Catch the base class to handle everything, or a specific subclass to branch::
 
 from __future__ import annotations
 
+import re
 from collections.abc import Mapping, Sequence
 from typing import Any, NamedTuple
 
@@ -51,9 +52,12 @@ __all__ = [
     "LearningConsentRequiredError",
     "LearningError",
     "LearningForbiddenError",
+    "LearningNotEnabledError",
     "LearningNotFoundError",
+    "LearningPolicyInvalidError",
     "LearningProviderUnavailableError",
     "LearningQuotaExhaustedError",
+    "LearningVersionConflictError",
     "ManifestInvalidError",
     "ManifestMismatchError",
     "MaxCostExceededError",
@@ -78,6 +82,7 @@ __all__ = [
     "is_retryable_status",
     "learning_error",
     "parse_gateway_error_envelope",
+    "parse_learning_refusal",
 ]
 
 
@@ -105,6 +110,7 @@ GATEWAY_ERROR_TAXONOMY: Mapping[str, ErrorTaxonomyEntry] = {
     "prompt_variables_missing": ErrorTaxonomyEntry(400, False),
     "conflict": ErrorTaxonomyEntry(409, False),
     "rate_limited": ErrorTaxonomyEntry(429, True),
+    "outcome_backlog_full": ErrorTaxonomyEntry(429, True),
     "spend_cap_exceeded": ErrorTaxonomyEntry(402, False),
     "max_cost_exceeded": ErrorTaxonomyEntry(402, False),
     "atomic_spend_guard_unavailable": ErrorTaxonomyEntry(503, False),
@@ -444,11 +450,12 @@ class InternalServerError(APIStatusError):
 
 
 class OutcomeBacklogFullError(RateLimitError):
-    """``outcome_backlog_full`` (429): too many outcomes are still pending for this workspace.
+    """``outcome_backlog_full`` (429): the workspace already holds the maximum number of pending
+    outcome receipts (5,000), outcomes reported for requests not recorded yet.
 
-    Outcomes reported before the gateway has persisted their request wait as pending receipts;
-    the workspace may hold only so many. The SDK retries with backoff, and an outcome reported
-    through ``client.outcomes`` stays durably queued for ``flush()``.
+    Nothing was stored. The SDK retries after the ``Retry-After`` hint within the call's time
+    budget, and an outcome reported through ``client.outcomes`` stays durably queued for
+    ``flush()``.
     """
 
     default_code = "outcome_backlog_full"
@@ -480,44 +487,58 @@ class ReceiptWaitTimeoutError(APITimeoutError):
 LEARNING_ERROR_REASONS: tuple[str, ...] = (
     "missing_consent",
     "provider_unavailable",
+    "not_enabled",
+    "invalid_promotion",
+    "version_conflict",
     "quota_exhausted",
     "budget_exhausted",
     "not_found",
     "forbidden",
 )
 
-#: The gateway error codes (or named refusals) each learning reason is recognised from.
+#: The refusals each reason is recognised from: a named refusal (the first token of the gateway's
+#: message, as in ``"corrections_consent_required: ..."`` or
+#: ``"reflection_model_not_workspace_owned (no_workspace_key): ..."``), else the error code.
 LEARNING_ERROR_CODES: Mapping[str, tuple[str, ...]] = {
-    "missing_consent": (
-        "consent_required",
-        "corrections_consent_required",
-        "learning_consent_required",
+    "missing_consent": ("corrections_consent_required",),
+    "provider_unavailable": ("reflection_model_not_workspace_owned",),
+    "not_enabled": ("learning_not_enabled",),
+    "invalid_promotion": ("promotion_invalid",),
+    "version_conflict": (
+        "version_already_active",
+        "version_active",
+        "no_rollback_target",
+        "rollback_target_not_earlier",
     ),
-    "provider_unavailable": (
-        "learning_provider_unavailable",
-        "reflection_provider_unavailable",
-        "learning_unavailable",
-        "provider_unavailable",
-    ),
-    "quota_exhausted": ("quota_exhausted", "provider_quota_exhausted", "learning_quota_exhausted"),
-    "budget_exhausted": ("budget_exhausted", "learning_budget_exhausted", "spend_cap_exceeded"),
+    "quota_exhausted": ("quota_exhausted",),
+    "budget_exhausted": ("budget_exhausted", "spend_cap_exceeded"),
     "not_found": ("not_found",),
-    "forbidden": ("permission", "forbidden"),
+    "forbidden": ("permission",),
 }
 
-#: What to do about each learning reason.
+#: What to do about each reason.
 LEARNING_ERROR_ACTIONS: Mapping[str, str] = {
     "missing_consent": (
         "A workspace owner or admin must turn on the workspace's corrections consent before "
         "learning can be enabled."
     ),
     "provider_unavailable": (
-        "Configure a provider key for the reflection model in this workspace (learning never "
-        "falls back to another provider), then retry."
+        "Give the reflection model a workspace-owned offer (one of your custom providers, or a "
+        "provider your workspace stored its own key for); learning never falls back to a platform "
+        "provider. `detail` names what is missing."
+    ),
+    "not_enabled": "Enable learning for this call type first (client.learning.enable).",
+    "invalid_promotion": (
+        "Fix the promotion policy: `detail` names the field or combination that is out of range."
+    ),
+    "version_conflict": (
+        "Read the version history (client.learning.versions): a rollback needs an earlier, "
+        "non-active version (or a previous active one), and promote / reject act on a candidate "
+        "that is not already active."
     ),
     "quota_exhausted": (
-        "The learning provider refused for quota. Learning resumes on its own after the "
-        "provider quota resets, or resume it once the quota is raised."
+        "The learning provider refused for quota. Learning retries with backoff on its own; "
+        "resume it once the quota is raised."
     ),
     "budget_exhausted": (
         "The learning budget is spent. Raise the budget or wait for the next period, then "
@@ -525,8 +546,7 @@ LEARNING_ERROR_ACTIONS: Mapping[str, str] = {
     ),
     "not_found": "Check the call type id (or slug) and the version id.",
     "forbidden": (
-        "Use a key with the config:write scope (config:read for reads) or an owner/admin "
-        "session; promote and reject need an owner or admin."
+        "Use a key with the config:write scope (config:read for reads) or an owner/admin session."
     ),
 }
 
@@ -534,18 +554,29 @@ LEARNING_ERROR_ACTIONS: Mapping[str, str] = {
 class LearningError(APIStatusError):
     """A learning control refused for a reason you can act on.
 
-    ``reason`` names it (``missing_consent``, ``provider_unavailable``, ``quota_exhausted``,
-    ``budget_exhausted``, ``not_found`` or ``forbidden``) and ``action`` says what to do; the
-    message ends with the action too. ``code``, ``status``, ``request_id`` and ``retryable`` are the
-    gateway's. Catch a subclass to branch on one reason.
+    ``reason`` names it (see :data:`LEARNING_ERROR_REASONS`), ``refusal`` is the gateway's named
+    refusal (the first token of its message, for example ``corrections_consent_required``) or, when
+    there is none, the error code; ``detail`` is the sub-reason in parentheses when there is one
+    (for example ``no_offer`` in ``reflection_model_not_workspace_owned (no_offer)``), and
+    ``action`` says what to do; the message ends with the action too. ``code``, ``status``,
+    ``request_id`` and ``retryable`` are the gateway's. Catch a subclass to branch on one reason.
     """
 
     #: The reason this class represents.
     learning_reason: str = ""
 
-    def __init__(self, message: str, **fields: Any) -> None:
+    def __init__(
+        self,
+        message: str,
+        *,
+        refusal: str = "",
+        detail: str | None = None,
+        **fields: Any,
+    ) -> None:
         super().__init__(message, **fields)
         self.reason: str = self.learning_reason
+        self.refusal: str = refusal or self.code
+        self.detail: str | None = detail
         self.action: str = LEARNING_ERROR_ACTIONS.get(self.learning_reason, "")
 
 
@@ -556,10 +587,11 @@ class LearningConsentRequiredError(LearningError):
 
 
 class LearningProviderUnavailableError(LearningError):
-    """``provider_unavailable``: the reflection model has no usable workspace provider.
+    """``provider_unavailable``: the reflection model has no usable workspace-owned provider.
 
     Learning runs only on a provider offer the workspace configured; there is no platform or paid
-    fallback.
+    fallback. ``detail`` names why: ``no_offer``, ``platform_offer_only``, ``no_workspace_key``,
+    ``model_denied_by_policy``, ``workspace_funding_not_byok`` or ``workspace_funding_frozen``.
     """
 
     learning_reason = "provider_unavailable"
@@ -590,6 +622,28 @@ class LearningForbiddenError(LearningError, PermissionDeniedError):
     learning_reason = "forbidden"
 
 
+class LearningNotEnabledError(LearningError, ConflictError):
+    """``not_enabled`` (409 ``learning_not_enabled``): the control needs learning enabled through
+    the learning API first."""
+
+    learning_reason = "not_enabled"
+
+
+class LearningVersionConflictError(LearningError, ConflictError):
+    """``version_conflict`` (409 ``version_already_active`` / ``version_active`` /
+    ``no_rollback_target`` / ``rollback_target_not_earlier``): promoting the active version,
+    rejecting it (roll back instead), or rolling back with no earlier version to go to."""
+
+    learning_reason = "version_conflict"
+
+
+class LearningPolicyInvalidError(LearningError, InvalidRequestError):
+    """``invalid_promotion`` (400 ``promotion_invalid (<reason>)``): the promotion policy is not
+    valid; ``detail`` names the field."""
+
+    learning_reason = "invalid_promotion"
+
+
 _LEARNING_CLASSES: dict[str, type[LearningError]] = {
     cls.learning_reason: cls
     for cls in (
@@ -599,6 +653,9 @@ _LEARNING_CLASSES: dict[str, type[LearningError]] = {
         LearningBudgetExhaustedError,
         LearningNotFoundError,
         LearningForbiddenError,
+        LearningNotEnabledError,
+        LearningVersionConflictError,
+        LearningPolicyInvalidError,
     )
 }
 
@@ -715,42 +772,46 @@ def _learning_reason_for(token: str) -> str | None:
     return None
 
 
-def _named_refusal(error: APIStatusError) -> str | None:
-    """A named refusal under a generic code: ``error.reason`` in the body, else a ``snake_case:``
-    prefix of the message (how the gateway names refusals under a taxonomy code)."""
-    body = error.body
-    if isinstance(body, Mapping):
-        inner = body.get("error")
-        if isinstance(inner, Mapping) and isinstance(inner.get("reason"), str):
-            return str(inner["reason"])
-    head, sep, _ = error.message.partition(":")
-    if sep and head and head.replace("_", "").isalnum() and head == head.lower():
-        return head
-    return None
+_REFUSAL = re.compile(r"([a-z][a-z0-9]*(?:_[a-z0-9]+)+)(?:\s*\(([a-z0-9_]+)\))?(?=\s*(?::|$))")
+
+
+def parse_learning_refusal(message: str) -> tuple[str, str | None] | None:
+    """The named refusal a gateway message starts with, and its parenthesized sub-reason.
+
+    A ``snake_case`` token (at least one underscore), optionally followed by ``(detail)``, then
+    ``:`` or the end of the message; ``None`` for anything else. The TypeScript SDK's
+    ``parseLearningRefusal``.
+    """
+    match = _REFUSAL.match(message)
+    if match is None:
+        return None
+    return match.group(1), match.group(2)
 
 
 def learning_error(error: UltraRouterError) -> UltraRouterError:
     """Turn a gateway refusal of a learning control into the matching :class:`LearningError`.
 
-    The reason is recognised from the error ``code`` (:data:`LEARNING_ERROR_CODES`); a generic code
-    (``permission``, ``invalid_request``, ``conflict``, ``not_found``) is refined by a named refusal
-    in the body's ``error.reason`` or a ``reason:`` message prefix. Anything else (a transport
-    failure, an unrecognised code) is returned unchanged.
+    The named refusal at the start of the message decides first, then the error code
+    (:data:`LEARNING_ERROR_CODES`). Anything else (a transport failure, an unrecognised refusal) is
+    returned unchanged. The same rule as the TypeScript SDK's ``toLearningError``.
     """
     if not isinstance(error, APIStatusError) or isinstance(error, LearningError):
         return error
     if not error.status:  # no answer: a transport failure is not a refusal
         return error
-    reason = _learning_reason_for(error.code)
-    refusal = _named_refusal(error)
-    refined = _learning_reason_for(refusal) if refusal is not None else None
-    if refined is not None and refined not in ("not_found", "forbidden"):
-        reason = refined
+    named = parse_learning_refusal(error.message)
+    reason = _learning_reason_for(named[0]) if named is not None else None
+    if reason is not None and named is not None:
+        refusal, detail = named
+    else:
+        reason, refusal, detail = _learning_reason_for(error.code), error.code, None
     if reason is None:
         return error
     cls = _LEARNING_CLASSES[reason]
     return cls(
         f"{error.message} ({LEARNING_ERROR_ACTIONS[reason]})",
+        refusal=refusal,
+        detail=detail,
         code=error.code,
         status=error.status,
         request_id=error.request_id,

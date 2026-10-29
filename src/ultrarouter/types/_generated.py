@@ -135,6 +135,17 @@ __all__ = [
     "EmbeddingUsage",
     "EnqueueEvalParams",
     "EnqueueEvalResponse",
+    "EpisodeMemoryDisableResult",
+    "EpisodeMemoryEnableParams",
+    "EpisodeMemoryEnableParamsLessons",
+    "EpisodeMemoryEnableResult",
+    "EpisodeMemoryStatus",
+    "EpisodeMemoryStatusMemory",
+    "EpisodeMemoryStatusPlaybook",
+    "EpisodeMemoryStatusSetting",
+    "EpisodeMemoryStatusSettingLessons",
+    "EpisodeMemoryStatusSettingLessonsRecipe",
+    "EpisodeMemoryStatusTraces",
     "EvalRun",
     "EvalRunCandidate",
     "EvalRunJudge",
@@ -230,6 +241,16 @@ __all__ = [
     "KeyInfo",
     "KeyInfoLimits",
     "KeyInfoUsage",
+    "LearnerRecipeParams",
+    "LearningControl",
+    "LearningEnableParams",
+    "LearningEvaluation",
+    "LearningEvaluationArm",
+    "LearningEvaluationArms",
+    "LearningEvaluationDecidedBy",
+    "LearningEvaluationDifference",
+    "LearningEvaluationList",
+    "LearningEvaluationRule",
     "LearningPlan",
     "LearningPlanCallTypeBinding",
     "LearningPlanCallTypeBindingLabelFieldProposal",
@@ -237,6 +258,26 @@ __all__ = [
     "LearningPlanEnvelope",
     "LearningPlanList",
     "LearningPlanProposal",
+    "LearningPromotionParams",
+    "LearningPromotionPolicy",
+    "LearningRollbackParams",
+    "LearningStatus",
+    "LearningStatusBudget",
+    "LearningStatusEvidence",
+    "LearningStatusOutcomeReceipts",
+    "LearningStatusRecipe",
+    "LearningStatusReflection",
+    "LearningStatusReflectionNext",
+    "LearningStatusReflectionProvider",
+    "LearningStatusUsage",
+    "LearningVersion",
+    "LearningVersionCohort",
+    "LearningVersionDetail",
+    "LearningVersionDetailDistiller",
+    "LearningVersionDetailLesson",
+    "LearningVersionDetailTransition",
+    "LearningVersionList",
+    "LearningVersionRef",
     "ManifestWireEntryParam",
     "ManifestWireParam",
     "ManifestWireRangeParam",
@@ -288,6 +329,9 @@ __all__ = [
     "OracleVerdictsResult",
     "OracleVersion",
     "OutcomeParams",
+    "OutcomeReceiptRecord",
+    "OutcomeReceiptRecordEpisode",
+    "OutcomeReceiptRecordList",
     "OutcomeResult",
     "PendingClaim",
     "PendingClaimList",
@@ -312,6 +356,7 @@ __all__ = [
     "ReasoningParam",
     "RecordOutcomesParams",
     "RecordOutcomesResponse",
+    "RequestOutcomeResult",
     "ResponseFormatJsonObjectParam",
     "ResponseFormatJsonSchemaParam",
     "ResponseFormatTextParam",
@@ -2424,6 +2469,294 @@ class SelfImproveGuardrailsParams(TypedDict, total=False):
     """
 
 
+class EpisodeMemoryStatus(BaseModel):
+    """A call type’s episode-memory status."""
+
+    call_type_id: str
+
+    config_version: int | None
+
+    enabled: bool
+    """Whether the active config version carries a readable EXPLICIT setting (false for the explicit-off marker, an unreadable value, or no setting).
+    """
+
+    lab_authorised: bool
+    """The workspace’s staff-granted lab authorisation (`flywheel.episode_memory_lab`)."""
+
+    memory: EpisodeMemoryStatusMemory
+    """A content-addressed preview of the memory the setting (or `?as_of`) would serve now."""
+
+    object: str
+    """Known values: ``episode_memory``."""
+
+    playbook: EpisodeMemoryStatusPlaybook
+    """The latest learned playbook of the source call type (version null when none)."""
+
+    setting: EpisodeMemoryStatusSetting | None
+    """The frozen episode-memory setting on a call-type config version."""
+
+    source: str
+    """The per-call-type state — `explicit` (a readable setting is stored), `off` (an explicit opt-out, or an unreadable value fail-closed), or `default` (nothing stored — the call type follows the workspace default `flywheel.episode_memory_default`).
+
+    Known values: ``explicit``, ``default``, ``off``.
+    """
+
+    traces: EpisodeMemoryStatusTraces
+    """The call type’s episode-trace accounting (counts only)."""
+
+
+class EpisodeMemoryStatusMemory(BaseModel):
+    """A content-addressed preview of the memory the setting (or `?as_of`) would serve now."""
+
+    as_of: str | None
+    """The pin the digest was taken under (ISO), or null = live."""
+
+    digest: str
+    """`emd1_…` — a content address of the ordered eligible set (stable for a frozen checkpoint)."""
+
+    source_call_type_id: str
+    """The call type whose verified episodes would be served."""
+
+    verified_pass: int
+    """Eligible verified pass episodes of the source (verified_at ≤ pin, or all when live)."""
+
+
+class EpisodeMemoryStatusPlaybook(BaseModel):
+    """The latest learned playbook of the source call type (version null when none)."""
+
+    active_lessons: int
+    """The active-lesson count of the latest version."""
+
+    cohort_size: int
+    """The sealed cohort size of the latest version."""
+
+    digest: str | None
+    """The latest version digest (`epb1_…`), or null."""
+
+    source_call_type_id: str
+    """The call type whose playbook is reported."""
+
+    version: int | None
+    """The latest version number, or null when none."""
+
+    version_id: str | None
+    """The latest version row id (`epb_…`), or null."""
+
+
+class EpisodeMemoryStatusSetting(BaseModel):
+    """The frozen episode-memory setting on a call-type config version."""
+
+    as_of: str | None
+    """A frozen memory version (ISO), or null for live memory."""
+
+    dedupe: bool | None = None
+    """Present only when true."""
+
+    framing: str | None = None
+    """Present only when not the default `reuse`.
+
+    Known values: ``reuse``, ``adapt``.
+    """
+
+    k: int
+
+    lessons: EpisodeMemoryStatusSettingLessons | None = None
+    """Present only when the learned-playbook mode is not `off`."""
+
+    max_chars_per_episode: int
+
+    min_similarity: float | None = None
+    """Present only when set (not 0)."""
+
+    observation_chars: int
+
+    prefer_shorter: bool | None = None
+    """Present only when true."""
+
+    record: bool
+
+    retrieval_key: str | None = None
+    """Present only when not the default `first_user_message`.
+
+    Known values: ``first_user_message``, ``content_lines``.
+    """
+
+    rule_version: str
+    """`epm1` — the pure rule version a stored setting is parsed under."""
+
+    self_serve: bool | None = None
+    """Present (true) only when learning was enabled self-serve through `POST /v1/call-types/{id}/learning/enable` — a published version is then a candidate, served only once promoted.
+    """
+
+    source_call_type_id: str | None
+
+
+class EpisodeMemoryStatusSettingLessons(BaseModel):
+    """Present only when the learned-playbook mode is not `off`."""
+
+    distiller_model: str | None
+
+    k: int
+
+    mode: str
+    """Known values: ``off``, ``only``, ``with_precedents``."""
+
+    recipe: EpisodeMemoryStatusSettingLessonsRecipe | None = None
+    """Present only for a non-legacy learner recipe (absent ⇒ the legacy learner)."""
+
+    version_id: str | None
+
+
+class EpisodeMemoryStatusSettingLessonsRecipe(BaseModel):
+    """Present only for a non-legacy learner recipe (absent ⇒ the legacy learner)."""
+
+    generation: str
+    """Known values: ``bundled``, ``atomic``."""
+
+    observations: str
+    """Known values: ``legacy``, ``elo2``."""
+
+    validator: str
+    """Known values: ``elv1``, ``elv2``."""
+
+
+class EpisodeMemoryStatusTraces(BaseModel):
+    """The call type’s episode-trace accounting (counts only)."""
+
+    fail: int
+
+    latest_verified_at: str | None
+    """The newest pass verification instant (ISO), or null."""
+
+    pass_: int = Field(..., alias="pass")
+    """Episodes a whole-episode teaching outcome verified as passing."""
+
+    total: int
+
+    unverified: int
+    """Episodes still recording (no verdict yet)."""
+
+
+class EpisodeMemoryDisableResult(BaseModel):
+    """The result of disabling episode memory (model-only serving within one 5 s window)."""
+
+    call_type_id: str
+
+    changed: bool
+    """False when memory was already off (nothing written — idempotent)."""
+
+    config_version: int | None
+
+    object: str
+    """Known values: ``episode_memory_disable``."""
+
+    previous: EpisodeMemoryStatusSetting | None
+    """The frozen episode-memory setting on a call-type config version."""
+
+
+class EpisodeMemoryEnableParams(TypedDict, total=False):
+    """Enable episode memory for a call type (the lab-authorised, pre-evidence activation)."""
+
+    as_of: str | None
+    """Serve only episodes verified at or before this instant (ISO) — a frozen memory version; null = live.
+    """
+
+    dedupe: bool
+    """Serve at most one of near-identical precedents (default false)."""
+
+    framing: Literal["reuse", "adapt"]
+    """How served precedents are framed: `reuse` (default) invites reusing their calls; `adapt` presents them as evidence of how the tools behave, not values to copy.
+    """
+
+    k: int
+    """Precedents served per episode (1..5; default 3)."""
+
+    lessons: EpisodeMemoryEnableParamsLessons
+    """The learned-playbook block (absent ⇒ lessons off, byte-identical)."""
+
+    max_chars_per_episode: int
+    """Characters of actions shown per precedent (500..8000; default 3500)."""
+
+    min_similarity: float
+    """Serve only precedents at least this similar to the task (0..1; default 0, no floor)."""
+
+    observation_chars: int
+    """Characters of each kept action’s observation shown under it (0 = actions only; default 0)."""
+
+    prefer_shorter: bool
+    """Among near-equally similar precedents, serve the shortest verified solutions first (default false).
+    """
+
+    record: bool
+    """Record this call type’s episodes so outcomes can verify them (default true); false = serve only.
+    """
+
+    retrieval_key: Literal["first_user_message", "content_lines"]
+    """What precedents are ranked on: the whole first user message (default) or its content lines — without lines carrying a personal identifier or a timestamp.
+    """
+
+    source_call_type_id: str | None
+    """The call type whose verified episodes are served (same workspace); null = this call type."""
+
+
+class EpisodeMemoryEnableParamsLessons(TypedDict, total=False):
+    """The learned-playbook block (absent ⇒ lessons off, byte-identical)."""
+
+    distiller_model: str | None
+    """The model the distiller uses; null = the call type’s own model."""
+
+    k: int
+    """Lessons served per episode (1..20; default 8)."""
+
+    mode: Required[Literal["off", "only", "with_precedents"]]
+    """Serve a distilled playbook — `off` (default, byte-identical), `only` (lessons, no precedents), `with_precedents` (lessons before precedents).
+    """
+
+    recipe: LearnerRecipeParams
+    """The learner recipe the distiller runs (absent ⇒ the legacy learner)."""
+
+    version_id: str | None
+    """A frozen-arm pin: serve exactly this playbook version (`epb_…`) of the source call type; null = the latest.
+    """
+
+
+class LearnerRecipeParams(TypedDict, total=False):
+    """The learner recipe the distiller runs (absent ⇒ the legacy learner)."""
+
+    generation: Literal["bundled", "atomic"]
+    """Lesson generation: `bundled` (legacy, the default) or `atomic` (one complete rule per item with conditions, exceptions and required tools; never clipped).
+    """
+
+    observations: Literal["legacy", "elo2"]
+    """Observation selection: `legacy` (the default) or `elo2` (error→correction transitions, passed-case results and labelled user turns at the same total budget, with measured omissions).
+    """
+
+    validator: Literal["elv1", "elv2"]
+    """Lesson admission: `elv1` (legacy literal rule, the default) or `elv2` (provenance-aware: evidence support + value handling, documented constants scoped to their tool).
+    """
+
+
+class EpisodeMemoryEnableResult(BaseModel):
+    """The result of enabling episode memory (a refusal is a named HTTP error, never a 200)."""
+
+    call_type_id: str
+
+    config_version: int
+    """The new config version carrying the setting."""
+
+    enabled: bool
+    """Known values: ``True``."""
+
+    object: str
+    """Known values: ``episode_memory_enable``."""
+
+    previous: EpisodeMemoryStatusSetting | None
+    """The setting this one replaced (null when off)."""
+
+    setting: EpisodeMemoryStatusSetting
+    """The frozen episode-memory setting on a call-type config version."""
+
+
 class EvalRunList(BaseModel):
     """A call type's eval runs, each exposing its immutable RunSpec."""
 
@@ -2767,6 +3100,666 @@ class EnqueueEvalResponse(BaseModel):
 
     trigger: str | None = None
     """The prior run’s trigger (e.g. `manual`, `model.release`) — present only on a dedupe."""
+
+
+class LearningStatus(BaseModel):
+    """A call type’s learning status."""
+
+    active_version: LearningVersionRef | None
+    """The incumbent served outside an evaluation."""
+
+    budget: LearningStatusBudget
+
+    call_type_id: str
+
+    config_version: int | None
+
+    enabled: bool
+    """Lessons are switched on for the call type."""
+
+    evaluation: LearningEvaluation | None
+    """The RUNNING evaluation, if any."""
+
+    evidence: LearningStatusEvidence
+    """Evidence arrived vs verified vs incorporated vs pending."""
+
+    governed: bool
+    """Publication is not activation: candidates serve only once promoted."""
+
+    last_evaluation: LearningEvaluation | None
+    """The newest evaluation (any decision)."""
+
+    latest_candidate: LearningVersionRef | None
+
+    object: str
+    """Known values: ``learning``."""
+
+    outcome_receipts: LearningStatusOutcomeReceipts
+    """Outcome receipts (`POST /v1/requests/{id}/outcomes`) attributed to this call type’s requests, by state: a receipt counts once its request or its episode has been recorded for the call type. Settled receipts are counted until they are purged (30 days).
+    """
+
+    paused: bool
+
+    promotion: LearningPromotionPolicy | None
+    """The promotion policy (null for an ungoverned study learner — its latest version serves)."""
+
+    reason: str
+    """A bounded code explaining the state."""
+
+    recipe: LearningStatusRecipe | None
+    """The learner recipe the next reflection runs, read from the call type’s episode-memory setting (the one place it lives); null when the call type has no explicit setting.
+    """
+
+    reflection: LearningStatusReflection
+
+    self_serve: bool
+    """Enabled through this API (not a staff-granted study)."""
+
+    state: str
+    """`collecting` (enabled, waiting for evidence), `learning` (a reflection is due or an evaluation runs), `paused`, `disabled` (the kill switch), `unavailable` (consent, provider or repeated failures), `quota_exhausted` / `budget_exhausted` (refused for resources — retried with backoff), `off`.
+
+    Known values: ``off``, ``collecting``, ``learning``, ``paused``, ``disabled``, ``unavailable``, ``quota_exhausted``, ``budget_exhausted``.
+    """
+
+    usage: LearningStatusUsage
+    """Subscription / token usage, recorded separately from cash."""
+
+
+class LearningVersionRef(BaseModel):
+    """The incumbent served outside an evaluation."""
+
+    active_lessons: int
+
+    created_at: str
+    """ISO 8601 instant."""
+
+    digest: str
+
+    id: str
+
+    state: str
+    """`candidate` (published, waiting), `evaluating`, `active` (served outside an evaluation), `retired` (replaced), `rejected` (lost / stopped / rejected by an owner), `superseded` (a newer candidate, or identical to the active version).
+
+    Known values: ``candidate``, ``evaluating``, ``active``, ``retired``, ``rejected``, ``superseded``.
+    """
+
+    version: int
+
+
+class LearningStatusBudget(BaseModel):
+    """Response shape ``LearningStatusBudget``."""
+
+    consecutive_refusals: int
+
+    failure_ceiling: int
+
+    failures_since_reset: int
+
+    last_refusal_at: str | None
+    """ISO 8601 instant."""
+
+    state: str
+    """Known values: ``ok``, ``quota_exhausted``, ``budget_exhausted``."""
+
+
+class LearningEvaluation(BaseModel):
+    """A prospective randomized evaluation of a candidate against the incumbent."""
+
+    arms: LearningEvaluationArms
+
+    call_type_id: str
+
+    candidate_version_id: str
+
+    decided_at: str | None
+    """ISO 8601 instant."""
+
+    decided_by: LearningEvaluationDecidedBy | None
+
+    decision: str
+    """Every decision except `promoted` keeps the incumbent.
+
+    Known values: ``running``, ``promoted``, ``retained``, ``inconclusive``, ``rejected``, ``stopped_budget``, ``stopped_manual``.
+    """
+
+    decision_reason: str
+
+    difference: LearningEvaluationDifference | None
+    """candidate − incumbent success (a fraction) with one-sided bounds at the frozen alpha; null until both arms have a verified episode.
+    """
+
+    id: str
+    """`lev_…`"""
+
+    incumbent_version_id: str | None
+    """Null: the candidate is compared with serving no lessons."""
+
+    object: str
+    """Known values: ``learning_evaluation``."""
+
+    rule: LearningEvaluationRule | None
+    """The decision rule frozen when the evaluation started."""
+
+    rule_hash: str
+    """`lrh1_…` content address of the frozen rule."""
+
+    started_at: str
+    """ISO 8601 instant."""
+
+
+class LearningEvaluationArms(BaseModel):
+    """Response shape ``LearningEvaluationArms``."""
+
+    candidate: LearningEvaluationArm
+
+    incumbent: LearningEvaluationArm
+
+
+class LearningEvaluationArm(BaseModel):
+    """Response shape ``LearningEvaluationArm``."""
+
+    cost_micro_usd: int | None
+    """Summed request cost of the verified episodes (cost objective only)."""
+
+    mean_cost_micro_usd: float | None
+
+    pass_: int = Field(..., alias="pass")
+
+    success_rate: float | None
+
+    unknown: int
+    """Episodes assigned the arm with no verdict yet — excluded from the comparison."""
+
+    verified: int
+    """Episodes with a verified teaching outcome."""
+
+
+class LearningEvaluationDecidedBy(BaseModel):
+    """Response shape ``LearningEvaluationDecidedBy``."""
+
+    id: str | None
+
+    type: str
+    """Known values: ``system``, ``user``, ``api_key``."""
+
+
+class LearningEvaluationDifference(BaseModel):
+    """candidate − incumbent success (a fraction) with one-sided bounds at the frozen alpha; null until both arms have a verified episode."""
+
+    lower: float
+
+    point: float
+
+    upper: float
+
+
+class LearningEvaluationRule(BaseModel):
+    """The decision rule frozen when the evaluation started."""
+
+    alpha_one_sided: float
+
+    candidate_share: float
+
+    interval: str
+    """`newcombe_hybrid_score`."""
+
+    max_duration_hours: int
+
+    max_verified_per_arm: int
+
+    min_effect_pp: float
+
+    min_verified_per_arm: int
+
+    noninferiority_margin_pp: float
+
+    objective: str
+    """`success`: a higher whole-task success rate (the one-sided lower bound of the difference > 0 and the point difference ≥ `min_effect_pp`). `cost_noninferior`: a lower mean cost per episode with success not worse than the incumbent by more than `noninferiority_margin_pp`.
+
+    Known values: ``success``, ``cost_noninferior``.
+    """
+
+    outcome_source: str
+    """`verified_teaching_episode`."""
+
+    rule_version: str
+
+
+class LearningStatusEvidence(BaseModel):
+    """Evidence arrived vs verified vs incorporated vs pending."""
+
+    backlog: int
+    """Verified, not yet reflected over."""
+
+    consumed: int
+    """Verified episodes the learner has reflected over (its working line)."""
+
+    incorporated_active: int
+    """Verified episodes in the ACTIVE version’s line — arrived is not incorporated."""
+
+    latest_verified_at: str | None
+    """ISO 8601 instant."""
+
+    pending_reflection: int
+
+    recorded: int
+    """Episodes recorded."""
+
+    unknown: int
+    """Recorded without a verdict — never counted as success or failure."""
+
+    verified: int
+
+    verified_fail: int
+
+    verified_pass: int
+
+
+class LearningStatusOutcomeReceipts(BaseModel):
+    """Outcome receipts (`POST /v1/requests/{id}/outcomes`) attributed to this call type’s requests, by state: a receipt counts once its request or its episode has been recorded for the call type. Settled receipts are counted until they are purged (30 days)."""
+
+    applied: int
+    """Recorded against the request."""
+
+    episode_pending: int
+    """Applied teaching outcomes still waiting for their episode to be recorded."""
+
+    expired: int
+    """The request was never recorded within the receipt’s time limit."""
+
+    failed: int
+    """Given up after repeated database errors while applying."""
+
+    pending: int
+    """Accepted, waiting for the request to be recorded."""
+
+    rejected: int
+    """Refused (validation or conflict)."""
+
+
+class LearningPromotionPolicy(BaseModel):
+    """The promotion policy. Defaults: evaluate / success / 30–200 verified episodes per arm / one-sided alpha 0.05 / 0 pp minimum effect / 5 pp margin / 0.5 candidate share / 720 h. Changeable before an evaluation starts; a running evaluation keeps the rule it froze."""
+
+    alpha: float
+    """One-sided significance level of the interval on the difference (default 0.05)."""
+
+    candidate_share: float
+    """The share of NEW episodes assigned the candidate while an evaluation runs (default 0.5)."""
+
+    max_duration_hours: int
+    """An evaluation whose window has not closed after this long stops (`stopped_budget`; default 720).
+    """
+
+    max_verified_per_arm: int
+    """…or when EITHER arm reaches this many; each arm counts at most this many (default 200)."""
+
+    min_effect_pp: float
+    """`success`: the minimum point improvement in percentage points (default 0)."""
+
+    min_verified_per_arm: int
+    """The window closes when BOTH arms have this many verified episodes (default 30)."""
+
+    mode: str
+    """`evaluate`: a candidate must win a prospective randomized evaluation against the incumbent under a rule frozen when the evaluation starts. `manual`: a candidate waits for an owner/admin promote or reject. `immediate`: publication is activation (the legacy behaviour).
+
+    Known values: ``evaluate``, ``manual``, ``immediate``.
+    """
+
+    noninferiority_margin_pp: float
+    """`cost_noninferior`: the success non-inferiority margin in percentage points (default 5)."""
+
+    objective: str
+    """`success`: a higher whole-task success rate (the one-sided lower bound of the difference > 0 and the point difference ≥ `min_effect_pp`). `cost_noninferior`: a lower mean cost per episode with success not worse than the incumbent by more than `noninferiority_margin_pp`.
+
+    Known values: ``success``, ``cost_noninferior``.
+    """
+
+
+class LearningStatusRecipe(BaseModel):
+    """The learner recipe the next reflection runs, read from the call type’s episode-memory setting (the one place it lives); null when the call type has no explicit setting."""
+
+    generation: str
+    """Known values: ``bundled``, ``atomic``."""
+
+    legacy: bool
+    """All three are the legacy values (the original learner)."""
+
+    observations: str
+    """Known values: ``legacy``, ``elo2``."""
+
+    validator: str
+    """Known values: ``elv1``, ``elv2``."""
+
+
+class LearningStatusReflection(BaseModel):
+    """Response shape ``LearningStatusReflection``."""
+
+    last_attempt_at: str | None
+    """ISO 8601 instant."""
+
+    last_attempt_reason: str | None
+
+    last_attempt_status: str | None
+
+    last_published_at: str | None
+    """ISO 8601 instant."""
+
+    model: str | None
+
+    next: LearningStatusReflectionNext
+    """Whether the next server reflection scan will reflect, and why (not)."""
+
+    provider: LearningStatusReflectionProvider
+
+
+class LearningStatusReflectionNext(BaseModel):
+    """Whether the next server reflection scan will reflect, and why (not)."""
+
+    idle_minutes: int
+
+    min_episodes: int
+
+    reason: str
+
+    retry_at: str | None
+    """ISO 8601 instant."""
+
+    will_run: bool
+
+
+class LearningStatusReflectionProvider(BaseModel):
+    """Response shape ``LearningStatusReflectionProvider``."""
+
+    available: bool
+
+    ownership: str | None
+    """Known values: ``custom``, ``byok``, ``platform``."""
+
+    provider_slug: str | None
+
+    reason: str | None
+    """Why it is unavailable: `no_reflection_model`, `no_offer`, `platform_offer_only`, `no_workspace_key`, `model_denied_by_policy`.
+    """
+
+
+class LearningStatusUsage(BaseModel):
+    """Subscription / token usage, recorded separately from cash."""
+
+    cash_micro_usd: int
+
+    failed_calls: int
+
+    input_tokens: int
+
+    output_tokens: int
+
+    reflections: int
+
+
+class LearningControl(BaseModel):
+    """The result of a learning control."""
+
+    action: str
+    """Known values: ``enable``, ``pause``, ``resume``, ``disable``, ``rollback``, ``promote``, ``reject``.
+    """
+
+    call_type_id: str
+
+    changed: bool
+    """False when the control was already in effect (idempotent)."""
+
+    learning: LearningStatus
+    """A call type’s learning status."""
+
+    object: str
+    """Known values: ``learning_control``."""
+
+    stopped_evaluation_id: str | None
+    """A running evaluation the control stopped (`stopped_manual`)."""
+
+    version_id: str | None
+    """The version a rollback / promote / reject acted on."""
+
+
+class LearningEnableParams(TypedDict, total=False):
+    """Enable learning for a call type (owner/admin session or a `config:write` key)."""
+
+    lessons_k: int
+    """Lessons served per episode (1..20; default 8)."""
+
+    lessons_mode: Literal["only", "with_precedents"]
+    """`only` (default): serve the learned lessons; `with_precedents`: lessons first, then similar verified past episodes.
+    """
+
+    promotion: LearningPromotionParams
+    """Promotion-policy changes, merged over the current policy (or the defaults)."""
+
+    recipe: LearnerRecipeParams
+    """The learner recipe the reflection runs — its validator, lesson generation and observation selection, each optional (an absent field is the legacy value). Stored on the call type’s episode-memory setting, the ONE place the recipe lives. Omitted: the call type keeps its current recipe (the legacy learner when it has none).
+    """
+
+    reflection_model: Required[str]
+    """The model the learner reflects with. It must resolve to a WORKSPACE-OWNED offer — one of the workspace’s custom providers, or a catalog provider the workspace stored its own key for. A platform-keyed model is refused; there is no paid fallback.
+    """
+
+
+class LearningPromotionParams(TypedDict, total=False):
+    """Promotion-policy changes, merged over the current policy (or the defaults)."""
+
+    alpha: float
+    """One-sided significance level of the interval on the difference (default 0.05)."""
+
+    candidate_share: float
+    """The share of NEW episodes assigned the candidate while an evaluation runs (default 0.5)."""
+
+    max_duration_hours: int
+    """An evaluation whose window has not closed after this long stops (`stopped_budget`; default 720).
+    """
+
+    max_verified_per_arm: int
+    """…or when EITHER arm reaches this many; each arm counts at most this many (default 200)."""
+
+    min_effect_pp: float
+    """`success`: the minimum point improvement in percentage points (default 0)."""
+
+    min_verified_per_arm: int
+    """The window closes when BOTH arms have this many verified episodes (default 30)."""
+
+    mode: Literal["evaluate", "manual", "immediate"]
+    """`evaluate`: a candidate must win a prospective randomized evaluation against the incumbent under a rule frozen when the evaluation starts. `manual`: a candidate waits for an owner/admin promote or reject. `immediate`: publication is activation (the legacy behaviour).
+    """
+
+    noninferiority_margin_pp: float
+    """`cost_noninferior`: the success non-inferiority margin in percentage points (default 5)."""
+
+    objective: Literal["success", "cost_noninferior"]
+    """`success`: a higher whole-task success rate (the one-sided lower bound of the difference > 0 and the point difference ≥ `min_effect_pp`). `cost_noninferior`: a lower mean cost per episode with success not worse than the incumbent by more than `noninferiority_margin_pp`.
+    """
+
+
+class LearningEvaluationList(BaseModel):
+    """The evaluations, newest first."""
+
+    data: list[LearningEvaluation]
+
+    object: str
+    """Known values: ``list``."""
+
+
+class LearningRollbackParams(TypedDict, total=False):
+    """Roll the active pointer back to an earlier immutable version."""
+
+    version_id: str
+    """The EARLIER version to make active (`epb_…`). Omitted: the version that was active immediately before the current one.
+    """
+
+
+class LearningVersionList(BaseModel):
+    """The version history, newest first."""
+
+    data: list[LearningVersion]
+
+    object: str
+    """Known values: ``list``."""
+
+
+class LearningVersion(BaseModel):
+    """A learned playbook version."""
+
+    active_lessons: int
+
+    cohort: LearningVersionCohort
+    """The verified episodes the version was learned from."""
+
+    created_at: str
+    """ISO 8601 instant."""
+
+    digest: str
+    """A content address of the version’s active lessons (`epb1_…`)."""
+
+    evaluation_id: str | None
+    """The evaluation that set the state, if any."""
+
+    id: str
+    """The immutable version id (`epb_…`)."""
+
+    object: str
+    """Known values: ``learning_version``."""
+
+    parent_id: str | None
+
+    recipe: str
+
+    reflection_model: str | None
+
+    state: str
+    """`candidate` (published, waiting), `evaluating`, `active` (served outside an evaluation), `retired` (replaced), `rejected` (lost / stopped / rejected by an owner), `superseded` (a newer candidate, or identical to the active version).
+
+    Known values: ``candidate``, ``evaluating``, ``active``, ``retired``, ``rejected``, ``superseded``.
+    """
+
+    state_reason: str | None
+    """Why it entered its state (a bounded code); null when the state is derived."""
+
+    state_since: str | None
+    """ISO 8601 instant."""
+
+    version: int
+
+
+class LearningVersionCohort(BaseModel):
+    """The verified episodes the version was learned from."""
+
+    fail: int
+
+    pass_: int = Field(..., alias="pass")
+
+    size: int
+
+
+class LearningVersionDetail(BaseModel):
+    """One version’s lessons and provenance summary."""
+
+    active_lessons: int
+
+    cohort: LearningVersionCohort
+    """The verified episodes the version was learned from."""
+
+    created_at: str
+    """ISO 8601 instant."""
+
+    digest: str
+    """A content address of the version’s active lessons (`epb1_…`)."""
+
+    distiller: LearningVersionDetailDistiller
+    """The body-free reflection receipt (hashes and token counts only)."""
+
+    evaluation_id: str | None
+    """The evaluation that set the state, if any."""
+
+    id: str
+    """The immutable version id (`epb_…`)."""
+
+    known_functions: int
+
+    lessons: list[LearningVersionDetailLesson]
+    """The version’s active lessons, in served-ranking order input."""
+
+    object: str
+    """Known values: ``learning_version``."""
+
+    parent_id: str | None
+
+    recipe: str
+
+    reflection_model: str | None
+
+    retired_lessons: int
+
+    state: str
+    """`candidate` (published, waiting), `evaluating`, `active` (served outside an evaluation), `retired` (replaced), `rejected` (lost / stopped / rejected by an owner), `superseded` (a newer candidate, or identical to the active version).
+
+    Known values: ``candidate``, ``evaluating``, ``active``, ``retired``, ``rejected``, ``superseded``.
+    """
+
+    state_reason: str | None
+    """Why it entered its state (a bounded code); null when the state is derived."""
+
+    state_since: str | None
+    """ISO 8601 instant."""
+
+    transitions: list[LearningVersionDetailTransition]
+    """Every recorded state transition, oldest first."""
+
+    version: int
+
+
+class LearningVersionDetailDistiller(BaseModel):
+    """The body-free reflection receipt (hashes and token counts only)."""
+
+    input_tokens: int | None
+
+    model: str | None
+
+    output_tokens: int | None
+
+    provider: str | None
+
+    request_hash: str | None
+
+    response_hash: str | None
+
+
+class LearningVersionDetailLesson(BaseModel):
+    """Response shape ``LearningVersionDetailLesson``."""
+
+    evidence_cases: int
+
+    id: str
+
+    text: str
+
+
+class LearningVersionDetailTransition(BaseModel):
+    """Response shape ``LearningVersionDetailTransition``."""
+
+    actor_id: str | None
+
+    actor_type: str
+    """Known values: ``system``, ``user``, ``api_key``."""
+
+    at: str
+    """ISO 8601 instant."""
+
+    evaluation_id: str | None
+
+    reason: str
+
+    state: str
+    """`candidate` (published, waiting), `evaluating`, `active` (served outside an evaluation), `retired` (replaced), `rejected` (lost / stopped / rejected by an owner), `superseded` (a newer candidate, or identical to the active version).
+
+    Known values: ``candidate``, ``evaluating``, ``active``, ``retired``, ``rejected``, ``superseded``.
+    """
 
 
 class HostedPromptList(BaseModel):
@@ -7353,6 +8346,88 @@ class ModelOffer(BaseModel):
     """Static throughput rank (lower = faster)."""
 
 
+class OutcomeReceiptRecord(BaseModel):
+    """A durable receipt for one reported outcome."""
+
+    applied_at: str | None
+    """When the outcome was recorded."""
+
+    artifact_id: str | None
+    """The artifact the outcome landed on, once applied."""
+
+    attempts: int
+    """Recording attempts that hit an internal error (bounded; then `failed`)."""
+
+    channel: str
+    """The outcome channel as sent."""
+
+    created_at: str
+    """When the outcome was accepted."""
+
+    episode: OutcomeReceiptRecordEpisode
+    """The episode association of an applied teaching outcome."""
+
+    expires_at: str
+    """The receipt’s next deadline: while `pending`, when it expires; while its episode association is `pending`, when that becomes `not_recorded`; once settled, when the receipt itself is deleted (30 days).
+    """
+
+    id: str
+    """The receipt id (`ocr_…`)."""
+
+    kind: str
+    """The outcome kind as sent."""
+
+    object: str
+    """Known values: ``outcome_receipt``."""
+
+    outcome_event_id: str | None
+    """The recorded outcome event (`oev_…`) once applied."""
+
+    outcome_status: str | None
+    """Whether applying recorded the event for the first time (`accepted`) or found it (`duplicate`).
+
+    Known values: ``accepted``, ``duplicate``.
+    """
+
+    reason: str | None
+    """A stable machine reason when not applied: `request_not_found`, `idempotency_conflict`, `apply_failed`, or the validation reason.
+    """
+
+    request_id: str
+    """The request the outcome names."""
+
+    source_event_id: str
+    """Your idempotency discriminator, or a server-minted one when none was sent (then a retry is a new outcome).
+    """
+
+    status: str
+    """`pending` — the request has not been recorded yet; `applied` — the outcome is recorded; `rejected` — it failed validation once the request was known (see `reason`); `failed` — recording kept hitting an internal error; `expired` — no request with this id appeared in your workspace within 15 minutes (`reason: request_not_found`).
+
+    Known values: ``pending``, ``applied``, ``rejected``, ``failed``, ``expired``.
+    """
+
+    updated_at: str
+
+
+class OutcomeReceiptRecordEpisode(BaseModel):
+    """The episode association of an applied teaching outcome."""
+
+    status: str
+    """`associated` — the episode holding this request carries a verdict; `pending` — a teaching outcome waiting for its episode to be recorded; `not_recorded` — no episode held the request within 15 minutes (episode memory or recording off, a held-out request, no consent); `not_applicable` — the outcome does not teach (a proxy, behavioral or mechanical signal) or was not applied.
+
+    Known values: ``associated``, ``pending``, ``not_recorded``, ``not_applicable``.
+    """
+
+    trace_id: str | None
+    """The episode (`ept_…`) the outcome was associated with, once associated."""
+
+    verdict: str | None
+    """What the outcome did to the episode: `recorded` — it is the episode verdict; `kept_earlier` — the episode already had a verdict (the first verdict wins); `revised` — it superseded the verdict (`supersedes_event_id`) before any learned version used the episode, so the verdict was replaced; `revised_after_incorporation` — the superseded verdict was already used by a learned version: the revision is recorded and counted, the episode is not silently unlearned.
+
+    Known values: ``recorded``, ``kept_earlier``, ``revised``, ``revised_after_incorporation``.
+    """
+
+
 class BatchOutcomesParams(TypedDict, total=False):
     """Record ≤ 1,000 outcome events keyed by target."""
 
@@ -7427,6 +8502,9 @@ class BatchOutcomesResponse(BaseModel):
     object: str
     """Known values: ``list``."""
 
+    pending: int
+    """Rows whose request has not been recorded yet (durable pending receipts)."""
+
     rejected: int
 
 
@@ -7452,15 +8530,19 @@ class BatchOutcomeResult(BaseModel):
     reason: str | None
     """The rejection/conflict reason when not accepted."""
 
+    receipt: OutcomeReceiptRecord | None
+    """The durable receipt of a `request_id` row (the same receipt the request-outcome route returns for the same `source_event_id`); null for an `artifact_id` / `artifact_key` row or a row refused before one.
+    """
+
     source: str | None
     """Known values: ``declared``, ``inferred``, ``gateway``, ``imported``."""
 
     source_event_id: str | None
 
     status: str
-    """Per-event acceptance: accepted | duplicate (no-op) | conflict (409) | rejected.
+    """Per-row acceptance: accepted | duplicate (no-op) | conflict | rejected | pending — a `request_id` row whose request has not been recorded yet: stored durably and applied when it is (see `receipt`).
 
-    Known values: ``accepted``, ``duplicate``, ``conflict``, ``rejected``.
+    Known values: ``accepted``, ``duplicate``, ``conflict``, ``rejected``, ``pending``.
     """
 
     target_kind: str | None
@@ -7851,6 +8933,58 @@ class Feedback(BaseModel):
     tags: list[str]
 
 
+class OutcomeReceiptRecordList(BaseModel):
+    """Every outcome receipt for one request in your workspace, oldest first."""
+
+    data: list[OutcomeReceiptRecord]
+
+    object: str
+    """Known values: ``list``."""
+
+
+class RequestOutcomeResult(BaseModel):
+    """One request-shortcut outcome result with its durable receipt."""
+
+    artifact_id: str | None
+    """The artifact the outcome landed on (null while `pending`)."""
+
+    artifact_version: int | None
+
+    canonical_target_id: str | None
+
+    id: str | None
+    """The outcome-event id when accepted/duplicate; else null."""
+
+    latency_class: str | None
+    """Known values: ``instant``, ``delayed``."""
+
+    learning_use: list[str] | None
+    """Known values: ``train``, ``calibrate``, ``rank``, ``audit``."""
+
+    object: str
+    """Known values: ``outcome``."""
+
+    reason: str | None
+    """The rejection/conflict reason when not accepted."""
+
+    receipt: OutcomeReceiptRecord
+    """A durable receipt for one reported outcome."""
+
+    source: str | None
+    """Known values: ``declared``, ``inferred``, ``gateway``, ``imported``."""
+
+    source_event_id: str | None
+
+    status: str
+    """`accepted` — recorded now; `duplicate` — a retry of an outcome already recorded (no-op); `pending` — the request has not been recorded yet: the outcome is stored durably and applied when it is (poll the `receipt`). A conflict is answered 409 and a rejection 400 on this route.
+
+    Known values: ``accepted``, ``duplicate``, ``conflict``, ``rejected``, ``pending``.
+    """
+
+    target_kind: str | None
+    """Known values: ``artifact``, ``claim``."""
+
+
 for _model in (
     ArtifactTypeEnvelope,
     ArtifactType,
@@ -7918,6 +9052,15 @@ for _model in (
     CallTypeList,
     CallType,
     CallTypeConfigVersion,
+    EpisodeMemoryStatus,
+    EpisodeMemoryStatusMemory,
+    EpisodeMemoryStatusPlaybook,
+    EpisodeMemoryStatusSetting,
+    EpisodeMemoryStatusSettingLessons,
+    EpisodeMemoryStatusSettingLessonsRecipe,
+    EpisodeMemoryStatusTraces,
+    EpisodeMemoryDisableResult,
+    EpisodeMemoryEnableResult,
     EvalRunList,
     EvalRun,
     EvalRunCandidate,
@@ -7930,6 +9073,32 @@ for _model in (
     EvalRunSpecProfileEvaluatorSuiteJudge,
     EvalRunSpecProfileEvaluatorSuiteScorerInstance,
     EnqueueEvalResponse,
+    LearningStatus,
+    LearningVersionRef,
+    LearningStatusBudget,
+    LearningEvaluation,
+    LearningEvaluationArms,
+    LearningEvaluationArm,
+    LearningEvaluationDecidedBy,
+    LearningEvaluationDifference,
+    LearningEvaluationRule,
+    LearningStatusEvidence,
+    LearningStatusOutcomeReceipts,
+    LearningPromotionPolicy,
+    LearningStatusRecipe,
+    LearningStatusReflection,
+    LearningStatusReflectionNext,
+    LearningStatusReflectionProvider,
+    LearningStatusUsage,
+    LearningControl,
+    LearningEvaluationList,
+    LearningVersionList,
+    LearningVersion,
+    LearningVersionCohort,
+    LearningVersionDetail,
+    LearningVersionDetailDistiller,
+    LearningVersionDetailLesson,
+    LearningVersionDetailTransition,
     HostedPromptList,
     HostedPrompt,
     HostedPromptVariable,
@@ -8114,6 +9283,8 @@ for _model in (
     ModelPricing,
     ModelDetail,
     ModelOffer,
+    OutcomeReceiptRecord,
+    OutcomeReceiptRecordEpisode,
     BatchOutcomesResponse,
     BatchOutcomeResult,
     PendingClaimList,
@@ -8133,6 +9304,8 @@ for _model in (
     PreflightWhyChosen,
     FeedbackEnvelope,
     Feedback,
+    OutcomeReceiptRecordList,
+    RequestOutcomeResult,
 ):
     _model.model_rebuild()
 
@@ -8199,12 +9372,71 @@ OPERATIONS: dict[str, tuple[str, str, str | None, str | None]] = {
     "createCallType": ("POST", "/v1/call-types", "CallTypeCreateParams", "CallType"),
     "getCallType": ("GET", "/v1/call-types/{id}", None, "CallType"),
     "updateCallType": ("PATCH", "/v1/call-types/{id}", "CallTypeConfigParams", "CallType"),
+    "getEpisodeMemory": ("GET", "/v1/call-types/{id}/episode-memory", None, "EpisodeMemoryStatus"),
+    "disableEpisodeMemory": (
+        "POST",
+        "/v1/call-types/{id}/episode-memory/disable",
+        None,
+        "EpisodeMemoryDisableResult",
+    ),
+    "enableEpisodeMemory": (
+        "POST",
+        "/v1/call-types/{id}/episode-memory/enable",
+        "EpisodeMemoryEnableParams",
+        "EpisodeMemoryEnableResult",
+    ),
     "listCallTypeEvals": ("GET", "/v1/call-types/{id}/evals", None, "EvalRunList"),
     "enqueueCallTypeEval": (
         "POST",
         "/v1/call-types/{id}/evals",
         "EnqueueEvalParams",
         "EnqueueEvalResponse",
+    ),
+    "getLearningStatus": ("GET", "/v1/call-types/{id}/learning", None, "LearningStatus"),
+    "disableLearning": ("POST", "/v1/call-types/{id}/learning/disable", None, "LearningControl"),
+    "enableLearning": (
+        "POST",
+        "/v1/call-types/{id}/learning/enable",
+        "LearningEnableParams",
+        "LearningControl",
+    ),
+    "listLearningEvaluations": (
+        "GET",
+        "/v1/call-types/{id}/learning/evaluations",
+        None,
+        "LearningEvaluationList",
+    ),
+    "pauseLearning": ("POST", "/v1/call-types/{id}/learning/pause", None, "LearningControl"),
+    "resumeLearning": ("POST", "/v1/call-types/{id}/learning/resume", None, "LearningControl"),
+    "rollbackLearning": (
+        "POST",
+        "/v1/call-types/{id}/learning/rollback",
+        "LearningRollbackParams",
+        "LearningControl",
+    ),
+    "listLearningVersions": (
+        "GET",
+        "/v1/call-types/{id}/learning/versions",
+        None,
+        "LearningVersionList",
+    ),
+    "getLearningVersion": (
+        "GET",
+        "/v1/call-types/{id}/learning/versions/{version_id}",
+        None,
+        "LearningVersionDetail",
+    ),
+    "promoteLearningVersion": (
+        "POST",
+        "/v1/call-types/{id}/learning/versions/{version_id}/promote",
+        None,
+        "LearningControl",
+    ),
+    "rejectLearningVersion": (
+        "POST",
+        "/v1/call-types/{id}/learning/versions/{version_id}/reject",
+        None,
+        "LearningControl",
     ),
     "listHostedPrompts": ("GET", "/v1/call-types/{id}/prompts", None, "HostedPromptList"),
     "createHostedPrompt": (
@@ -8393,6 +9625,7 @@ OPERATIONS: dict[str, tuple[str, str, str | None, str | None]] = {
     "createMessage": ("POST", "/v1/messages", "CreateMessageParams", "CreateMessageResponse"),
     "listModels": ("GET", "/v1/models", None, "ModelList"),
     "getModel": ("GET", "/v1/models/{id}", None, "ModelDetail"),
+    "getOutcomeReceipt": ("GET", "/v1/outcome-receipts/{id}", None, "OutcomeReceiptRecord"),
     "recordOutcomesBatch": (
         "POST",
         "/v1/outcomes/batch",
@@ -8407,11 +9640,17 @@ OPERATIONS: dict[str, tuple[str, str, str | None, str | None]] = {
         "FeedbackCreateParams",
         "FeedbackEnvelope",
     ),
+    "listRequestOutcomeReceipts": (
+        "GET",
+        "/v1/requests/{id}/outcome-receipts",
+        None,
+        "OutcomeReceiptRecordList",
+    ),
     "recordRequestOutcome": (
         "POST",
         "/v1/requests/{id}/outcomes",
         "OutcomeParams",
-        "OutcomeResult",
+        "RequestOutcomeResult",
     ),
     "createResponse": ("POST", "/v1/responses", "CreateMessageParams", "CreateMessageResponse"),
 }
