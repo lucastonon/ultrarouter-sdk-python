@@ -64,7 +64,7 @@ A newer gateway may send fields this SDK version does not know yet. They are kep
 
 ## `as_openai()` raises `dependency_missing`
 
-Install the extra: `pip install "ultrarouter[openai]"`.
+Install the `openai` package (`pip install "openai>=1.55.3"`), or the wheel with its `[openai]` extra; see [Installation](installation.md#the-openai-extra).
 
 ## Is it safe to share a client between threads or tasks?
 

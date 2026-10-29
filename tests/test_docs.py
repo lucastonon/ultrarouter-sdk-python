@@ -73,7 +73,7 @@ def test_python_blocks_run(path: Path, sandbox_network: MockGateway) -> None:
     if importlib.util.find_spec("openai") is None and any(
         _needs_openai(code) for _, code, reason in blocks(path) if reason is None
     ):
-        pytest.skip("uses the optional openai package (pip install 'ultrarouter[openai]')")
+        pytest.skip("uses the optional openai package (the [openai] extra)")
     namespace: dict[str, Any] = {"__name__": "__main__"}
     ran = 0
     try:

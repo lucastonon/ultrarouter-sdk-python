@@ -1,24 +1,32 @@
 # Installation
 
-The package is published as `ultrarouter` and supports Python 3.10 through 3.14.
+The package is named `ultrarouter` and supports Python 3.10 through 3.14.
 
-## pip
+> **Not on PyPI yet.** `pip install ultrarouter` does not work today: the package has not been
+> published to any package registry. Install it from a wheel you build from the repository, or
+> straight from the public GitHub source.
 
-```bash
-pip install ultrarouter
-```
-
-## uv
+## From a locally built wheel
 
 ```bash
-uv add ultrarouter
+git clone https://github.com/lucastonon/ultrarouter-sdk-python.git
+cd ultrarouter-sdk-python
+uv build                                    # writes dist/ultrarouter-<version>-py3-none-any.whl and the sdist
+pip install dist/ultrarouter-0.1.0-py3-none-any.whl
 ```
 
-## Poetry
+Copy the wheel wherever you need it; it has no build-time requirements. With uv or Poetry, add the
+file path the same way (`uv add ./dist/ultrarouter-0.1.0-py3-none-any.whl`,
+`poetry add ./dist/ultrarouter-0.1.0-py3-none-any.whl`).
+
+## From the GitHub source
 
 ```bash
-poetry add ultrarouter
+pip install "ultrarouter @ git+https://github.com/lucastonon/ultrarouter-sdk-python.git"
+uv add "ultrarouter @ git+https://github.com/lucastonon/ultrarouter-sdk-python.git"
 ```
+
+Pin a commit for reproducible installs (`...ultrarouter-sdk-python.git@<commit>`).
 
 ## The `openai` extra
 
@@ -26,12 +34,14 @@ poetry add ultrarouter
 gateway. It needs the `openai` package, which the extra installs:
 
 ```bash
-pip install "ultrarouter[openai]"
+pip install "dist/ultrarouter-0.1.0-py3-none-any.whl[openai]"
+pip install "ultrarouter[openai] @ git+https://github.com/lucastonon/ultrarouter-sdk-python.git"
 ```
 
-Without the extra, `as_openai()` raises an `UltraRouterError` with code `dependency_missing`
-explaining what to install. Everything else works without it. The extra requires
-`openai>=1.55.3`: older `openai` releases cannot construct a client with `httpx` 0.28 or newer.
+Or install `openai` yourself (`pip install "openai>=1.55.3"`). Without it, `as_openai()` raises an
+`UltraRouterError` with code `dependency_missing` explaining what to install. Everything else works
+without it. The extra requires `openai>=1.55.3`: older `openai` releases cannot construct a client
+with `httpx` 0.28 or newer.
 
 ## Dependencies
 
@@ -46,8 +56,9 @@ Every lower bound is tested: the suite runs with all dependencies at their floor
 of `httpx`, `pydantic` and `openai` at its floor while the others are at their newest versions
 (`make test-lowest`).
 
-The context runtime (`ultrarouter.context`) and the pure helpers (`diff_stats`,
-`render_prompt`, learned placement) use only the standard library.
+The context runtime (`ultrarouter.context`), the outcome adapters (`ultrarouter.adapters`), the
+demonstration environment (`ultrarouter.demo`) and the pure helpers (`diff_stats`,
+`render_prompt`, learned placement) use only the standard library and pydantic.
 
 ## Verify the installation
 

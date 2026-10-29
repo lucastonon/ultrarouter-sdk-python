@@ -8,8 +8,7 @@ llms.txt.
 
 # ultrarouter Python SDK
 
-[![PyPI](https://img.shields.io/pypi/v/ultrarouter.svg)](https://pypi.org/project/ultrarouter/)
-[![Python versions](https://img.shields.io/pypi/pyversions/ultrarouter.svg)](https://pypi.org/project/ultrarouter/)
+[![Python 3.10 to 3.14](https://img.shields.io/badge/python-3.10%20to%203.14-blue.svg)](https://github.com/lucastonon/ultrarouter-sdk-python/blob/main/pyproject.toml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/lucastonon/ultrarouter-sdk-python/blob/main/LICENSE)
 
 The official Python client for ultrarouter, an OpenAI-compatible LLM gateway with model routing,
@@ -31,12 +30,20 @@ fallbacks, evals, and an outcome ledger that records what happened after a model
 
 ## Install
 
+The package is **not on PyPI** (or any registry) yet, so `pip install ultrarouter` does not work.
+Build a wheel from this repository and install it, or install from the GitHub source:
+
 ```bash
-pip install ultrarouter            # or: uv add ultrarouter / poetry add ultrarouter
-pip install "ultrarouter[openai]"  # adds the openai package for client.as_openai()
+git clone https://github.com/lucastonon/ultrarouter-sdk-python.git
+cd ultrarouter-sdk-python && uv build
+pip install dist/ultrarouter-0.1.0-py3-none-any.whl            # add [openai] for client.as_openai()
+
+# or, without cloning:
+pip install "ultrarouter @ git+https://github.com/lucastonon/ultrarouter-sdk-python.git"
 ```
 
-Python 3.10 or newer. Runtime dependencies: `httpx`, `pydantic` (v2) and `typing-extensions`.
+Python 3.10 or newer. Runtime dependencies: `httpx`, `pydantic` (v2) and `typing-extensions`. See
+[Installation](https://github.com/lucastonon/ultrarouter-sdk-python/blob/main/docs/installation.md).
 
 ## 60-second quickstart
 
@@ -260,12 +267,15 @@ This file is for AI coding agents (and humans in a hurry). Part 1 is for agents 
 
 ### Install
 
+`ultrarouter` is **not on PyPI** (or any registry) yet: `pip install ultrarouter` fails. Install a
+wheel built from the repository, or the GitHub source:
+
 ```bash
-pip install ultrarouter            # uv add ultrarouter / poetry add ultrarouter
-pip install "ultrarouter[openai]"  # only if you need client.as_openai()
+uv build && pip install dist/ultrarouter-0.1.0-py3-none-any.whl   # "...whl[openai]" for as_openai()
+pip install "ultrarouter @ git+https://github.com/lucastonon/ultrarouter-sdk-python.git"
 ```
 
-Python 3.10+. Import name: `ultrarouter`.
+Python 3.10+. Import name: `ultrarouter`. Never tell a user `pip install ultrarouter` works.
 
 ### Configure from the environment
 
@@ -418,7 +428,7 @@ mock gateway, so the snippets match the code.
 
 | Guide | What it covers |
 | --- | --- |
-| [Installation](installation.md) | pip, uv and Poetry; the `openai` extra; supported Python versions |
+| [Installation](installation.md) | from a locally built wheel or the GitHub source (not on PyPI yet); the `openai` extra; supported Python versions |
 | [Configuration and authentication](configuration.md) | API keys, base URL and self-hosted gateways, environment variables, client defaults, `autopilot`, Bench tagging |
 | [Sync and async clients](clients.md) | `UltraRouter` vs `AsyncUltraRouter`, lifecycle, connection pools, `with_options`, concurrency |
 
@@ -484,25 +494,33 @@ For AI agents: [AGENTS.md](../AGENTS.md) explains how to install and use the SDK
 
 # Installation
 
-The package is published as `ultrarouter` and supports Python 3.10 through 3.14.
+The package is named `ultrarouter` and supports Python 3.10 through 3.14.
 
-## pip
+> **Not on PyPI yet.** `pip install ultrarouter` does not work today: the package has not been
+> published to any package registry. Install it from a wheel you build from the repository, or
+> straight from the public GitHub source.
 
-```bash
-pip install ultrarouter
-```
-
-## uv
+## From a locally built wheel
 
 ```bash
-uv add ultrarouter
+git clone https://github.com/lucastonon/ultrarouter-sdk-python.git
+cd ultrarouter-sdk-python
+uv build                                    # writes dist/ultrarouter-<version>-py3-none-any.whl and the sdist
+pip install dist/ultrarouter-0.1.0-py3-none-any.whl
 ```
 
-## Poetry
+Copy the wheel wherever you need it; it has no build-time requirements. With uv or Poetry, add the
+file path the same way (`uv add ./dist/ultrarouter-0.1.0-py3-none-any.whl`,
+`poetry add ./dist/ultrarouter-0.1.0-py3-none-any.whl`).
+
+## From the GitHub source
 
 ```bash
-poetry add ultrarouter
+pip install "ultrarouter @ git+https://github.com/lucastonon/ultrarouter-sdk-python.git"
+uv add "ultrarouter @ git+https://github.com/lucastonon/ultrarouter-sdk-python.git"
 ```
+
+Pin a commit for reproducible installs (`...ultrarouter-sdk-python.git@<commit>`).
 
 ## The `openai` extra
 
@@ -510,12 +528,14 @@ poetry add ultrarouter
 gateway. It needs the `openai` package, which the extra installs:
 
 ```bash
-pip install "ultrarouter[openai]"
+pip install "dist/ultrarouter-0.1.0-py3-none-any.whl[openai]"
+pip install "ultrarouter[openai] @ git+https://github.com/lucastonon/ultrarouter-sdk-python.git"
 ```
 
-Without the extra, `as_openai()` raises an `UltraRouterError` with code `dependency_missing`
-explaining what to install. Everything else works without it. The extra requires
-`openai>=1.55.3`: older `openai` releases cannot construct a client with `httpx` 0.28 or newer.
+Or install `openai` yourself (`pip install "openai>=1.55.3"`). Without it, `as_openai()` raises an
+`UltraRouterError` with code `dependency_missing` explaining what to install. Everything else works
+without it. The extra requires `openai>=1.55.3`: older `openai` releases cannot construct a client
+with `httpx` 0.28 or newer.
 
 ## Dependencies
 
@@ -530,8 +550,9 @@ Every lower bound is tested: the suite runs with all dependencies at their floor
 of `httpx`, `pydantic` and `openai` at its floor while the others are at their newest versions
 (`make test-lowest`).
 
-The context runtime (`ultrarouter.context`) and the pure helpers (`diff_stats`,
-`render_prompt`, learned placement) use only the standard library.
+The context runtime (`ultrarouter.context`), the outcome adapters (`ultrarouter.adapters`), the
+demonstration environment (`ultrarouter.demo`) and the pure helpers (`diff_stats`,
+`render_prompt`, learned placement) use only the standard library and pydantic.
 
 ## Verify the installation
 
@@ -1475,7 +1496,7 @@ print(reply.choices[0].message.content, reply.ur.cost_usd)
 
 ## Option 2: the `openai` package, configured by `as_openai()`
 
-Install the extra (`pip install "ultrarouter[openai]"`), then:
+Install the `openai` extra (see [Installation](installation.md#the-openai-extra)), then:
 
 ```python
 from ultrarouter import UltraRouter
@@ -3991,7 +4012,7 @@ A newer gateway may send fields this SDK version does not know yet. They are kep
 
 ## `as_openai()` raises `dependency_missing`
 
-Install the extra: `pip install "ultrarouter[openai]"`.
+Install the `openai` package (`pip install "openai>=1.55.3"`), or the wheel with its `[openai]` extra; see [Installation](installation.md#the-openai-extra).
 
 ## Is it safe to share a client between threads or tasks?
 

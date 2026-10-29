@@ -24,7 +24,7 @@ print(reply.choices[0].message.content, reply.ur.cost_usd)
 
 ## Option 2: the `openai` package, configured by `as_openai()`
 
-Install the extra (`pip install "ultrarouter[openai]"`), then:
+Install the `openai` extra (see [Installation](installation.md#the-openai-extra)), then:
 
 ```python
 from ultrarouter import UltraRouter

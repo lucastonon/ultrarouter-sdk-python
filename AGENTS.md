@@ -7,12 +7,15 @@ This file is for AI coding agents (and humans in a hurry). Part 1 is for agents 
 
 ### Install
 
+`ultrarouter` is **not on PyPI** (or any registry) yet: `pip install ultrarouter` fails. Install a
+wheel built from the repository, or the GitHub source:
+
 ```bash
-pip install ultrarouter            # uv add ultrarouter / poetry add ultrarouter
-pip install "ultrarouter[openai]"  # only if you need client.as_openai()
+uv build && pip install dist/ultrarouter-0.1.0-py3-none-any.whl   # "...whl[openai]" for as_openai()
+pip install "ultrarouter @ git+https://github.com/lucastonon/ultrarouter-sdk-python.git"
 ```
 
-Python 3.10+. Import name: `ultrarouter`.
+Python 3.10+. Import name: `ultrarouter`. Never tell a user `pip install ultrarouter` works.
 
 ### Configure from the environment
 

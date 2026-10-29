@@ -1,7 +1,6 @@
 # ultrarouter Python SDK
 
-[![PyPI](https://img.shields.io/pypi/v/ultrarouter.svg)](https://pypi.org/project/ultrarouter/)
-[![Python versions](https://img.shields.io/pypi/pyversions/ultrarouter.svg)](https://pypi.org/project/ultrarouter/)
+[![Python 3.10 to 3.14](https://img.shields.io/badge/python-3.10%20to%203.14-blue.svg)](https://github.com/lucastonon/ultrarouter-sdk-python/blob/main/pyproject.toml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/lucastonon/ultrarouter-sdk-python/blob/main/LICENSE)
 
 The official Python client for ultrarouter, an OpenAI-compatible LLM gateway with model routing,
@@ -23,12 +22,20 @@ fallbacks, evals, and an outcome ledger that records what happened after a model
 
 ## Install
 
+The package is **not on PyPI** (or any registry) yet, so `pip install ultrarouter` does not work.
+Build a wheel from this repository and install it, or install from the GitHub source:
+
 ```bash
-pip install ultrarouter            # or: uv add ultrarouter / poetry add ultrarouter
-pip install "ultrarouter[openai]"  # adds the openai package for client.as_openai()
+git clone https://github.com/lucastonon/ultrarouter-sdk-python.git
+cd ultrarouter-sdk-python && uv build
+pip install dist/ultrarouter-0.1.0-py3-none-any.whl            # add [openai] for client.as_openai()
+
+# or, without cloning:
+pip install "ultrarouter @ git+https://github.com/lucastonon/ultrarouter-sdk-python.git"
 ```
 
-Python 3.10 or newer. Runtime dependencies: `httpx`, `pydantic` (v2) and `typing-extensions`.
+Python 3.10 or newer. Runtime dependencies: `httpx`, `pydantic` (v2) and `typing-extensions`. See
+[Installation](https://github.com/lucastonon/ultrarouter-sdk-python/blob/main/docs/installation.md).
 
 ## 60-second quickstart
 

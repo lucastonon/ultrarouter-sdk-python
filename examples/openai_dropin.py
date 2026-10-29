@@ -1,6 +1,6 @@
 """Use the official openai package against the gateway via as_openai().
 
-Needs the extra: pip install "ultrarouter[openai]".
+Needs the openai package (the [openai] extra; see docs/installation.md).
 Run: ULTRAROUTER_API_KEY=... ULTRAROUTER_BASE_URL=... python examples/openai_dropin.py
 """
 

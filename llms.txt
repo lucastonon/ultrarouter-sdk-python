@@ -6,10 +6,11 @@
 > (`UltraRouter`) and async (`AsyncUltraRouter`) clients with the same surface; typed pydantic
 > responses; typed errors; automatic retries.
 
-Version 0.1.0. Install with `pip install ultrarouter`. Configure with the
-`ULTRAROUTER_API_KEY` and `ULTRAROUTER_BASE_URL` environment variables. Model ids are
-provider-prefixed (for example `openai/gpt-5.2-mini`). Read AGENTS.md first for canonical
-patterns and pitfalls.
+Version 0.1.0. Not published on PyPI: install from a wheel built from
+the repository (`uv build`, then `pip install dist/ultrarouter-<version>-py3-none-any.whl`) or
+from the GitHub source. Configure with the `ULTRAROUTER_API_KEY` and `ULTRAROUTER_BASE_URL`
+environment variables. Model ids are provider-prefixed (for example `openai/gpt-5.2-mini`).
+Read AGENTS.md first for canonical patterns and pitfalls.
 
 ## Start here
 
@@ -19,7 +20,7 @@ patterns and pitfalls.
 
 ## Getting started
 
-- [Installation](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/main/docs/installation.md): pip, uv and Poetry; the openai extra; supported Python versions
+- [Installation](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/main/docs/installation.md): from a locally built wheel or the GitHub source (not on PyPI yet); the openai extra; supported Python versions
 - [Configuration and authentication](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/main/docs/configuration.md): API keys, base URL and self-hosted gateways, environment variables, client defaults, autopilot, Bench tagging
 - [Sync and async clients](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/main/docs/clients.md): UltraRouter vs AsyncUltraRouter, lifecycle, connection pools, with_options, concurrency
 

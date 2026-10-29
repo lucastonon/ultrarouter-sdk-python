@@ -9,7 +9,7 @@ mock gateway, so the snippets match the code.
 
 | Guide | What it covers |
 | --- | --- |
-| [Installation](installation.md) | pip, uv and Poetry; the `openai` extra; supported Python versions |
+| [Installation](installation.md) | from a locally built wheel or the GitHub source (not on PyPI yet); the `openai` extra; supported Python versions |
 | [Configuration and authentication](configuration.md) | API keys, base URL and self-hosted gateways, environment variables, client defaults, `autopilot`, Bench tagging |
 | [Sync and async clients](clients.md) | `UltraRouter` vs `AsyncUltraRouter`, lifecycle, connection pools, `with_options`, concurrency |
 
