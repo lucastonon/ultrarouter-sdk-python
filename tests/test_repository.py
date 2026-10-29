@@ -19,7 +19,9 @@ import pytest
 import yaml
 
 import ultrarouter
+import ultrarouter.adapters
 import ultrarouter.context
+import ultrarouter.demo
 import ultrarouter.types
 
 if sys.version_info >= (3, 11):
@@ -108,10 +110,18 @@ def test_parity_goldens_match_the_typescript_reference() -> None:
 
 # ── public API and docstrings ──
 
+PUBLIC_MODULES = (
+    ultrarouter,
+    ultrarouter.adapters,
+    ultrarouter.context,
+    ultrarouter.demo,
+    ultrarouter.types,
+)
+
 
 def _public_objects() -> list[tuple[str, Any]]:
     found: list[tuple[str, Any]] = []
-    for module in (ultrarouter, ultrarouter.context, ultrarouter.types):
+    for module in PUBLIC_MODULES:
         for name in module.__all__:
             found.append((f"{module.__name__}.{name}", getattr(module, name)))
     from ultrarouter import UltraRouter
@@ -132,7 +142,7 @@ def _public_objects() -> list[tuple[str, Any]]:
 
 
 def test_every_public_name_resolves() -> None:
-    for module in (ultrarouter, ultrarouter.context, ultrarouter.types):
+    for module in PUBLIC_MODULES:
         assert len(module.__all__) == len(set(module.__all__)), module.__name__
         for name in module.__all__:
             assert hasattr(module, name), f"{module.__name__}.{name}"

@@ -230,7 +230,9 @@ def _namespaces(client_cls: type) -> list[tuple[str, type]]:
 
 def api_reference() -> str:
     import ultrarouter
+    import ultrarouter.adapters as adapters
     import ultrarouter.context as context
+    import ultrarouter.demo as demo
     from ultrarouter import AsyncUltraRouter, UltraRouter
 
     out: list[str] = [
@@ -252,6 +254,8 @@ def api_reference() -> str:
         "- [Errors](#errors)",
         "- [Helpers and constants](#helpers-and-constants)",
         "- [Context runtime](#context-runtime)",
+        "- [Outcome adapters](#outcome-adapters)",
+        "- [Demonstration environment](#demonstration-environment)",
         "",
         "## Clients",
         "",
@@ -348,6 +352,8 @@ def api_reference() -> str:
         "AsyncEpisode",
         "BaseModel",
         "types",
+        "adapters",
+        "demo",
         "__version__",
     }
     for name in sorted(ultrarouter.__all__, key=str.lower):
@@ -371,6 +377,25 @@ def api_reference() -> str:
     ]
     for name in sorted(context.__all__, key=str.lower):
         out += _symbol(name, getattr(context, name), prefix="context.")
+    out += [
+        "",
+        "## Outcome adapters",
+        "",
+        "`ultrarouter.adapters` exports:",
+        "",
+    ]
+    for name in sorted(adapters.__all__, key=str.lower):
+        out += _symbol(name, getattr(adapters, name), prefix="adapters.")
+    out += [
+        "",
+        "## Demonstration environment",
+        "",
+        "`ultrarouter.demo` exports (a deterministic demonstration, not evidence that learning",
+        "improves an agent):",
+        "",
+    ]
+    for name in sorted(demo.__all__, key=str.lower):
+        out += _symbol(name, getattr(demo, name), prefix="demo.")
     text = "\n".join(out)
     return re.sub(r"\n{3,}", "\n\n", text).rstrip() + "\n"
 

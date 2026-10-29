@@ -3,8 +3,9 @@
 An OpenAI-compatible client (``client.chat.completions.create``, ``client.embeddings.create``,
 ``client.models.list``) plus the ultrarouter surfaces: call types, Bench, the outcome ledger,
 preflight and learned context, the reviewer adapter, the learning loop (request and episode
-correlation, ``client.outcomes.report`` with receipts and ``client.learning`` controls), and a
-pure context runtime (:mod:`ultrarouter.context`).
+correlation, ``client.outcomes.report`` with receipts, ``client.learning`` controls, starter outcome
+adapters in :mod:`ultrarouter.adapters` and a demonstration environment in :mod:`ultrarouter.demo`),
+and a pure context runtime (:mod:`ultrarouter.context`).
 
 Quickstart::
 
@@ -21,7 +22,7 @@ Quickstart::
 Every response model lives in :mod:`ultrarouter.types`; the most used ones are re-exported here.
 """
 
-from . import types
+from . import adapters, demo, types
 from ._base_client import APIRequest, RequestOptions
 from ._client import (
     ArtifactScope,
@@ -302,10 +303,12 @@ __all__ = [
     "Verdict",
     "VerdictEvent",
     "__version__",
+    "adapters",
     "apply_learned_context",
     "candidate_decision_callback_id",
     "correlation_headers",
     "decide_preflight_cache",
+    "demo",
     "diff_stats",
     "error_class_for",
     "is_gateway_error_code",

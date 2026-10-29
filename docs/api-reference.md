@@ -16,6 +16,8 @@ coroutines (`await` them) unless noted. For response shapes see the
 - [Errors](#errors)
 - [Helpers and constants](#helpers-and-constants)
 - [Context runtime](#context-runtime)
+- [Outcome adapters](#outcome-adapters)
+- [Demonstration environment](#demonstration-environment)
 
 ## Clients
 
@@ -3235,3 +3237,305 @@ ultrarouter_manifest_encoder(manifest: dict[str, Any]) -> EncodedManifest
 The ultrarouter-default manifest encoder (profile form).
 
 - `context.ULTRAROUTER_PROFILE`: `CompatibilityProfile` instance.
+
+## Outcome adapters
+
+`ultrarouter.adapters` exports:
+
+### adapters.DedupeStore
+
+Remembers which webhook event ids were handled. `claim` must be atomic: it returns
+`True` only to the first caller for an id (until the claim expires or is released). Back it
+with a unique database row or a Redis `SET NX PX` to deduplicate across processes.
+
+- `claim(event_id: str, ttl_s: float) -> bool`
+- `release(event_id: str) -> None`
+
+- `adapters.DEFAULT_DEDUPE_TTL_S` = `604800.0`
+- `adapters.DEFAULT_WEBHOOK_SECRET_ENV` = `'ULTRAROUTER_WEBHOOK_SECRET'`
+- `adapters.DEFAULT_WEBHOOK_TOLERANCE_S` = `300.0`
+### adapters.evidence_hash
+
+```python
+evidence_hash(evidence: Any) -> str
+```
+
+`"sha256:"` plus the hex SHA-256 of the canonical JSON of `evidence` (keys sorted
+recursively, JavaScript-compatible numbers): what an outcome carries as `evidence_hash`
+instead of the evidence. The same value hashes the same in the TypeScript SDK.
+
+### adapters.MemoryDedupeStore
+
+The default in-process `DedupeStore`: thread-safe, claims expire after their TTL,
+and the oldest claims are forgotten beyond `max_entries`. One process only.
+
+**Args**
+
+- `max_entries`: Most claims remembered (default 10,000; oldest forgotten first).
+- `clock`: Current time in seconds (injectable for tests).
+
+- `claim(event_id: str, ttl_s: float) -> bool`
+- `release(event_id: str) -> None`
+
+### adapters.parse_webhook_outcome
+
+```python
+parse_webhook_outcome(payload: Mapping[str, Any]) -> WebhookOutcome
+```
+
+Read the default payload: `event_id`, `request_id`, `verdict` (`pass`/`fail`/
+`unknown`), optional `observed_at` and `evidence_hash`; raises
+`WebhookPayloadError` otherwise.
+
+- `adapters.Rule` = `collections.abc.Callable[[typing.Any], 'bool | str | None']`
+### adapters.run_test_suite
+
+```python
+run_test_suite(
+    command: Sequence[str | os.PathLike[str]],
+    *,
+    cwd: str | os.PathLike[str] | None = None,
+    env: Mapping[str, str] | None = None,
+    timeout: float = 600.0,
+    unknown_codes: Sequence[int] = (),
+) -> VerifierResult
+```
+
+Run a test suite as a subprocess and judge it with `verdict_from_command`.
+
+`command` is an argument list (never a shell string), for example
+`["python", "-m", "pytest", "-q", "tests/test_task.py"]` (pass `unknown_codes=(5,)` so
+"no tests collected" is not a fail). A missing program (`command_not_found`) or a timeout
+(`timed_out`) is `unknown`.
+
+### adapters.run_verifier
+
+```python
+run_verifier(
+    check: Check,
+    *,
+    on_error: Literal['unknown', 'fail'] = 'unknown',
+    source: Literal['verifier', 'business_rule'] = 'verifier',
+) -> VerifierResult
+```
+
+Run a computable check and turn its answer into a `VerifierResult`.
+
+`check` returns `True` (pass) or `False` (fail); or a mapping with a boolean `"pass"`
+and optional `"evidence"` (hashed into `evidence_hash`) and `"reasons"`; or a full
+`VerifierResult`. Anything else is `unknown` (`check_returned_no_verdict`).
+
+A check that raises is `unknown` (`verifier_error`: a crashed verifier is not evidence
+that the task failed), unless `on_error="fail"` (`check_threw`). An `AssertionError` is
+always a `fail`: in Python a failing assertion is how a check says no.
+
+### adapters.sign_webhook
+
+```python
+sign_webhook(
+    raw_body: str | bytes,
+    *,
+    secret: str | None = None,
+    secret_env: str = 'ULTRAROUTER_WEBHOOK_SECRET',
+    now_s: float | None = None,
+    signature_header: str = 'x-webhook-signature',
+    timestamp_header: str = 'x-webhook-timestamp',
+) -> dict[str, str]
+```
+
+The headers a sender attaches: `x-webhook-timestamp` and `x-webhook-signature`.
+
+For the system that sends the webhook (and for tests). `raw_body` must be the exact bytes
+sent. The secret defaults to the `secret_env` environment variable.
+
+### adapters.validate_output
+
+```python
+validate_output(
+    output: str | bytes | Mapping[str, Any] | pydantic.BaseModel,
+    model: type[ModelT],
+    *,
+    rules: Mapping[str, Rule] | None = None,
+) -> ValidationResult[ModelT]
+```
+
+Validate structured output against `model` and the named business `rules`.
+
+Example:
+
+```python
+from pydantic import BaseModel
+
+from ultrarouter.adapters import validate_output
+
+class Refund(BaseModel):
+    order_id: str
+    amount: float
+
+result = validate_output(
+    '{"order_id": "A-100", "amount": 12.5}',
+    Refund,
+    rules={"amount is positive": lambda r: r.amount > 0},
+)
+assert result.verdict == "pass" and result.value is not None
+```
+
+**Args**
+
+- `output`: The raw JSON text (`str` / `bytes`), an already decoded mapping, or a model.
+- `model`: The pydantic model the output must satisfy.
+- `rules`: Business rules by name; each takes the validated model.
+
+### adapters.ValidationResult
+
+The verdict of `validate_output`, and the validated value when it validated.
+
+### adapters.verdict_from_command
+
+```python
+verdict_from_command(
+    exit_code: int | None,
+    *,
+    stdout: str = '',
+    stderr: str = '',
+    signal_name: str | None = None,
+    unknown_codes: Sequence[int] = (),
+) -> VerifierResult
+```
+
+A command's verdict: exit code `0` passes, any other exit code fails, and a process killed
+by a signal (no exit code) is `unknown`. `unknown_codes` marks exit codes that mean "could
+not decide" (for example pytest's `5`, no tests collected). The evidence hash covers the exit
+code, the signal and both outputs; the outputs are kept locally in `details`.
+
+### adapters.VerifierResult
+
+A verifier's verdict, the hash of its evidence and the local reasons. Report it with:
+
+```python
+```
+
+from ultrarouter.adapters import run_verifier
+
+result = run_verifier(lambda: 2 + 2 == 4)
+assert result.verdict == "pass"
+# client.outcomes.report(request_id, result.verdict, source=result.source,
+#                        evidence_hash=result.evidence_hash)
+
+- `adapters.WEBHOOK_SIGNATURE_HEADER` = `'x-webhook-signature'`
+- `adapters.WEBHOOK_TIMESTAMP_HEADER` = `'x-webhook-timestamp'`
+### adapters.WebhookHandled
+
+What `WebhookOutcomeHandler.handle` did with one delivery, and what to answer.
+
+### adapters.WebhookOutcome
+
+The outcome a webhook carries.
+
+### adapters.WebhookOutcomeHandler
+
+Verify, deduplicate and report delayed outcomes from a signed webhook.
+
+Call `handle` (sync client) or `ahandle` (async client) from your webhook route
+with the raw body bytes and the headers, and answer the sender with `result.http_status`.
+
+**Args**
+
+- `verifier`: The header, freshness and signature check.
+- `dedupe`: Where handled event ids are claimed (default `MemoryDedupeStore`).
+- `dedupe_ttl_s`: How long a claim lasts (default 7 days).
+- `parse`: Turns the verified payload into a `WebhookOutcome`.
+
+- `handle(client: UltraRouter, raw_body: str | bytes, headers: Mapping[str, Any]) -> WebhookHandled`
+- `ahandle(
+    client: AsyncUltraRouter,
+    raw_body: str | bytes,
+    headers: Mapping[str, Any],
+) -> WebhookHandled`
+
+### adapters.WebhookPayloadError
+
+The signed body is not the expected JSON payload.
+
+- `adapters.WebhookRejectReason` = `typing.Literal['missing_signature', 'missing_timestamp', 'malformed_signature', 'malformed_timestamp', 'stale_timestamp', 'bad_signature', 'malformed_payload']`
+### adapters.WebhookSignatureError
+
+The signature header is missing, malformed, or does not verify under any secret.
+
+### adapters.WebhookTimestampError
+
+The timestamp header is missing, malformed or outside the tolerance window (a replay).
+
+### adapters.WebhookVerificationError
+
+A webhook was refused before anything was reported.
+
+`reason` is one of the `WebhookRejectReason` values; `http_status` is what to answer
+the sender (401, or 400 for a malformed payload). The message never contains the secret, the
+signature or the body.
+
+### adapters.WebhookVerifier
+
+Verifies a webhook's headers, freshness and signature, then decodes its JSON body.
+
+Example:
+
+```python
+import json
+
+from ultrarouter.adapters import WebhookVerifier, sign_webhook
+
+body = json.dumps({"event_id": "evt_1", "request_id": "req_1", "verdict": "pass"})
+headers = sign_webhook(body, secret="demo-secret")
+payload = WebhookVerifier(secret="demo-secret").verify(body, headers)
+assert payload["verdict"] == "pass"
+```
+
+**Args**
+
+- `secret`: The shared secret, or several (any one may sign: rotation). Default: the `secret_env` environment variable.
+- `secret_env`: The environment variable to read the secret from.
+- `tolerance_s`: How far the timestamp may be from now, either way, in seconds.
+- `signature_header`: The signature header name.
+- `timestamp_header`: The timestamp header name.
+- `clock`: Current Unix time in seconds (injectable for tests).
+
+- `verify(raw_body: str | bytes, headers: Mapping[str, Any]) -> dict[str, Any]`
+- `verify_signed(raw_body: str | bytes, headers: Mapping[str, Any]) -> tuple[dict[str, Any], int]`
+
+## Demonstration environment
+
+`ultrarouter.demo` exports (a deterministic demonstration, not evidence that learning
+improves an agent):
+
+- `demo.NOTICE` = `'Deterministic demonstration environment. It shows the integration working end to end; it is not evidence that learning improves an agent.'`
+### demo.order_desk_spec
+
+```python
+order_desk_spec() -> dict[str, Any]
+```
+
+The shared environment fixture, parsed (a fresh copy on every call).
+
+### demo.OrderDesk
+
+One scenario of the order desk, with its own mutable state.
+
+**Args**
+
+- `scenario`: A scenario id (`"s1"` ... `"s6"`).
+
+- `call(name: str, arguments: str | Mapping[str, Any]) -> dict[str, Any]`
+- `tool_message(tool_call: Any) -> dict[str, Any]`
+- `named_orders() -> list[str]`
+- `state() -> dict[str, Any]`
+- `verify() -> VerifierResult`
+- `solve() -> list[dict[str, Any]]`
+
+### demo.scenario_ids
+
+```python
+scenario_ids() -> list[str]
+```
+
+The scenario ids, in fixture order (`s1` ... `s6`).
