@@ -72,6 +72,14 @@ patterns and pitfalls.
 - [embeddings.py](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/main/examples/embeddings.py): Embed a few texts and rank them by cosine similarity to a query.
 - [errors_and_retries.py](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/main/examples/errors_and_retries.py): Handle typed errors: an unpriced model, an unknown model and retry settings.
 - [hosted_prompt.py](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/main/examples/hosted_prompt.py): Fetch the active hosted prompt of a call type and render it locally.
+- [learning_ack_loss.py](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/main/examples/learning_ack_loss.py): A lost acknowledgement and a repeated report never count twice.
+- [learning_async.py](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/main/examples/learning_async.py): The learning loop with the async client: an episode, a report, a cancellable receipt wait.
+- [learning_controls.py](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/main/examples/learning_controls.py): Learning controls for one call type: status, enable, pause/resume, versions, evaluations.
+- [learning_delayed_webhook.py](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/main/examples/learning_delayed_webhook.py): A delayed outcome from a signed webhook: verified, deduplicated, reported once.
+- [learning_immediate_outcome.py](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/main/examples/learning_immediate_outcome.py): Report the outcome the moment you have the answer: no sleep, no waiting for persistence.
+- [learning_native_verifier.py](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/main/examples/learning_native_verifier.py): Native SDK plus a real, computable verifier: the answer is checked, not trusted.
+- [learning_openai_client.py](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/main/examples/learning_openai_client.py): Keep your existing OpenAI client; add one header and one outcome report.
+- [learning_tool_episode.py](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/main/examples/learning_tool_episode.py): A multi-step tool episode: every step correlated, one terminal verdict for the whole task.
 - [openai_dropin.py](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/main/examples/openai_dropin.py): Use the official openai package against the gateway via as_openai().
 - [outcomes.py](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/main/examples/outcomes.py): Record what happened after an answer: artifacts, outcome events and the edited final.
 - [preflight_learned.py](https://raw.githubusercontent.com/lucastonon/ultrarouter-sdk-python/main/examples/preflight_learned.py): Use learned context on a call you make directly to a provider (no proxying).
