@@ -84,8 +84,10 @@ chat call; the response's `ur.artifact_id` echoes the bound artifact.
 | `rejected` | a validated refusal of the **event**: a 4xx other than 401/403/408/429 whose body is a complete envelope `{"error": {"code", "message", "request_id", "retryable": false}}` with `invalid_request` at 400, `not_found` at 404 or `conflict` at 409 | dropped; `receipt.error` says why |
 
 `delivered` needs a result the contract defines: an object whose `status` is `accepted`,
-`duplicate`, `conflict` or `rejected` (the server's verdict on the event). These rules are the
-same in the TypeScript SDK; both run the same shared fixture of 271 response cases.
+`duplicate`, `conflict` or `rejected` (the server's verdict on the event), or `pending` (an
+outcome reported on a request the gateway has not stored yet: the gateway holds a durable receipt
+and applies it when the request lands). These rules are the same in the TypeScript SDK; both run
+the same shared fixture of 273 response cases.
 
 ```python
 receipt = client.outcomes.record(artifact.id, {"channel": "behavioral", "kind": "accepted"})

@@ -26,6 +26,7 @@ never prompt or completion text.
 
 from __future__ import annotations
 
+import asyncio
 import copy
 import json
 import os
@@ -33,6 +34,7 @@ import secrets
 import tempfile
 import threading
 import time
+from collections import OrderedDict
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -45,6 +47,7 @@ from ._errors import (
     OutcomeStoreError,
     UltraRouterError,
 )
+from ._jscompat import canonical_json
 
 __all__ = [
     "AsyncOutcomeQueue",
@@ -288,12 +291,15 @@ def is_definitive_rejection(err: BaseException) -> bool:
     )
 
 
-#: The statuses the contract defines for one recorded outcome.
-_OUTCOME_RESULT_STATUSES = frozenset({"accepted", "duplicate", "conflict", "rejected"})
+#: The statuses the contract defines for one recorded outcome. ``pending`` is the request
+#: shortcut's durable acceptance: the gateway holds a receipt and applies the event once the
+#: request it names lands, so the event is delivered and leaves the queue.
+_OUTCOME_RESULT_STATUSES = frozenset({"accepted", "duplicate", "conflict", "rejected", "pending"})
 
 
 def is_outcome_result(value: Any) -> bool:
-    """Whether a 2xx answer is an outcome result: an object with a known ``status``."""
+    """Whether a 2xx answer is an outcome result: an object whose ``status`` is ``accepted``,
+    ``duplicate``, ``conflict``, ``rejected`` or ``pending`` (the shared fixture's rule)."""
     return isinstance(value, Mapping) and value.get("status") in _OUTCOME_RESULT_STATUSES
 
 
@@ -381,6 +387,18 @@ def _finalize_event(
 OutcomeSender = Callable[[QueuedEntry, Mapping[str, Any]], Any]
 AsyncOutcomeSender = Callable[[QueuedEntry, Mapping[str, Any]], Awaitable[Any]]
 
+#: How many delivered events ``enqueue_stable`` remembers for byte-identical replays.
+DELIVERED_MEMORY = 1024
+
+
+@dataclass
+class _Inflight:
+    """One stable enqueue in flight on a thread; concurrent repeats wait for its receipt."""
+
+    done: threading.Event = field(default_factory=threading.Event)
+    receipt: OutcomeReceipt | None = None
+    error: BaseException | None = None
+
 
 class _OutcomeQueueBase:
     def __init__(
@@ -392,9 +410,14 @@ class _OutcomeQueueBase:
         self.store = store
         self._now_ms = now_ms or (lambda: time.time() * 1000)
         self._gen_id = gen_id or new_ulid
+        # Shared (by reference) with every ``with_sender`` copy, like the store.
+        self._delivered: OrderedDict[str, dict[str, Any]] = OrderedDict()
+        self._memory_lock = threading.Lock()
 
-    def _new_entry(self, target: Mapping[str, str], outcome: Mapping[str, Any]) -> QueuedEntry:
-        entry_id = self._gen_id()
+    def _new_entry(
+        self, target: Mapping[str, str], outcome: Mapping[str, Any], entry_id: str | None = None
+    ) -> QueuedEntry:
+        entry_id = entry_id or self._gen_id()
         return {
             "id": entry_id,
             "idempotency_key": f"ur-outcome-{entry_id}",
@@ -403,6 +426,43 @@ class _OutcomeQueueBase:
             "enqueued_at": iso_from_ms(self._now_ms()),
             "attempts": 0,
         }
+
+    def _remember(self, entry: QueuedEntry) -> None:
+        """Remember a delivered event (bounded, oldest forgotten first) for ``enqueue_stable``."""
+        with self._memory_lock:
+            self._delivered.pop(entry["id"], None)
+            self._delivered[entry["id"]] = dict(entry["event"])
+            while len(self._delivered) > DELIVERED_MEMORY:
+                self._delivered.popitem(last=False)
+
+    def _plan_stable(
+        self, entry_id: str, target: Mapping[str, str], outcome: Mapping[str, Any]
+    ) -> tuple[QueuedEntry, bool]:
+        """The entry a stable enqueue delivers, and whether it must be appended to the store.
+
+        * an entry with ``entry_id`` still in the store is replayed verbatim;
+        * an event this queue delivered earlier under ``entry_id`` is replayed with its original
+          bytes (``observed_at`` included) unless the caller now sends a different payload;
+        * a different payload under the same identity becomes its own entry, so the gateway
+          answers it as a conflict instead of it silently replacing the first;
+        * otherwise a new entry under ``entry_id`` (``observed_at`` stamped now, if absent).
+        """
+        stored = next((e for e in self.store.list() if e.get("id") == entry_id), None)
+        with self._memory_lock:
+            remembered = self._delivered.get(entry_id)
+        known = stored["event"] if stored is not None else remembered
+        if known is None:
+            return self._new_entry(target, outcome, entry_id), True
+        candidate = dict(outcome)
+        if candidate.get("observed_at") is None and known.get("observed_at") is not None:
+            candidate["observed_at"] = known["observed_at"]
+        if canonical_json(candidate) != canonical_json(known):
+            return self._new_entry(target, candidate), True
+        if stored is not None:
+            return stored, False
+        replay = self._new_entry(target, known, entry_id)
+        replay["event"] = dict(known)
+        return replay, True
 
     def _on_failure(self, entry: QueuedEntry, err: Exception) -> OutcomeReceipt:
         error = _classify(err)
@@ -431,6 +491,8 @@ class OutcomeQueue(_OutcomeQueueBase):
     ) -> None:
         super().__init__(store, now_ms, gen_id)
         self._send = send
+        self._inflight: dict[str, _Inflight] = {}
+        self._inflight_lock = threading.Lock()
 
     def with_sender(self, send: OutcomeSender) -> OutcomeQueue:
         """A queue over the same store (and clock and id source) that delivers through ``send``."""
@@ -448,6 +510,44 @@ class OutcomeQueue(_OutcomeQueueBase):
         entry = self._new_entry(target, outcome)
         self.store.append(entry)
         return self._deliver(entry, options or {})
+
+    def enqueue_stable(
+        self,
+        entry_id: str,
+        target: Mapping[str, str],
+        outcome: Mapping[str, Any],
+        options: Mapping[str, Any] | None = None,
+    ) -> OutcomeReceipt:
+        """Like :meth:`enqueue`, under a caller-chosen stable entry id.
+
+        The ``Idempotency-Key`` derives from the entry id, so it is stable too. A repeat of the same
+        identity never creates a second event (see ``_plan_stable``), and concurrent calls for one
+        id from several threads share one send.
+        """
+        with self._inflight_lock:
+            running = self._inflight.get(entry_id)
+            owner = running is None
+            if running is None:
+                running = self._inflight[entry_id] = _Inflight()
+        if not owner:
+            running.done.wait()
+            if running.error is not None:
+                raise running.error
+            assert running.receipt is not None
+            return running.receipt
+        try:
+            entry, append = self._plan_stable(entry_id, target, outcome)
+            if append:
+                self.store.append(entry)
+            running.receipt = self._deliver(entry, options or {})
+            return running.receipt
+        except BaseException as error:
+            running.error = error
+            raise
+        finally:
+            with self._inflight_lock:
+                self._inflight.pop(entry_id, None)
+            running.done.set()
 
     def flush(self, options: Mapping[str, Any] | None = None) -> OutcomeFlushReport:
         """Try to deliver every queued event (oldest first)."""
@@ -470,6 +570,7 @@ class OutcomeQueue(_OutcomeQueueBase):
         except Exception as err:
             return self._on_failure(entry, err)
         self.store.remove(entry["id"])
+        self._remember(entry)
         return OutcomeReceipt(status="delivered", entry_id=entry["id"], result=dict(result))
 
 
@@ -485,6 +586,7 @@ class AsyncOutcomeQueue(_OutcomeQueueBase):
     ) -> None:
         super().__init__(store, now_ms, gen_id)
         self._send = send
+        self._inflight: dict[str, asyncio.Future[OutcomeReceipt]] = {}
 
     def with_sender(self, send: AsyncOutcomeSender) -> AsyncOutcomeQueue:
         """A queue over the same store (and clock and id source) that delivers through ``send``."""
@@ -501,6 +603,41 @@ class AsyncOutcomeQueue(_OutcomeQueueBase):
         """Finalize, persist, then try to deliver one event."""
         entry = self._new_entry(target, outcome)
         self.store.append(entry)
+        return await self._deliver(entry, options or {})
+
+    async def enqueue_stable(
+        self,
+        entry_id: str,
+        target: Mapping[str, str],
+        outcome: Mapping[str, Any],
+        options: Mapping[str, Any] | None = None,
+    ) -> OutcomeReceipt:
+        """Async twin of :meth:`OutcomeQueue.enqueue_stable`; concurrent calls for one id share one
+        send, and cancelling one caller never cancels the send the others wait on."""
+        running = self._inflight.get(entry_id)
+        if running is None:
+            running = asyncio.ensure_future(self._run_stable(entry_id, target, outcome, options))
+            self._inflight[entry_id] = running
+
+            def _done(task: asyncio.Future[OutcomeReceipt], key: str = entry_id) -> None:
+                if self._inflight.get(key) is task:
+                    del self._inflight[key]
+                if not task.cancelled():
+                    task.exception()  # retrieved here, so a caller-less failure is never logged
+
+            running.add_done_callback(_done)
+        return await asyncio.shield(running)
+
+    async def _run_stable(
+        self,
+        entry_id: str,
+        target: Mapping[str, str],
+        outcome: Mapping[str, Any],
+        options: Mapping[str, Any] | None,
+    ) -> OutcomeReceipt:
+        entry, append = self._plan_stable(entry_id, target, outcome)
+        if append:
+            self.store.append(entry)
         return await self._deliver(entry, options or {})
 
     async def flush(self, options: Mapping[str, Any] | None = None) -> OutcomeFlushReport:
@@ -524,6 +661,7 @@ class AsyncOutcomeQueue(_OutcomeQueueBase):
         except Exception as err:
             return self._on_failure(entry, err)
         self.store.remove(entry["id"])
+        self._remember(entry)
         return OutcomeReceipt(status="delivered", entry_id=entry["id"], result=dict(result))
 
 

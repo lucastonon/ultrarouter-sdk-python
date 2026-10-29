@@ -24,7 +24,7 @@ from ultrarouter import AsyncUltraRouter, MemoryOutcomeStore, UltraRouter, Ultra
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURE = ROOT / "tests" / "fixtures" / "queue_retention_cases.json"
 #: The sha256 of the shared fixture; a new copy from the TypeScript SDK must update it.
-FIXTURE_SHA256 = "97b862a9608910866a9f9097cdd6e8e8c7e3133e79d532da2375bc3ee83321b0"
+FIXTURE_SHA256 = "edf3d641150ea623586536bcd97947c3530742fc88ad532182a6309d1c21da45"
 
 DATA = json.loads(FIXTURE.read_text("utf-8"))
 CASES: list[dict[str, Any]] = DATA["cases"]
@@ -94,7 +94,7 @@ def test_fixture_is_the_pinned_shared_copy() -> None:
     data = FIXTURE.read_bytes()
     assert hashlib.sha256(data).hexdigest() == FIXTURE_SHA256
     assert DATA["schema"] == "ultrarouter.queue-retention-cases.v1"
-    assert len({case["id"] for case in CASES}) == len(CASES) == 271
+    assert len({case["id"] for case in CASES}) == len(CASES) == 273
     kinds = {case["kind"] for case in CASES}
     assert kinds == {"outcome", "artifact-outcome", "reviewer"}
     for kind in kinds:

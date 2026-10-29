@@ -82,7 +82,7 @@ masks exact substrings (`<path glob>:<substring>  # reason`) and must stay minim
   `tests/fixtures/parity/`. After changing shared behaviour, regenerate the expected values from
   the TypeScript SDK: `node scripts/gen_parity_goldens.mjs --ts-sdk ../ultrarouter-sdk-typescript`.
 - **Queue retention fixture.** `tests/fixtures/queue_retention_cases.json` is a byte-for-byte copy
-  of the TypeScript SDK's `test/fixtures/queue-retention-cases.json`: 271 response cases that both
+  of the TypeScript SDK's `test/fixtures/queue-retention-cases.json`: 273 response cases that both
   SDKs must keep or drop identically (`tests/test_queue_retention_fixture.py` runs each one through
   the sync and the async client). Never edit it here: copy the new version and update the pinned
   sha256 in that test.
