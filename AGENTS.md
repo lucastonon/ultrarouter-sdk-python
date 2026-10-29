@@ -68,7 +68,10 @@ with client.episode("order:A-100") as episode:  # key -> X-UR-Artifact; ids mint
     report = episode.report("pass", source="verifier")  # pass | fail | unknown
 if report.reported and report.receipt_id:
     final = client.outcomes.wait_for_receipt(report)  # pending -> applied
-status = client.learning.status("support-reply")  # learning controls per call type
+call_type = next((ct for ct in client.call_types.list().data if ct.slug == "support-reply"), None)
+if call_type is None:
+    call_type = client.call_types.create(slug="support-reply")
+status = client.learning.status(call_type.id)  # learning requires the ct_… id, not the slug
 ```
 
 Async: `AsyncUltraRouter` has the same methods; `await` them and use `async with`.
