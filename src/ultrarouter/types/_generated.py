@@ -3245,7 +3245,8 @@ class LearningEvaluation(BaseModel):
     """Known values: ``learning_evaluation``."""
 
     rule: LearningEvaluationRule | None
-    """The decision rule frozen when the evaluation started."""
+    """The decision rule frozen when the evaluation started. lpr2 selects episodes before inspecting their outcomes, freezes one cohort, and makes one decision only from complete selected outcomes or the fixed deadline.
+    """
 
     rule_hash: str
     """`lrh1_…` content address of the frozen rule."""
@@ -3266,16 +3267,19 @@ class LearningEvaluationArm(BaseModel):
     """Response shape ``LearningEvaluationArm``."""
 
     cost_micro_usd: int | None
-    """Summed request cost of the verified episodes (cost objective only)."""
+    """Summed request cost of verified episodes within the selected cohort (cost objective only)."""
 
     mean_cost_micro_usd: float | None
 
     pass_: int = Field(..., alias="pass")
 
     success_rate: float | None
+    """Descriptive pass / verified rate. Under lpr2 a promotion decision waits for complete outcomes in the frozen cohort.
+    """
 
     unknown: int
-    """Episodes assigned the arm with no verdict yet — excluded from the comparison."""
+    """Selected episodes without an eligible verified outcome, including reports after the fixed deadline. Under lpr2 they remain in the frozen cohort and block promotion; missing outcomes at the fixed deadline leave the incumbent active. Historical lpr1 evaluations excluded and counted unknown outcomes.
+    """
 
     verified: int
     """Episodes with a verified teaching outcome."""
@@ -3301,7 +3305,7 @@ class LearningEvaluationDifference(BaseModel):
 
 
 class LearningEvaluationRule(BaseModel):
-    """The decision rule frozen when the evaluation started."""
+    """The decision rule frozen when the evaluation started. lpr2 selects episodes before inspecting their outcomes, freezes one cohort, and makes one decision only from complete selected outcomes or the fixed deadline."""
 
     alpha_one_sided: float
 
@@ -3330,6 +3334,8 @@ class LearningEvaluationRule(BaseModel):
     """`verified_teaching_episode`."""
 
     rule_version: str
+    """lpr2 freezes enrollment before waiting for outcomes; lpr1 identifies historical verified-only rules.
+    """
 
 
 class LearningStatusEvidence(BaseModel):
@@ -3385,26 +3391,29 @@ class LearningStatusOutcomeReceipts(BaseModel):
 
 
 class LearningPromotionPolicy(BaseModel):
-    """The promotion policy. Defaults: evaluate / success / 30–200 verified episodes per arm / one-sided alpha 0.05 / 0 pp minimum effect / 5 pp margin / 0.5 candidate share / 720 h. Changeable before an evaluation starts; a running evaluation keeps the rule it froze."""
+    """The promotion policy. Defaults: evaluate / success / enrollment thresholds 30–200 episodes per arm / one-sided alpha 0.05 / 0 pp minimum effect / 5 pp margin / 0.5 candidate share / 720 h. Changeable before an evaluation starts; a running evaluation keeps the rule it froze."""
 
     alpha: float
     """One-sided significance level of the interval on the difference (default 0.05)."""
 
     candidate_share: float
-    """The share of NEW episodes assigned the candidate while an evaluation runs (default 0.5)."""
+    """The share of NEW enrolled episodes assigned the candidate while enrollment is open (default 0.5). After enrollment closes, new episodes use the active version while selected episodes finish.
+    """
 
     max_duration_hours: int
-    """An evaluation whose window has not closed after this long stops (`stopped_budget`; default 720).
+    """The fixed deadline from evaluation start, including time to receive selected outcomes (default 720). Incomplete evidence cannot promote a candidate; the deadline never resets.
     """
 
     max_verified_per_arm: int
-    """…or when EITHER arm reaches this many; each arm counts at most this many (default 200)."""
+    """Compatibility field name. Under lpr2, enrollment also closes when EITHER arm reaches this many enrolled episodes; each frozen arm contains at most this many (default 200).
+    """
 
     min_effect_pp: float
     """`success`: the minimum point improvement in percentage points (default 0)."""
 
     min_verified_per_arm: int
-    """The window closes when BOTH arms have this many verified episodes (default 30)."""
+    """Compatibility field name. Under lpr2, enrollment closes when BOTH arms have this many enrolled episodes (default 30); the selected episodes are then frozen and their verified outcomes are awaited.
+    """
 
     mode: str
     """`evaluate`: a candidate must win a prospective randomized evaluation against the incumbent under a rule frozen when the evaluation starts; it serves a randomized share of eligible episodes during that comparison. `manual`: a candidate waits for an owner/admin promote or reject. `immediate`: publication is activation (the legacy behaviour).
@@ -3557,20 +3566,23 @@ class LearningPromotionParams(TypedDict, total=False):
     """One-sided significance level of the interval on the difference (default 0.05)."""
 
     candidate_share: float
-    """The share of NEW episodes assigned the candidate while an evaluation runs (default 0.5)."""
+    """The share of NEW enrolled episodes assigned the candidate while enrollment is open (default 0.5). After enrollment closes, new episodes use the active version while selected episodes finish.
+    """
 
     max_duration_hours: int
-    """An evaluation whose window has not closed after this long stops (`stopped_budget`; default 720).
+    """The fixed deadline from evaluation start, including time to receive selected outcomes (default 720). Incomplete evidence cannot promote a candidate; the deadline never resets.
     """
 
     max_verified_per_arm: int
-    """…or when EITHER arm reaches this many; each arm counts at most this many (default 200)."""
+    """Compatibility field name. Under lpr2, enrollment also closes when EITHER arm reaches this many enrolled episodes; each frozen arm contains at most this many (default 200).
+    """
 
     min_effect_pp: float
     """`success`: the minimum point improvement in percentage points (default 0)."""
 
     min_verified_per_arm: int
-    """The window closes when BOTH arms have this many verified episodes (default 30)."""
+    """Compatibility field name. Under lpr2, enrollment closes when BOTH arms have this many enrolled episodes (default 30); the selected episodes are then frozen and their verified outcomes are awaited.
+    """
 
     mode: Literal["evaluate", "manual", "immediate"]
     """`evaluate`: a candidate must win a prospective randomized evaluation against the incumbent under a rule frozen when the evaluation starts; it serves a randomized share of eligible episodes during that comparison. `manual`: a candidate waits for an owner/admin promote or reject. `immediate`: publication is activation (the legacy behaviour).

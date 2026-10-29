@@ -3696,7 +3696,7 @@ A prospective randomized evaluation of a candidate against the incumbent.
 | `id` | `str` | yes | `lev_…` |
 | `incumbent_version_id` | `str \| None` | yes | Null: the candidate is compared with serving no lessons. |
 | `object` | `str` | yes | Known values: ``learning_evaluation``. |
-| `rule` | `LearningEvaluationRule \| None` | yes | The decision rule frozen when the evaluation started. |
+| `rule` | `LearningEvaluationRule \| None` | yes | The decision rule frozen when the evaluation started. lpr2 selects episodes before inspecting their outcomes, freezes one cohort, and makes one decision only from complete selected outcomes or the fixed deadline. |
 | `rule_hash` | `str` | yes | `lrh1_…` content address of the frozen rule. |
 | `started_at` | `str` | yes | ISO 8601 instant. |
 
@@ -3708,11 +3708,11 @@ Response shape `LearningEvaluationArm`.
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `cost_micro_usd` | `int \| None` | yes | Summed request cost of the verified episodes (cost objective only). |
+| `cost_micro_usd` | `int \| None` | yes | Summed request cost of verified episodes within the selected cohort (cost objective only). |
 | `mean_cost_micro_usd` | `float \| None` | yes |  |
 | `pass` | `int` | yes |  |
-| `success_rate` | `float \| None` | yes |  |
-| `unknown` | `int` | yes | Episodes assigned the arm with no verdict yet — excluded from the comparison. |
+| `success_rate` | `float \| None` | yes | Descriptive pass / verified rate. Under lpr2 a promotion decision waits for complete outcomes in the frozen cohort. |
+| `unknown` | `int` | yes | Selected episodes without an eligible verified outcome, including reports after the fixed deadline. Under lpr2 they remain in the frozen cohort and block promotion; missing outcomes at the fixed deadline leave the incumbent active. Historical lpr1 evaluations excluded and counted unknown outcomes. |
 | `verified` | `int` | yes | Episodes with a verified teaching outcome. |
 
 ### LearningEvaluationArms
@@ -3764,7 +3764,7 @@ The evaluations, newest first.
 
 *response model*
 
-The decision rule frozen when the evaluation started.
+The decision rule frozen when the evaluation started. lpr2 selects episodes before inspecting their outcomes, freezes one cohort, and makes one decision only from complete selected outcomes or the fixed deadline.
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
@@ -3778,7 +3778,7 @@ The decision rule frozen when the evaluation started.
 | `noninferiority_margin_pp` | `float` | yes |  |
 | `objective` | `str` | yes | `success`: a higher whole-task success rate (the one-sided lower bound of the difference > 0 and the point difference ≥ `min_effect_pp`). `cost_noninferior`: a lower mean cost per episode with success not worse than the incumbent by more than `noninferiority_margin_pp`.  Known values: ``success``, ``cost_noninferior``. |
 | `outcome_source` | `str` | yes | `verified_teaching_episode`. |
-| `rule_version` | `str` | yes |  |
+| `rule_version` | `str` | yes | lpr2 freezes enrollment before waiting for outcomes; lpr1 identifies historical verified-only rules. |
 
 ### LearningPlan
 
@@ -3887,11 +3887,11 @@ Promotion-policy changes, merged over the current policy (or the defaults).
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
 | `alpha` | `float` | no | One-sided significance level of the interval on the difference (default 0.05). |
-| `candidate_share` | `float` | no | The share of NEW episodes assigned the candidate while an evaluation runs (default 0.5). |
-| `max_duration_hours` | `int` | no | An evaluation whose window has not closed after this long stops (`stopped_budget`; default 720). |
-| `max_verified_per_arm` | `int` | no | …or when EITHER arm reaches this many; each arm counts at most this many (default 200). |
+| `candidate_share` | `float` | no | The share of NEW enrolled episodes assigned the candidate while enrollment is open (default 0.5). After enrollment closes, new episodes use the active version while selected episodes finish. |
+| `max_duration_hours` | `int` | no | The fixed deadline from evaluation start, including time to receive selected outcomes (default 720). Incomplete evidence cannot promote a candidate; the deadline never resets. |
+| `max_verified_per_arm` | `int` | no | Compatibility field name. Under lpr2, enrollment also closes when EITHER arm reaches this many enrolled episodes; each frozen arm contains at most this many (default 200). |
 | `min_effect_pp` | `float` | no | `success`: the minimum point improvement in percentage points (default 0). |
-| `min_verified_per_arm` | `int` | no | The window closes when BOTH arms have this many verified episodes (default 30). |
+| `min_verified_per_arm` | `int` | no | Compatibility field name. Under lpr2, enrollment closes when BOTH arms have this many enrolled episodes (default 30); the selected episodes are then frozen and their verified outcomes are awaited. |
 | `mode` | `Literal['evaluate', 'manual', 'immediate']` | no | `evaluate`: a candidate must win a prospective randomized evaluation against the incumbent under a rule frozen when the evaluation starts; it serves a randomized share of eligible episodes during that comparison. `manual`: a candidate waits for an owner/admin promote or reject. `immediate`: publication is activation (the legacy behaviour). |
 | `noninferiority_margin_pp` | `float` | no | `cost_noninferior`: the success non-inferiority margin in percentage points (default 5). |
 | `objective` | `Literal['success', 'cost_noninferior']` | no | `success`: a higher whole-task success rate (the one-sided lower bound of the difference > 0 and the point difference ≥ `min_effect_pp`). `cost_noninferior`: a lower mean cost per episode with success not worse than the incumbent by more than `noninferiority_margin_pp`. |
@@ -3900,16 +3900,16 @@ Promotion-policy changes, merged over the current policy (or the defaults).
 
 *response model*
 
-The promotion policy. Defaults: evaluate / success / 30–200 verified episodes per arm / one-sided alpha 0.05 / 0 pp minimum effect / 5 pp margin / 0.5 candidate share / 720 h. Changeable before an evaluation starts; a running evaluation keeps the rule it froze.
+The promotion policy. Defaults: evaluate / success / enrollment thresholds 30–200 episodes per arm / one-sided alpha 0.05 / 0 pp minimum effect / 5 pp margin / 0.5 candidate share / 720 h. Changeable before an evaluation starts; a running evaluation keeps the rule it froze.
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
 | `alpha` | `float` | yes | One-sided significance level of the interval on the difference (default 0.05). |
-| `candidate_share` | `float` | yes | The share of NEW episodes assigned the candidate while an evaluation runs (default 0.5). |
-| `max_duration_hours` | `int` | yes | An evaluation whose window has not closed after this long stops (`stopped_budget`; default 720). |
-| `max_verified_per_arm` | `int` | yes | …or when EITHER arm reaches this many; each arm counts at most this many (default 200). |
+| `candidate_share` | `float` | yes | The share of NEW enrolled episodes assigned the candidate while enrollment is open (default 0.5). After enrollment closes, new episodes use the active version while selected episodes finish. |
+| `max_duration_hours` | `int` | yes | The fixed deadline from evaluation start, including time to receive selected outcomes (default 720). Incomplete evidence cannot promote a candidate; the deadline never resets. |
+| `max_verified_per_arm` | `int` | yes | Compatibility field name. Under lpr2, enrollment also closes when EITHER arm reaches this many enrolled episodes; each frozen arm contains at most this many (default 200). |
 | `min_effect_pp` | `float` | yes | `success`: the minimum point improvement in percentage points (default 0). |
-| `min_verified_per_arm` | `int` | yes | The window closes when BOTH arms have this many verified episodes (default 30). |
+| `min_verified_per_arm` | `int` | yes | Compatibility field name. Under lpr2, enrollment closes when BOTH arms have this many enrolled episodes (default 30); the selected episodes are then frozen and their verified outcomes are awaited. |
 | `mode` | `str` | yes | `evaluate`: a candidate must win a prospective randomized evaluation against the incumbent under a rule frozen when the evaluation starts; it serves a randomized share of eligible episodes during that comparison. `manual`: a candidate waits for an owner/admin promote or reject. `immediate`: publication is activation (the legacy behaviour).  Known values: ``evaluate``, ``manual``, ``immediate``. |
 | `noninferiority_margin_pp` | `float` | yes | `cost_noninferior`: the success non-inferiority margin in percentage points (default 5). |
 | `objective` | `str` | yes | `success`: a higher whole-task success rate (the one-sided lower bound of the difference > 0 and the point difference ≥ `min_effect_pp`). `cost_noninferior`: a lower mean cost per episode with success not worse than the incumbent by more than `noninferiority_margin_pp`.  Known values: ``success``, ``cost_noninferior``. |
