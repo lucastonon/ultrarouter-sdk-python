@@ -2601,6 +2601,33 @@ The async client's scope is `async with client.with_artifact(key) as scope:` and
 
 # Plug-and-play learning
 
+For tools described in prompt text, upload their actual schemas once per call type. Native tool
+requests already carry schemas. This replaces the previous set (maximum 256 tools, 1 MiB); an empty
+list clears it. Resolve the `ct_…` id with `client.call_types.list()` first.
+
+```python
+from ultrarouter import UltraRouter
+
+with UltraRouter() as client:
+    ct = client.call_types.list().data[0]
+    client.learning.put_tool_documentation(
+        ct.id,
+        tools=[
+            {
+                "type": "function",
+                "function": {
+                    "name": "set_order_status",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {"status": {"enum": ["reserved", "backordered"]}},
+                    },
+                },
+            }
+        ],
+    )
+    print(client.learning.tool_documentation(ct.id).tool_count)
+```
+
 The learning loop turns your agent's traffic plus trustworthy outcomes into candidate adaptations
 of a call type, evaluates each candidate against the version serving now (the incumbent), and
 promotes it only when the evaluation justifies it. Your part is small:

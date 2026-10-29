@@ -36,8 +36,10 @@ from ..types import (
     LearningEvaluationList,
     LearningPromotionParams,
     LearningStatus,
+    LearningToolDocumentation,
     LearningVersionDetail,
     LearningVersionList,
+    PutLearningToolDocumentationParamsTool,
 )
 from ._base import AsyncAPIResource, SyncAPIResource, build, seg
 
@@ -83,6 +85,33 @@ def _enable_body(
 
 class Learning(SyncAPIResource):
     """``client.learning``: inspect and control learning for one call type at a time."""
+
+    def tool_documentation(
+        self, call_type_id: str, *, options: RequestOptions | None = None
+    ) -> LearningToolDocumentation:
+        """Read stored tool summaries and their digest; original descriptions are not retained."""
+        return self._call(
+            build("GET", f"{_base(call_type_id)}/tool-documentation", options=options),
+            LearningToolDocumentation,
+        )
+
+    def put_tool_documentation(
+        self,
+        call_type_id: str,
+        *,
+        tools: list[PutLearningToolDocumentationParamsTool],
+        options: RequestOptions | None = None,
+    ) -> LearningToolDocumentation:
+        """Replace the tool schemas (at most 256, 1 MiB); an empty list clears the stored set."""
+        return self._call(
+            build(
+                "PUT",
+                f"{_base(call_type_id)}/tool-documentation",
+                body={"tools": tools},
+                options=options,
+            ),
+            LearningToolDocumentation,
+        )
 
     def _call(self, req: APIRequest, model: type[ModelT]) -> ModelT:
         try:
@@ -244,6 +273,33 @@ class Learning(SyncAPIResource):
 
 class AsyncLearning(AsyncAPIResource):
     """``client.learning`` on :class:`~ultrarouter.AsyncUltraRouter`."""
+
+    async def tool_documentation(
+        self, call_type_id: str, *, options: RequestOptions | None = None
+    ) -> LearningToolDocumentation:
+        """Read stored tool summaries; async twin of :meth:`Learning.tool_documentation`."""
+        return await self._call(
+            build("GET", f"{_base(call_type_id)}/tool-documentation", options=options),
+            LearningToolDocumentation,
+        )
+
+    async def put_tool_documentation(
+        self,
+        call_type_id: str,
+        *,
+        tools: list[PutLearningToolDocumentationParamsTool],
+        options: RequestOptions | None = None,
+    ) -> LearningToolDocumentation:
+        """Replace tool schemas; async twin of :meth:`Learning.put_tool_documentation`."""
+        return await self._call(
+            build(
+                "PUT",
+                f"{_base(call_type_id)}/tool-documentation",
+                body={"tools": tools},
+                options=options,
+            ),
+            LearningToolDocumentation,
+        )
 
     async def _call(self, req: APIRequest, model: type[ModelT]) -> ModelT:
         try:

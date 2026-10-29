@@ -1968,6 +1968,31 @@ Integration health: event counts, dead letters, backfills and the next repair ac
 
 `client.learning`: inspect and control learning for one call type at a time.
 
+#### client.learning.tool_documentation
+
+```python
+client.learning.tool_documentation(
+    call_type_id: str,
+    *,
+    options: RequestOptions | None = None,
+) -> LearningToolDocumentation
+```
+
+Read stored tool summaries and their digest; original descriptions are not retained.
+
+#### client.learning.put_tool_documentation
+
+```python
+client.learning.put_tool_documentation(
+    call_type_id: str,
+    *,
+    tools: list[PutLearningToolDocumentationParamsTool],
+    options: RequestOptions | None = None,
+) -> LearningToolDocumentation
+```
+
+Replace the tool schemas (at most 256, 1 MiB); an empty list clears the stored set.
+
 #### client.learning.status
 
 ```python

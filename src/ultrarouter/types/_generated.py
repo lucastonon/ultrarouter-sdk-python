@@ -270,6 +270,9 @@ __all__ = [
     "LearningStatusReflectionNext",
     "LearningStatusReflectionProvider",
     "LearningStatusUsage",
+    "LearningToolDocumentation",
+    "LearningToolDocumentationTool",
+    "LearningToolDocumentationToolDocumentedItem",
     "LearningVersion",
     "LearningVersionCohort",
     "LearningVersionDetail",
@@ -353,6 +356,9 @@ __all__ = [
     "PromptCandidate",
     "PromptCandidateList",
     "ProviderPreferencesParam",
+    "PutLearningToolDocumentationParams",
+    "PutLearningToolDocumentationParamsTool",
+    "PutLearningToolDocumentationParamsToolFunction",
     "ReasoningParam",
     "RecordOutcomesParams",
     "RecordOutcomesResponse",
@@ -3592,6 +3598,88 @@ class LearningRollbackParams(TypedDict, total=False):
     version_id: str
     """The EARLIER version to make active (`epb_…`). Omitted: the version that was active immediately before the current one.
     """
+
+
+class LearningToolDocumentation(BaseModel):
+    """A call type’s customer-supplied tool documentation (bounded summaries; no prose)."""
+
+    call_type_id: str
+
+    changed: bool | None = None
+    """PUT only: false when the same documentation was already stored (idempotent)."""
+
+    digest: str | None
+    """`etd1_…` — the content address of the stored set; null when none is stored."""
+
+    object: str
+    """Known values: ``learning_tool_documentation``."""
+
+    tool_count: int
+
+    tools: list[LearningToolDocumentationTool]
+
+    updated_at: str | None
+
+
+class LearningToolDocumentationTool(BaseModel):
+    """One tool’s stored summary."""
+
+    documented: list[LearningToolDocumentationToolDocumentedItem]
+    """Every constant the spec documents (bounded)."""
+
+    fingerprint: str
+    """`tsf1_…` — the schema fingerprint the documented constants are scoped to."""
+
+    name: str
+
+    params: list[str]
+    """Parameter names (bounded)."""
+
+
+class LearningToolDocumentationToolDocumentedItem(BaseModel):
+    """Response shape ``LearningToolDocumentationToolDocumentedItem``."""
+
+    param: str | None
+    """The parameter it belongs to, or null for the function’s own description."""
+
+    source: str
+    """Known values: ``enum``, ``const``, ``default``, ``description``."""
+
+    value: str
+
+
+class PutLearningToolDocumentationParams(TypedDict, total=False):
+    """The call type’s tool documentation (replaces any stored set)."""
+
+    tools: Required[list[PutLearningToolDocumentationParamsTool]]
+    """At most 256 specs with unique names; an empty list clears the documentation."""
+
+
+class PutLearningToolDocumentationParamsTool(TypedDict, total=False):
+    """One OpenAI-style function tool spec."""
+
+    function: Required[PutLearningToolDocumentationParamsToolFunction]
+    """The function declaration."""
+
+    type: Required[Literal["function"]]
+
+
+class PutLearningToolDocumentationParamsToolFunction(TypedDict, total=False):
+    """The function declaration."""
+
+    description: str
+    """Read for the CONSTANTS it states (numbers and quoted tokens) — the prose itself is never stored.
+    """
+
+    name: Required[str]
+    """The tool’s name exactly as the agent calls it (`fillFuelTank`, `api.fillFuelTank` → `fillFuelTank`).
+    """
+
+    parameters: dict[str, Any]
+    """The JSON Schema of the arguments; its `enum` / `const` / `default` values are documented constants.
+    """
+
+    strict: bool
 
 
 class LearningVersionList(BaseModel):
@@ -9092,6 +9180,9 @@ for _model in (
     LearningStatusUsage,
     LearningControl,
     LearningEvaluationList,
+    LearningToolDocumentation,
+    LearningToolDocumentationTool,
+    LearningToolDocumentationToolDocumentedItem,
     LearningVersionList,
     LearningVersion,
     LearningVersionCohort,
@@ -9413,6 +9504,18 @@ OPERATIONS: dict[str, tuple[str, str, str | None, str | None]] = {
         "/v1/call-types/{id}/learning/rollback",
         "LearningRollbackParams",
         "LearningControl",
+    ),
+    "getLearningToolDocumentation": (
+        "GET",
+        "/v1/call-types/{id}/learning/tool-documentation",
+        None,
+        "LearningToolDocumentation",
+    ),
+    "putLearningToolDocumentation": (
+        "PUT",
+        "/v1/call-types/{id}/learning/tool-documentation",
+        "PutLearningToolDocumentationParams",
+        "LearningToolDocumentation",
     ),
     "listLearningVersions": (
         "GET",

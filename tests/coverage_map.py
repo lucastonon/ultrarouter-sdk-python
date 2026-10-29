@@ -135,6 +135,8 @@ COVERAGE: dict[str, str] = {
     "getOutcomeReceipt": 'client.outcomes.receipt("ocr_sample")',
     "listRequestOutcomeReceipts": 'client.outcomes.receipts_for_request("req_123")',
     # Learning controls
+    "getLearningToolDocumentation": 'client.learning.tool_documentation("support-reply")',
+    "putLearningToolDocumentation": 'client.learning.put_tool_documentation("support-reply", tools=[])',
     "getLearningStatus": 'client.learning.status("support-reply")',
     "enableLearning": (
         'client.learning.enable("support-reply", reflection_model="openai/gpt-5.2-mini", '

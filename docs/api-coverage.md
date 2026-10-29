@@ -2,7 +2,7 @@
 
 # API coverage
 
-Every endpoint in `openapi/openapi.yaml` that accepts an API key (98 operations):
+Every endpoint in `openapi/openapi.yaml` that accepts an API key (100 operations):
 the SDK method that calls it, sync and async, and the tests that call it against the mock
 gateway and validate the request body against the specification
 (`tests/test_api_coverage.py`).
@@ -42,6 +42,8 @@ gateway and validate the request body against the specification
 | `POST /v1/call-types/{id}/learning/pause` | `pauseLearning` | `client.learning.pause(...)` | `await client.learning.pause(...)` | `test_operation_sync[pauseLearning]`, `test_operation_async[pauseLearning]` |
 | `POST /v1/call-types/{id}/learning/resume` | `resumeLearning` | `client.learning.resume(...)` | `await client.learning.resume(...)` | `test_operation_sync[resumeLearning]`, `test_operation_async[resumeLearning]` |
 | `POST /v1/call-types/{id}/learning/rollback` | `rollbackLearning` | `client.learning.rollback(...)` | `await client.learning.rollback(...)` | `test_operation_sync[rollbackLearning]`, `test_operation_async[rollbackLearning]` |
+| `GET /v1/call-types/{id}/learning/tool-documentation` | `getLearningToolDocumentation` | `client.learning.tool_documentation(...)` | `await client.learning.tool_documentation(...)` | `test_operation_sync[getLearningToolDocumentation]`, `test_operation_async[getLearningToolDocumentation]` |
+| `PUT /v1/call-types/{id}/learning/tool-documentation` | `putLearningToolDocumentation` | `client.learning.put_tool_documentation(...)` | `await client.learning.put_tool_documentation(...)` | `test_operation_sync[putLearningToolDocumentation]`, `test_operation_async[putLearningToolDocumentation]` |
 | `GET /v1/call-types/{id}/learning/versions` | `listLearningVersions` | `client.learning.versions(...)` | `await client.learning.versions(...)` | `test_operation_sync[listLearningVersions]`, `test_operation_async[listLearningVersions]` |
 | `GET /v1/call-types/{id}/learning/versions/{version_id}` | `getLearningVersion` | `client.learning.version(...)` | `await client.learning.version(...)` | `test_operation_sync[getLearningVersion]`, `test_operation_async[getLearningVersion]` |
 | `POST /v1/call-types/{id}/learning/versions/{version_id}/promote` | `promoteLearningVersion` | `client.learning.promote(...)` | `await client.learning.promote(...)` | `test_operation_sync[promoteLearningVersion]`, `test_operation_async[promoteLearningVersion]` |

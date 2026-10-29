@@ -4071,6 +4071,47 @@ Subscription / token usage, recorded separately from cash.
 | `output_tokens` | `int` | yes |  |
 | `reflections` | `int` | yes |  |
 
+### LearningToolDocumentation
+
+*response model*
+
+A call type’s customer-supplied tool documentation (bounded summaries; no prose).
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `call_type_id` | `str` | yes |  |
+| `changed` | `bool \| None` | no | PUT only: false when the same documentation was already stored (idempotent). |
+| `digest` | `str \| None` | yes | `etd1_…` — the content address of the stored set; null when none is stored. |
+| `object` | `str` | yes | Known values: ``learning_tool_documentation``. |
+| `tool_count` | `int` | yes |  |
+| `tools` | `list[LearningToolDocumentationTool]` | yes |  |
+| `updated_at` | `str \| None` | yes |  |
+
+### LearningToolDocumentationTool
+
+*response model*
+
+One tool’s stored summary.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `documented` | `list[LearningToolDocumentationToolDocumentedItem]` | yes | Every constant the spec documents (bounded). |
+| `fingerprint` | `str` | yes | `tsf1_…` — the schema fingerprint the documented constants are scoped to. |
+| `name` | `str` | yes |  |
+| `params` | `list[str]` | yes | Parameter names (bounded). |
+
+### LearningToolDocumentationToolDocumentedItem
+
+*response model*
+
+Response shape `LearningToolDocumentationToolDocumentedItem`.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `param` | `str \| None` | yes | The parameter it belongs to, or null for the function’s own description. |
+| `source` | `str` | yes | Known values: ``enum``, ``const``, ``default``, ``description``. |
+| `value` | `str` | yes |  |
+
 ### LearningVersion
 
 *response model*
@@ -5305,6 +5346,40 @@ OpenRouter-parity provider preferences.
 | `quantizations` | `list[str]` | no |  |
 | `require_parameters` | `bool` | no |  |
 | `sort` | `Literal['price', 'throughput', 'latency']` | no |  |
+
+### PutLearningToolDocumentationParams
+
+*request shape (TypedDict)*
+
+The call type’s tool documentation (replaces any stored set).
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `tools` | `Required[list[PutLearningToolDocumentationParamsTool]]` | no | At most 256 specs with unique names; an empty list clears the documentation. |
+
+### PutLearningToolDocumentationParamsTool
+
+*request shape (TypedDict)*
+
+One OpenAI-style function tool spec.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `function` | `Required[PutLearningToolDocumentationParamsToolFunction]` | no | The function declaration. |
+| `type` | `Required[Literal['function']]` | no |  |
+
+### PutLearningToolDocumentationParamsToolFunction
+
+*request shape (TypedDict)*
+
+The function declaration.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `description` | `str` | no | Read for the CONSTANTS it states (numbers and quoted tokens) — the prose itself is never stored. |
+| `name` | `Required[str]` | no | The tool’s name exactly as the agent calls it (`fillFuelTank`, `api.fillFuelTank` → `fillFuelTank`). |
+| `parameters` | `dict[str, Any]` | no | The JSON Schema of the arguments; its `enum` / `const` / `default` values are documented constants. |
+| `strict` | `bool` | no |  |
 
 ### ReasoningEffort
 

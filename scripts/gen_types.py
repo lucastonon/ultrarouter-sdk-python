@@ -116,11 +116,15 @@ COMPONENT_NAMES: dict[str, str] = {
     "MoatNextResponse": "MoatNext",
     "ConfirmationStatusResponse": "ConfirmationStatus",
     "LearningControlResponse": "LearningControl",
+    "LearningToolDocumentationResponse": "LearningToolDocumentation",
+    "PutLearningToolDocumentationRequest": "PutLearningToolDocumentationParams",
     "EnableLearningRequest": "LearningEnableParams",
 }
 
 #: Names for inline (non-component) response bodies, keyed by operationId.
 RESPONSE_NAMES: dict[str, str] = {
+    "getLearningToolDocumentation": "LearningToolDocumentation",
+    "putLearningToolDocumentation": "LearningToolDocumentation",
     "listHostedPrompts": "HostedPromptList",
     "createHostedPrompt": "HostedPrompt",
     "getHostedPrompt": "HostedPrompt",

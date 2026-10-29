@@ -1031,6 +1031,28 @@ def _learning(method: str, call_type: str, rest: str, body: dict[str, Any]) -> t
         return _error("permission", "this key lacks the config:write scope")
     with STATE.lock:
         state = _learning_state(call_type)
+        if rest == "tool-documentation" and method in {"GET", "PUT"}:
+            if method == "PUT":
+                state["tool_documentation"] = {
+                    "object": "learning_tool_documentation",
+                    "call_type_id": call_type,
+                    "tool_count": len(body["tools"]),
+                    "digest": "etd1_mock" if body["tools"] else None,
+                    "updated_at": None,
+                    "tools": [],
+                    "changed": True,
+                }
+            return 200, state.get(
+                "tool_documentation",
+                {
+                    "object": "learning_tool_documentation",
+                    "call_type_id": call_type,
+                    "tool_count": 0,
+                    "digest": None,
+                    "updated_at": None,
+                    "tools": [],
+                },
+            )
         if method == "GET" and rest == "":
             return 200, _learning_status(call_type, state)
         if method == "POST" and rest == "enable":
