@@ -58,6 +58,24 @@ manual = openai.OpenAI(
 print(manual.models.list().data[0].id)
 ```
 
+To correlate calls made through the `openai` package (for outcome reporting), mint the request id
+up front and send it as a header; `ultrarouter.request_id_of(reply)` reads it back from the `ur`
+block the gateway adds:
+
+```python
+from ultrarouter import correlation_headers, new_request_id, request_id_of
+
+request_id = new_request_id()
+reply = manual.chat.completions.create(
+    model="openai/gpt-5.2-mini",
+    messages=[{"role": "user", "content": "Hi"}],
+    extra_headers=correlation_headers(request_id=request_id),
+)
+assert request_id_of(reply) == request_id
+```
+
+See [Plug-and-play learning](learning.md).
+
 ## Migrating from `openai`
 
 | `openai` | `ultrarouter` |

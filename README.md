@@ -14,6 +14,10 @@ fallbacks, evals, and an outcome ledger that records what happened after a model
   `mypy --strict`.
 - **Production defaults**: a total time budget per call, automatic retries with backoff for
   transient failures, idempotency keys on every write, and typed errors.
+- **Plug-and-play learning**: correlate requests and multi-step episodes, report whether a task
+  succeeded (`client.outcomes.report`) the moment you know, with durable receipts and no double
+  counting, steer learning per call type (`client.learning`), and turn verifiers, business rules
+  and signed webhooks into verdicts (`ultrarouter.adapters`).
 - **Beyond chat**: call types, hosted prompts, Bench comparisons, outcomes, preflight with
   learned context, a reviewer adapter, and a pure context runtime (`ultrarouter.context`).
 
@@ -173,6 +177,30 @@ with client.with_artifact("ticket:4812:reply") as scope:
     )
     scope.record({"channel": "behavioral", "kind": "accepted"})
 ```
+
+**Plug-and-play learning**: report whether the task succeeded, right after the answer (the gateway
+accepts it as `pending` with a durable receipt if it has not stored the request yet), from a named
+source: `verifier`, `business_rule`, `webhook` and `human_review` teach; `self_rating` only ranks;
+`unknown` sends nothing. Reporting twice never counts twice.
+
+```python
+from ultrarouter import UltraRouter
+
+client = UltraRouter()
+with client.episode("order:A-100") as episode:  # every step carries the episode key
+    reply = episode.chat.completions.create(
+        model="openai/gpt-5.2-mini",
+        messages=[{"role": "user", "content": "Process order A-100."}],
+    )
+    report = episode.report("pass", source="verifier")  # on the last step
+print(report.outcome_status, report.teaches)  # "pending" True
+final = client.outcomes.wait_for_receipt(report)  # bounded polling of the public receipt
+print(final.status)  # "applied"
+```
+
+See [Plug-and-play learning](https://github.com/lucastonon/ultrarouter-sdk-python/blob/main/docs/learning.md)
+for correlation with the `openai` package, receipts, outcome adapters, learning controls and the
+demonstration environment.
 
 More: [call types and hosted prompts](https://github.com/lucastonon/ultrarouter-sdk-python/blob/main/docs/call-types.md), [Bench](https://github.com/lucastonon/ultrarouter-sdk-python/blob/main/docs/bench.md),
 [preflight and learned context](https://github.com/lucastonon/ultrarouter-sdk-python/blob/main/docs/preflight.md), [the reviewer adapter](https://github.com/lucastonon/ultrarouter-sdk-python/blob/main/docs/reviewer.md),

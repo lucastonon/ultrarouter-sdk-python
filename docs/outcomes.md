@@ -86,8 +86,14 @@ chat call; the response's `ur.artifact_id` echoes the bound artifact.
 `delivered` needs a result the contract defines: an object whose `status` is `accepted`,
 `duplicate`, `conflict` or `rejected` (the server's verdict on the event), or `pending` (an
 outcome reported on a request the gateway has not stored yet: the gateway holds a durable receipt
-and applies it when the request lands). These rules are the same in the TypeScript SDK; both run
-the same shared fixture of 273 response cases.
+and applies it when the request lands; see
+[Plug-and-play learning](learning.md#immediate-outcomes-and-receipts)). These rules are the same
+in the TypeScript SDK; both run the same shared fixture of 273 response cases.
+
+To report whether a task succeeded without choosing a channel and kind yourself, use
+`client.outcomes.report(request_id, "pass" | "fail" | "unknown", source=...)`: it maps the verdict
+through the table both SDKs share, gives the report a stable identity and returns typed receipts.
+See [Plug-and-play learning](learning.md#reporting-outcomes).
 
 ```python
 receipt = client.outcomes.record(artifact.id, {"channel": "behavioral", "kind": "accepted"})

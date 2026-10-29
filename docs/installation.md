@@ -81,3 +81,4 @@ print(info.mode, info.scopes, info.workspace_id)
 
 - [Configuration and authentication](configuration.md)
 - [Chat completions](chat-completions.md)
+- [Plug-and-play learning](learning.md)

@@ -59,6 +59,9 @@ code falls back to the class for its HTTP status (400, 401, 403, 404, 409, 429, 
 | `APITimeoutError` | `timeout` | 0 | no | the call exceeded its total `timeout` |
 | `APIResponseValidationError` | `invalid_response` | any | no | the response did not match the expected shape (report it) |
 | `OutcomeStoreError` | `outcome_store` | 0 | no | a durable queue store could not be read or written; a damaged queue file is left untouched for recovery |
+| `OutcomeBacklogFullError` | `outcome_backlog_full` | 429 | per the gateway's `retryable` flag | too many outcomes are pending for the workspace; a reported outcome stays queued for `flush()` |
+| `ReceiptWaitTimeoutError` | `timeout` | 0 | no | `outcomes.wait_for_receipt` ran out of time; the receipt is durable, read it again later |
+| `LearningError` subclasses | the gateway's | 4xx | no | an actionable learning refusal: see `reason` and `action` ([learning controls](learning.md#learning-controls)) |
 
 All HTTP errors derive from `APIStatusError`; `APITimeoutError` derives from
 `APIConnectionError`. `GATEWAY_ERROR_TAXONOMY` maps each code to its canonical status and default
@@ -120,6 +123,16 @@ try:
 except InvalidRequestError as exc:
     print(exc.status, exc.message)  # 0 bench.record requires suite= or run=
 ```
+
+## Learning controls
+
+`client.learning` turns a recognised refusal into a `LearningError` subclass:
+`LearningConsentRequiredError` (`missing_consent`), `LearningProviderUnavailableError`
+(`provider_unavailable`), `LearningQuotaExhaustedError` (`quota_exhausted`),
+`LearningBudgetExhaustedError` (`budget_exhausted`), `LearningNotFoundError` (`not_found`, also a
+`NotFoundError`) and `LearningForbiddenError` (`forbidden`, also a `PermissionDeniedError`). Each
+keeps the gateway's `code`, `status` and `request_id`, names the problem in `reason` and says what
+to do in `action`. `LEARNING_ERROR_CODES` lists the gateway codes each reason is recognised from.
 
 ## Outcome and reviewer queues
 

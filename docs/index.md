@@ -39,6 +39,7 @@ mock gateway, so the snippets match the code.
 | [Autopilot](autopilot.md) | the routing intent and the readiness report |
 | [Bench](bench.md) | capture, freeze, paired runs, reports and the compare gate |
 | [Outcomes and artifacts](outcomes.md) | artifact types, artifacts, outcome events, finals, the durable queue |
+| [Plug-and-play learning](learning.md) | request and episode correlation, verdict reports with receipts, outcome adapters, learning controls, the demonstration environment |
 | [History imports](imports.md) | import usage exports or traces without proxying |
 | [Flywheel](flywheel.md) | status, exposure grants, candidates, confirmations, plans, improvement reads |
 | [Oracles and verdict sources](oracles.md) | register and qualify your own checks; source checks |

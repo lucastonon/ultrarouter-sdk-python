@@ -3240,7 +3240,7 @@ The ultrarouter-default manifest encoder (profile form).
 
 ## Outcome adapters
 
-`ultrarouter.adapters` exports:
+`ultrarouter.adapters` exports (see the [learning guide](learning.md)):
 
 ### adapters.DedupeStore
 

@@ -39,6 +39,10 @@ print(stream.usage.total_tokens if stream.usage else None)
 print(stream.ur.request_id if stream.ur else None)
 ```
 
+`stream.request_id` is available as soon as the stream opens, before the first chunk: it is read
+from the `x-ur-request-id` response header (and falls back to the final `ur` block, then to the id
+you sent with `request_id=`). See [Plug-and-play learning](learning.md#correlation).
+
 ## Closing early
 
 Leaving a `with` block (or calling `close()`) closes the HTTP response even if you stop reading

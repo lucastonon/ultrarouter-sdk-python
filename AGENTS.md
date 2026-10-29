@@ -61,6 +61,14 @@ receipt = client.outcomes.record(
     {"request": request_id}, {"channel": "behavioral", "kind": "accepted"}
 )
 client.outcomes.flush()
+
+# Learning loop: correlate, then report whether the task succeeded (see docs/learning.md)
+with client.episode("order:A-100") as episode:  # key -> X-UR-Artifact; ids minted per step
+    episode.chat.completions.create(messages=[{"role": "user", "content": "Process A-100"}])
+    report = episode.report("pass", source="verifier")  # pass | fail | unknown
+if report.reported and report.receipt_id:
+    final = client.outcomes.wait_for_receipt(report)  # pending -> applied
+status = client.learning.status("support-reply")  # learning controls per call type
 ```
 
 Async: `AsyncUltraRouter` has the same methods; `await` them and use `async with`.
@@ -85,6 +93,17 @@ Async: `AsyncUltraRouter` has the same methods; `await` them and use `async with
   because the model class lacks it.
 - **Enumerated response fields are `str`**, so compare against string literals.
 - **Do not log the client's key** (`client.api_key`) or request/response bodies.
+- **Report outcomes with `client.outcomes.report(request_id, verdict, source=...)`**; never sleep
+  before reporting (an early report is held as `pending` with a durable receipt). `unknown`
+  sends nothing; `self_rating` never teaches; HTTP or tool success is not task success.
+- **Concurrent episodes need distinct `episode_key`s**: without one the gateway groups steps by
+  their opening text, so identical concurrent tasks would merge.
+- **A report is idempotent by identity** (`request_id`, `verdict`, `source`, `idempotency_key`):
+  repeats replay the same event; give two genuinely different verdicts different
+  `idempotency_key`s, and pass `observed_at` when a report may be repeated from another process.
+- **The receipt and learning models are provisional** (hand-written ahead of the specification);
+  read unknown fields from `model_extra`.
+- **`ultrarouter.demo` is a demonstration**, not evidence that learning improves an agent.
 
 ### Where to look
 
@@ -95,7 +114,8 @@ Async: `AsyncUltraRouter` has the same methods; `await` them and use `async with
 | Every response/request type and its fields | [docs/types-reference.md](docs/types-reference.md) |
 | Which endpoint each method calls | [docs/api-coverage.md](docs/api-coverage.md) |
 | Errors and what to do | [docs/errors.md](docs/errors.md) |
-| Runnable scripts | [examples/](examples/) |
+| Runnable scripts | [examples/](examples/) (`learning_*.py` for the learning loop) |
+| The learning loop | [docs/learning.md](docs/learning.md) |
 | All docs in one file for an LLM | [llms-full.txt](llms-full.txt) (index: [llms.txt](llms.txt)) |
 
 ## Part 2: changing this repository
@@ -132,6 +152,12 @@ published release or a manual run.
 - Every API-key endpoint in the spec must be mapped in `tests/coverage_map.py` (or explicitly
   excluded with a reason); `tests/test_api_coverage.py` calls each one sync and async and validates
   the request body against the spec.
+- `src/ultrarouter/_data/outcome_verdicts.json` and `_data/toy_env.json` are byte-for-byte copies
+  of fixtures shared with the TypeScript SDK (also under `tests/fixtures/`, sha256 pinned in
+  `tests/test_outcome_report.py` and `tests/test_demo.py`). Never edit them here.
+- The learning-loop endpoints the spec does not describe yet are listed in `PROVISIONAL` in
+  `tests/coverage_map.py`; when a spec sync adds one, map it in `COVERAGE` and reconcile
+  `types/_learning.py`.
 - Cross-language behaviour (context runtime, placement, rendering, diff stats, canonical JSON) is
   pinned by `tests/fixtures/parity/`; regenerate with
   `node scripts/gen_parity_goldens.mjs --ts-sdk <path to the TypeScript SDK>`.
@@ -145,6 +171,10 @@ published release or a manual run.
 ```
 src/ultrarouter/          the package (clients, transport, resources, helpers)
   types/_generated.py     generated models and request shapes
+  types/_learning.py      hand-written, provisional learning-loop models (receipts, learning)
+  _data/                  shared fixtures shipped in the package (verdict mapping, toy environment)
+  adapters/               outcome adapters (verifiers, business rules, signed webhooks)
+  demo/                   the deterministic demonstration environment
   context/                the pure context runtime
 tests/                    unit, coverage, parity, docs and example tests; support/ has the mock gateway
 docs/                     guides (tested) and generated references

@@ -381,7 +381,7 @@ def api_reference() -> str:
         "",
         "## Outcome adapters",
         "",
-        "`ultrarouter.adapters` exports:",
+        "`ultrarouter.adapters` exports (see the [learning guide](learning.md)):",
         "",
     ]
     for name in sorted(adapters.__all__, key=str.lower):
@@ -591,9 +591,10 @@ def llms_txt() -> str:
         "",
         "> Official Python client (package `ultrarouter`, Python 3.10+) for the ultrarouter gateway:",
         "> an OpenAI-compatible LLM gateway with model routing, fallbacks, evals, Bench comparisons,",
-        "> an outcome ledger, preflight with learned context, and a pure context runtime. Sync",
-        "> (`UltraRouter`) and async (`AsyncUltraRouter`) clients with the same surface; typed pydantic",
-        "> responses; typed errors; automatic retries.",
+        "> an outcome ledger, preflight with learned context, the learning loop (correlation, verdict",
+        "> reports with receipts, learning controls, outcome adapters), and a pure context runtime.",
+        "> Sync (`UltraRouter`) and async (`AsyncUltraRouter`) clients with the same surface; typed",
+        "> pydantic responses; typed errors; automatic retries.",
         "",
         f"Version {ultrarouter.__version__}. Not published on PyPI: install from a wheel built from",
         "the repository (`uv build`, then `pip install dist/ultrarouter-<version>-py3-none-any.whl`) or",
