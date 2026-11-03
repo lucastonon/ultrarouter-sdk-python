@@ -10,9 +10,6 @@ All notable changes to this project are documented here. The format follows
   namespaced item IDs. Examples inspect state and provenance without model calls. Content export
   remains a separate owner/admin session operation; malformed and reserved export IDs fail locally.
 
-- Preview installation commands and documentation links select `feat/learning-loop`, so they
-  resolve the 0.1.0 learning client instead of the older default branch.
-
 - Exact-answer learning examples now verify trimmed `OK`, including negative tests for a wrong
   non-empty answer or an empty answer, instead of reporting success for any text or hardcoding pass.
 

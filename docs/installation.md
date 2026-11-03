@@ -4,13 +4,12 @@ The package is named `ultrarouter` and supports Python 3.10 through 3.14.
 
 > **Not on PyPI yet.** `pip install ultrarouter` does not work today: the package has not been
 > published to any package registry. Install it from a wheel you build from the repository, or
-> straight from the public GitHub source. Select `feat/learning-loop` for this 0.1.0 preview;
-> the default branch does not yet include the learning additions.
+> straight from the public GitHub source.
 
 ## From a locally built wheel
 
 ```bash
-git clone --branch feat/learning-loop --single-branch https://github.com/lucastonon/ultrarouter-sdk-python.git
+git clone https://github.com/lucastonon/ultrarouter-sdk-python.git
 cd ultrarouter-sdk-python
 uv build                                    # writes dist/ultrarouter-<version>-py3-none-any.whl and the sdist
 pip install dist/ultrarouter-0.1.0-py3-none-any.whl
@@ -23,8 +22,8 @@ file path the same way (`uv add ./dist/ultrarouter-0.1.0-py3-none-any.whl`,
 ## From the GitHub source
 
 ```bash
-pip install "ultrarouter @ git+https://github.com/lucastonon/ultrarouter-sdk-python.git@feat/learning-loop"
-uv add "ultrarouter @ git+https://github.com/lucastonon/ultrarouter-sdk-python.git@feat/learning-loop"
+pip install "ultrarouter @ git+https://github.com/lucastonon/ultrarouter-sdk-python.git"
+uv add "ultrarouter @ git+https://github.com/lucastonon/ultrarouter-sdk-python.git"
 ```
 
 Pin a commit for reproducible installs (`...ultrarouter-sdk-python.git@<commit>`).
@@ -36,7 +35,7 @@ gateway. It needs the `openai` package, which the extra installs:
 
 ```bash
 pip install "dist/ultrarouter-0.1.0-py3-none-any.whl[openai]"
-pip install "ultrarouter[openai] @ git+https://github.com/lucastonon/ultrarouter-sdk-python.git@feat/learning-loop"
+pip install "ultrarouter[openai] @ git+https://github.com/lucastonon/ultrarouter-sdk-python.git"
 ```
 
 Or install `openai` yourself (`pip install "openai>=1.55.3"`). Without it, `as_openai()` raises an
