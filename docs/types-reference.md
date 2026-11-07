@@ -96,11 +96,24 @@ The appended final artifact version.
 | `client_computed` | `bool` | yes |  |
 | `created_at` | `str` | yes |  |
 | `diff_stats` | `dict[str, Any]` | yes |  |
+| `episode_correction` | `ArtifactFinalEpisodeCorrection \| None` | no | Present only when a corrected body was supplied under consent. THE BARRIER: `/final` is SYNCHRONOUS, so `status: applied` means the correction is already live — a later similar request reads it on its next call (live memory is read fresh per request; a frozen `as_of` checkpoint never adopts a newer correction). |
 | `final_hash` | `str \| None` | yes |  |
 | `id` | `str` | yes |  |
 | `object` | `str` | yes | Known values: ``artifact_version``. |
 | `stored` | `str` | yes | `blob` (body stored under consent) \| `metadata_only` (no consent).  Known values: ``blob``, ``metadata_only``. |
 | `version` | `int` | yes |  |
+
+### ArtifactFinalEpisodeCorrection
+
+*response model*
+
+Present only when a corrected body was supplied under consent. THE BARRIER: `/final` is SYNCHRONOUS, so `status: applied` means the correction is already live — a later similar request reads it on its next call (live memory is read fresh per request; a frozen `as_of` checkpoint never adopts a newer correction).
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `corrected_at` | `str \| None` | yes | When the stored correction is effective (ISO), or null. |
+| `status` | `str` | yes | Whether this correction reached episode memory: `applied` (stored, eligible to serve on the next request) \| `unchanged` (the same correction was already stored) \| `not_serving` (the call type is not opted into serve_corrections) \| `consent_off` \| `no_correction_text` \| `no_episode` (no failed episode holds this artifact’s request).  Known values: ``applied``, ``unchanged``, ``not_serving``, ``consent_off``, ``no_correction_text``, ``no_episode``. |
+| `trace_id` | `str \| None` | yes | The episode trace the correction bound to, or null. |
 
 ### ArtifactFinalParams
 
@@ -110,7 +123,7 @@ Record the human-approved final output version (the correction channel).
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `artifact_version` | `int` | no | The draft version this final approves (defaults to the current version). |
+| `artifact_version` | `int` | no | The draft version the human reviewed (defaults to the current version). When supplied it must equal the artifact’s current version — a stale value (the draft moved since it was reviewed) is a 409 conflict, never a silent append; a correction derived from this final binds only to the version it was reviewed against. |
 | `diff_stats` | `DiffStatsParams` | no | CLIENT-computed diff stats (the no-consent path; the SDK `diffStats` helper). |
 | `draft` | `str` | no | The draft body — used ONLY to compute server-side diff_stats under consent. |
 | `final` | `str` | no | The final body — stored ONLY under corrections_consent. |
@@ -1549,7 +1562,7 @@ OpenAI-compatible chat-completions request with ultrarouter extensions.
 | `max_tokens` | `int` | no |  |
 | `messages` | `Required[list[ChatMessageParam]]` | no | Conversation messages (required). |
 | `metadata` | `dict[str, Any]` | no | Opaque JSON stored with the request. |
-| `model` | `str` | no | Provider-prefixed model id, e.g. "openai/gpt-5.2-mini". |
+| `model` | `str` | no | Provider-prefixed model id, e.g. "openai/gpt-5-mini". |
 | `models` | `list[str]` | no | Ordered fallback model ids (OpenRouter). |
 | `n` | `int` | no |  |
 | `presence_penalty` | `float` | no |  |
@@ -2130,6 +2143,8 @@ Enable episode memory for a call type (the lab-authorised, pre-evidence activati
 | `as_of` | `str \| None` | no | Serve only episodes verified at or before this instant (ISO) — a frozen memory version; null = live. |
 | `dedupe` | `bool` | no | Serve at most one of near-identical precedents (default false). |
 | `framing` | `Literal['reuse', 'adapt']` | no | How served precedents are framed: `reuse` (default) invites reusing their calls; `adapt` presents them as evidence of how the tools behave, not values to copy. |
+| `importance_boost` | `float` | no | Weight corrected misses in ranking: a corrected miss’s similarity is multiplied by `1 + importance_boost` (0..100; default 0, no boost). The min_similarity floor applies to the raw similarity, before the boost. |
+| `index_actions` | `bool` | no | Index a candidate on its task text plus identifier tokens from its verified answer (SQL tables/columns/operators and literal shapes — never literal values; otherwise the action tokens), so retrieval can match on schema-linked terms. The query side stays the request’s task text (default false). |
 | `k` | `int` | no | Precedents served per episode (1..5; default 3). |
 | `lessons` | `EpisodeMemoryEnableParamsLessons` | no | The learned-playbook block (absent ⇒ lessons off, byte-identical). |
 | `max_chars_per_episode` | `int` | no | Characters of actions shown per precedent (500..8000; default 3500). |
@@ -2138,6 +2153,8 @@ Enable episode memory for a call type (the lab-authorised, pre-evidence activati
 | `prefer_shorter` | `bool` | no | Among near-equally similar precedents, serve the shortest verified solutions first (default false). |
 | `record` | `bool` | no | Record this call type’s episodes so outcomes can verify them (default true); false = serve only. |
 | `retrieval_key` | `Literal['first_user_message', 'content_lines']` | no | What precedents are ranked on: the whole first user message (default) or its content lines — without lines carrying a personal identifier or a timestamp. |
+| `serve_corrections` | `bool` | no | Also serve CORRECTED misses — a fail episode whose corrected answer the customer supplied through `/final`; the corrected answer is served, never the failed attempt (default false). |
+| `show_mistake` | `bool` | no | When a corrected miss is served, also show the failed attempt beside the corrected answer under plain labels, within the per-episode budget (the corrected answer is never shed first; default false). |
 | `source_call_type_id` | `str \| None` | no | The call type whose verified episodes are served (same workspace); null = this call type. |
 
 ### EpisodeMemoryEnableParamsLessons
@@ -2227,6 +2244,8 @@ The frozen episode-memory setting on a call-type config version.
 | `as_of` | `str \| None` | yes | A frozen memory version (ISO), or null for live memory. |
 | `dedupe` | `bool \| None` | no | Present only when true. |
 | `framing` | `str \| None` | no | Present only when not the default `reuse`.  Known values: ``reuse``, ``adapt``. |
+| `importance_boost` | `float \| None` | no | Present only when set (not 0). |
+| `index_actions` | `bool \| None` | no | Present only when true. |
 | `k` | `int` | yes |  |
 | `lessons` | `EpisodeMemoryStatusSettingLessons \| None` | no | Present only when the learned-playbook mode is not `off`. |
 | `max_chars_per_episode` | `int` | yes |  |
@@ -2237,6 +2256,8 @@ The frozen episode-memory setting on a call-type config version.
 | `retrieval_key` | `str \| None` | no | Present only when not the default `first_user_message`.  Known values: ``first_user_message``, ``content_lines``. |
 | `rule_version` | `str` | yes | `epm1` — the pure rule version a stored setting is parsed under. |
 | `self_serve` | `bool \| None` | no | Present (true) only when learning was enabled self-serve through `POST /v1/call-types/{id}/learning/enable` — a published version is then a candidate. In evaluate mode it receives a randomized share of eligible episodes before the policy can make it the active version. |
+| `serve_corrections` | `bool \| None` | no | Present only when true. |
+| `show_mistake` | `bool \| None` | no | Present only when true. |
 | `source_call_type_id` | `str \| None` | yes |  |
 
 ### EpisodeMemoryStatusSettingLessons
@@ -2273,6 +2294,7 @@ The call type’s episode-trace accounting (counts only).
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
+| `corrected` | `int` | yes | Fail episodes with a stored customer correction (served when serve_corrections is on; reported separately — never counted as a pass). |
 | `fail` | `int` | yes |  |
 | `latest_verified_at` | `str \| None` | yes | The newest pass verification instant (ISO), or null. |
 | `pass` | `int` | yes | Episodes a whole-episode teaching outcome verified as passing. |

@@ -2,7 +2,7 @@
 
 # API coverage
 
-Every endpoint in `openapi/openapi.yaml` that accepts an API key (102 operations):
+Every endpoint in `openapi/openapi.yaml` that accepts an API key (103 operations):
 the SDK method that calls it, sync and async, and the tests that call it against the mock
 gateway and validate the request body against the specification
 (`tests/test_api_coverage.py`).
@@ -124,6 +124,7 @@ an API-key SDK cannot call them:
 
 - `GET /healthz` (`healthz`)
 - `GET /readyz` (`readyz`)
+- `POST /v1/access-requests` (`createAccessRequest`)
 - `POST /v1/bench/runs/{id}/share` (`mintBenchShare`)
 - `DELETE /v1/bench/runs/{id}/share/{shareId}` (`revokeBenchShare`)
 - `GET /v1/bench/runs/{id}/shares` (`listBenchShares`)
@@ -174,6 +175,7 @@ an API-key SDK cannot call them:
 - `PATCH /v1/workspaces/{id}/flywheel-consents` (`patchFlywheelConsents`)
 - `GET /v1/workspaces/{id}/invitations` (`listInvitations`)
 - `POST /v1/workspaces/{id}/invitations` (`createInvitation`)
+- `DELETE /v1/workspaces/{id}/invitations/{invitationId}` (`revokeInvitation`)
 - `GET /v1/workspaces/{id}/members` (`listMembers`)
 - `DELETE /v1/workspaces/{id}/members/{userId}` (`removeMember`)
 - `PATCH /v1/workspaces/{id}/members/{userId}` (`changeMemberRole`)

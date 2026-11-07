@@ -21,6 +21,7 @@ __all__ = [
     "ArtifactCreateParams",
     "ArtifactEnvelope",
     "ArtifactFinal",
+    "ArtifactFinalEpisodeCorrection",
     "ArtifactFinalParams",
     "ArtifactList",
     "ArtifactObjective",
@@ -725,7 +726,8 @@ class ArtifactFinalParams(TypedDict, total=False):
     """Record the human-approved final output version (the correction channel)."""
 
     artifact_version: int
-    """The draft version this final approves (defaults to the current version)."""
+    """The draft version the human reviewed (defaults to the current version). When supplied it must equal the artifact’s current version — a stale value (the draft moved since it was reviewed) is a 409 conflict, never a silent append; a correction derived from this final binds only to the version it was reviewed against.
+    """
 
     diff_stats: DiffStatsParams
     """CLIENT-computed diff stats (the no-consent path; the SDK `diffStats` helper)."""
@@ -771,6 +773,10 @@ class ArtifactFinal(BaseModel):
 
     diff_stats: dict[str, Any]
 
+    episode_correction: ArtifactFinalEpisodeCorrection | None = None
+    """Present only when a corrected body was supplied under consent. THE BARRIER: `/final` is SYNCHRONOUS, so `status: applied` means the correction is already live — a later similar request reads it on its next call (live memory is read fresh per request; a frozen `as_of` checkpoint never adopts a newer correction).
+    """
+
     final_hash: str | None
 
     id: str
@@ -785,6 +791,22 @@ class ArtifactFinal(BaseModel):
     """
 
     version: int
+
+
+class ArtifactFinalEpisodeCorrection(BaseModel):
+    """Present only when a corrected body was supplied under consent. THE BARRIER: `/final` is SYNCHRONOUS, so `status: applied` means the correction is already live — a later similar request reads it on its next call (live memory is read fresh per request; a frozen `as_of` checkpoint never adopts a newer correction)."""
+
+    corrected_at: str | None
+    """When the stored correction is effective (ISO), or null."""
+
+    status: str
+    """Whether this correction reached episode memory: `applied` (stored, eligible to serve on the next request) | `unchanged` (the same correction was already stored) | `not_serving` (the call type is not opted into serve_corrections) | `consent_off` | `no_correction_text` | `no_episode` (no failed episode holds this artifact’s request).
+
+    Known values: ``applied``, ``unchanged``, ``not_serving``, ``consent_off``, ``no_correction_text``, ``no_episode``.
+    """
+
+    trace_id: str | None
+    """The episode trace the correction bound to, or null."""
 
 
 class RecordOutcomesParams(TypedDict, total=False):
@@ -2571,6 +2593,12 @@ class EpisodeMemoryStatusSetting(BaseModel):
     Known values: ``reuse``, ``adapt``.
     """
 
+    importance_boost: float | None = None
+    """Present only when set (not 0)."""
+
+    index_actions: bool | None = None
+    """Present only when true."""
+
     k: int
 
     lessons: EpisodeMemoryStatusSettingLessons | None = None
@@ -2600,6 +2628,12 @@ class EpisodeMemoryStatusSetting(BaseModel):
     self_serve: bool | None = None
     """Present (true) only when learning was enabled self-serve through `POST /v1/call-types/{id}/learning/enable` — a published version is then a candidate. In evaluate mode it receives a randomized share of eligible episodes before the policy can make it the active version.
     """
+
+    serve_corrections: bool | None = None
+    """Present only when true."""
+
+    show_mistake: bool | None = None
+    """Present only when true."""
 
     source_call_type_id: str | None
 
@@ -2635,6 +2669,10 @@ class EpisodeMemoryStatusSettingLessonsRecipe(BaseModel):
 
 class EpisodeMemoryStatusTraces(BaseModel):
     """The call type’s episode-trace accounting (counts only)."""
+
+    corrected: int
+    """Fail episodes with a stored customer correction (served when serve_corrections is on; reported separately — never counted as a pass).
+    """
 
     fail: int
 
@@ -2681,6 +2719,14 @@ class EpisodeMemoryEnableParams(TypedDict, total=False):
     """How served precedents are framed: `reuse` (default) invites reusing their calls; `adapt` presents them as evidence of how the tools behave, not values to copy.
     """
 
+    importance_boost: float
+    """Weight corrected misses in ranking: a corrected miss’s similarity is multiplied by `1 + importance_boost` (0..100; default 0, no boost). The min_similarity floor applies to the raw similarity, before the boost.
+    """
+
+    index_actions: bool
+    """Index a candidate on its task text plus identifier tokens from its verified answer (SQL tables/columns/operators and literal shapes — never literal values; otherwise the action tokens), so retrieval can match on schema-linked terms. The query side stays the request’s task text (default false).
+    """
+
     k: int
     """Precedents served per episode (1..5; default 3)."""
 
@@ -2706,6 +2752,14 @@ class EpisodeMemoryEnableParams(TypedDict, total=False):
 
     retrieval_key: Literal["first_user_message", "content_lines"]
     """What precedents are ranked on: the whole first user message (default) or its content lines — without lines carrying a personal identifier or a timestamp.
+    """
+
+    serve_corrections: bool
+    """Also serve CORRECTED misses — a fail episode whose corrected answer the customer supplied through `/final`; the corrected answer is served, never the failed attempt (default false).
+    """
+
+    show_mistake: bool
+    """When a corrected miss is served, also show the failed attempt beside the corrected answer under plain labels, within the per-episode budget (the corrected answer is never shed first; default false).
     """
 
     source_call_type_id: str | None
@@ -4370,7 +4424,7 @@ class ChatCompletionCreateParams(TypedDict, total=False):
     """Opaque JSON stored with the request."""
 
     model: str
-    """Provider-prefixed model id, e.g. "openai/gpt-5.2-mini"."""
+    """Provider-prefixed model id, e.g. "openai/gpt-5-mini"."""
 
     models: list[str]
     """Ordered fallback model ids (OpenRouter)."""
@@ -9270,6 +9324,7 @@ for _model in (
     ArtifactClaim,
     ArtifactEnvelope,
     ArtifactFinal,
+    ArtifactFinalEpisodeCorrection,
     RecordOutcomesResponse,
     OutcomeResult,
     AuditReadiness,
@@ -9668,6 +9723,12 @@ OPERATIONS: dict[str, tuple[str, str, str | None, str | None]] = {
     "enableEpisodeMemory": (
         "POST",
         "/v1/call-types/{id}/episode-memory/enable",
+        "EpisodeMemoryEnableParams",
+        "EpisodeMemoryEnableResult",
+    ),
+    "selfServeEpisodeMemory": (
+        "POST",
+        "/v1/call-types/{id}/episode-memory/self-serve",
         "EpisodeMemoryEnableParams",
         "EpisodeMemoryEnableResult",
     ),
