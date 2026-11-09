@@ -2677,10 +2677,11 @@ class EpisodeMemoryStatusTraces(BaseModel):
     fail: int
 
     latest_verified_at: str | None
-    """The newest pass verification instant (ISO), or null."""
+    """The newest verification instant (ISO) of a servable pass, or null."""
 
     pass_: int = Field(..., alias="pass")
-    """Episodes a whole-episode teaching outcome verified as passing."""
+    """Verified passing episodes with recorded steps (servable). A verified pass with no recorded steps is left out, so total can exceed pass + fail + unverified.
+    """
 
     total: int
 

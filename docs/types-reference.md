@@ -2296,8 +2296,8 @@ The call type’s episode-trace accounting (counts only).
 | --- | --- | --- | --- |
 | `corrected` | `int` | yes | Fail episodes with a stored customer correction (served when serve_corrections is on; reported separately — never counted as a pass). |
 | `fail` | `int` | yes |  |
-| `latest_verified_at` | `str \| None` | yes | The newest pass verification instant (ISO), or null. |
-| `pass` | `int` | yes | Episodes a whole-episode teaching outcome verified as passing. |
+| `latest_verified_at` | `str \| None` | yes | The newest verification instant (ISO) of a servable pass, or null. |
+| `pass` | `int` | yes | Verified passing episodes with recorded steps (servable). A verified pass with no recorded steps is left out, so total can exceed pass + fail + unverified. |
 | `total` | `int` | yes |  |
 | `unverified` | `int` | yes | Episodes still recording (no verdict yet). |
 
