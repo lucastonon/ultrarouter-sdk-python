@@ -796,8 +796,8 @@ Turn verified memory off (the kill switch).
 
 Learning (`client.learning`) is the supported way to turn lessons on; this is the lower-level
 setting it writes. `get` reads it with a content-addressed preview of what it would serve;
-`disable` is the kill switch; `enable` is a lab-authorised lever (a 403 without that
-grant).
+`disable` is the kill switch; `self_serve` is the customer's own activation of precedent
+memory; `enable` is a lab-authorised lever (a 403 without that grant).
 
 #### client.call_types.episode_memory.get
 
@@ -828,6 +828,25 @@ Freeze an episode-memory setting on a new config version (lab-authorised).
 
 Accepts the fields of `EpisodeMemoryEnableParams` (`k`,
 `lessons`, `record`, `as_of`, ...). Prefer `client.learning.enable` for learning.
+
+#### client.call_types.episode_memory.self_serve
+
+```python
+client.call_types.episode_memory.self_serve(
+    call_type: str,
+    *,
+    options: RequestOptions | None = None,
+    **params: Unpack[EpisodeMemoryEnableParams],
+) -> EpisodeMemoryEnableResult
+```
+
+Turn precedent episode memory on yourself (`POST .../episode-memory/self-serve`).
+
+The customer activation: no lab grant. It takes the same knobs as `enable`
+(`k`, `record`, `serve_corrections`, `index_actions`, `as_of`, ...) except
+`lessons`, which is refused (use `client.learning.enable` for lessons). The server
+checks that learning is on for the workspace, that both self-learning consents are
+granted, and that retention is `full`; each refusal is a named HTTP error.
 
 #### client.call_types.episode_memory.disable
 

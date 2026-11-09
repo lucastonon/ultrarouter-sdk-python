@@ -6,6 +6,10 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+- `client.call_types.episode_memory.self_serve(...)` (and its async twin) turns precedent episode
+  memory on through the customer route `POST /v1/call-types/{id}/episode-memory/self-serve`, with
+  the same knobs as `enable` except `lessons`, and no lab grant.
+
 - Read-only company knowledge browsing/search and detail, with typed results, cursors and
   namespaced item IDs. Examples inspect state and provenance without model calls. Content export
   remains a separate owner/admin session operation; malformed and reserved export IDs fail locally.

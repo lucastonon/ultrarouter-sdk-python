@@ -87,6 +87,10 @@ COVERAGE: dict[str, str] = {
         'client.call_types.episode_memory.enable("support-reply", k=3, record=True, '
         'lessons={"mode": "only", "recipe": {"validator": "elv2"}})'
     ),
+    "selfServeEpisodeMemory": (
+        'client.call_types.episode_memory.self_serve("support-reply", k=4, record=True, '
+        "serve_corrections=True, index_actions=True)"
+    ),
     "disableEpisodeMemory": 'client.call_types.episode_memory.disable("support-reply")',
     "enableVerifiedMemory": (
         'client.call_types.verified_memory.enable("support-reply", target_precision=0.95)'

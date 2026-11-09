@@ -215,8 +215,8 @@ class EpisodeMemory(SyncAPIResource):
 
     Learning (``client.learning``) is the supported way to turn lessons on; this is the lower-level
     setting it writes. ``get`` reads it with a content-addressed preview of what it would serve;
-    ``disable`` is the kill switch; ``enable`` is a lab-authorised lever (a 403 without that
-    grant).
+    ``disable`` is the kill switch; ``self_serve`` is the customer's own activation of precedent
+    memory; ``enable`` is a lab-authorised lever (a 403 without that grant).
     """
 
     def get(
@@ -254,6 +254,31 @@ class EpisodeMemory(SyncAPIResource):
             build(
                 "POST",
                 f"/v1/call-types/{seg(call_type)}/episode-memory/enable",
+                body=dict(params),
+                options=options,
+            ),
+            EpisodeMemoryEnableResult,
+        )
+
+    def self_serve(
+        self,
+        call_type: str,
+        *,
+        options: RequestOptions | None = None,
+        **params: Unpack[EpisodeMemoryEnableParams],
+    ) -> EpisodeMemoryEnableResult:
+        """Turn precedent episode memory on yourself (``POST .../episode-memory/self-serve``).
+
+        The customer activation: no lab grant. It takes the same knobs as :meth:`enable`
+        (``k``, ``record``, ``serve_corrections``, ``index_actions``, ``as_of``, ...) except
+        ``lessons``, which is refused (use ``client.learning.enable`` for lessons). The server
+        checks that learning is on for the workspace, that both self-learning consents are
+        granted, and that retention is ``full``; each refusal is a named HTTP error.
+        """
+        return self._client.request_model(
+            build(
+                "POST",
+                f"/v1/call-types/{seg(call_type)}/episode-memory/self-serve",
                 body=dict(params),
                 options=options,
             ),
@@ -549,6 +574,24 @@ class AsyncEpisodeMemory(AsyncAPIResource):
             build(
                 "POST",
                 f"/v1/call-types/{seg(call_type)}/episode-memory/enable",
+                body=dict(params),
+                options=options,
+            ),
+            EpisodeMemoryEnableResult,
+        )
+
+    async def self_serve(
+        self,
+        call_type: str,
+        *,
+        options: RequestOptions | None = None,
+        **params: Unpack[EpisodeMemoryEnableParams],
+    ) -> EpisodeMemoryEnableResult:
+        """Turn precedent memory on yourself; async twin of :meth:`EpisodeMemory.self_serve`."""
+        return await self._client.request_model(
+            build(
+                "POST",
+                f"/v1/call-types/{seg(call_type)}/episode-memory/self-serve",
                 body=dict(params),
                 options=options,
             ),
