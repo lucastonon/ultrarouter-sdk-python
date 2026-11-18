@@ -622,7 +622,7 @@ def _receipt_body(status: str, **extra: Any) -> dict[str, Any]:
         "request_id": "req_1",
         "status": status,
         "reason": None,
-        "episode": {"status": "pending", "trace_id": None, "verdict": None},
+        "episode": {"status": "pending", "trace_id": None, "verdict": None, "reason": None},
         "channel": "computable",
         "kind": "oracle_pass",
         "source_event_id": "rpt_1",

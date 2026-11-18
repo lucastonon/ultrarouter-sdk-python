@@ -14,10 +14,17 @@ from ..types import (
     CallType,
     CallTypeList,
     EnqueueEvalResponse,
+    EpisodeEvictionList,
+    EpisodeEvictionResult,
+    EpisodeEvictParams,
     EpisodeMemoryDisableResult,
     EpisodeMemoryEnableParams,
     EpisodeMemoryEnableResult,
+    EpisodeMemoryImportParams,
+    EpisodeMemoryImportResult,
     EpisodeMemoryStatus,
+    EpisodePrecedent,
+    EpisodePrecedentList,
     EvalRunList,
     HostedPrompt,
     HostedPromptActivation,
@@ -216,7 +223,9 @@ class EpisodeMemory(SyncAPIResource):
     Learning (``client.learning``) is the supported way to turn lessons on; this is the lower-level
     setting it writes. ``get`` reads it with a content-addressed preview of what it would serve;
     ``disable`` is the kill switch; ``self_serve`` is the customer's own activation of precedent
-    memory; ``enable`` is a lab-authorised lever (a 403 without that grant).
+    memory; ``enable`` is a lab-authorised lever (a 403 without that grant). ``precedents`` and
+    ``precedent`` read what memory holds and how it was used; ``evict`` removes (or erases) what a
+    selector matches and ``evictions`` lists those operations; ``import_pairs`` adds approved pairs.
     """
 
     def get(
@@ -294,6 +303,109 @@ class EpisodeMemory(SyncAPIResource):
                 "POST", f"/v1/call-types/{seg(call_type)}/episode-memory/disable", options=options
             ),
             EpisodeMemoryDisableResult,
+        )
+
+    def evictions(
+        self,
+        call_type: str,
+        *,
+        limit: int | None = None,
+        cursor: str | None = None,
+        options: RequestOptions | None = None,
+    ) -> EpisodeEvictionList:
+        """List the episode-memory operations log, newest first (evictions and erasures).
+
+        Each entry records the selector's field names and a keyed digest of it, the reason code
+        and the counts, never an end-user key, an id or free text.
+        """
+        return self._client.request_model(
+            build(
+                "GET",
+                f"/v1/call-types/{seg(call_type)}/episode-memory/evictions",
+                query=compact(limit=limit, cursor=cursor),
+                options=options,
+            ),
+            EpisodeEvictionList,
+        )
+
+    def evict(
+        self,
+        call_type: str,
+        *,
+        options: RequestOptions | None = None,
+        **params: Unpack[EpisodeEvictParams],
+    ) -> EpisodeEvictionResult:
+        """Evict the episode memory a selector matches, or erase it (``erase=True``).
+
+        Evicted rows stop being served within 60 seconds and can be restored by the owner; an
+        erasure hard-deletes them and cannot be undone. ``dry_run=True`` counts and writes nothing.
+        Needs ``memory:manage`` (an erasure: a key created by a workspace owner).
+        """
+        return self._client.request_model(
+            build(
+                "POST",
+                f"/v1/call-types/{seg(call_type)}/episode-memory/evictions",
+                body=dict(params),
+                options=options,
+            ),
+            EpisodeEvictionResult,
+        )
+
+    def import_pairs(
+        self,
+        call_type: str,
+        *,
+        options: RequestOptions | None = None,
+        **params: Unpack[EpisodeMemoryImportParams],
+    ) -> EpisodeMemoryImportResult:
+        """Import approved question and answer pairs into the call type's episode memory.
+
+        Returns the counts (imported, duplicate, conflict, refused) and one result per pair, in
+        request order.
+        """
+        return self._client.request_model(
+            build(
+                "POST",
+                f"/v1/call-types/{seg(call_type)}/episode-memory/imports",
+                body=dict(params),
+                options=options,
+            ),
+            EpisodeMemoryImportResult,
+        )
+
+    def precedents(
+        self,
+        call_type: str,
+        *,
+        limit: int | None = None,
+        cursor: str | None = None,
+        sort: str | None = None,
+        state: str | None = None,
+        flagged: bool | None = None,
+        options: RequestOptions | None = None,
+    ) -> EpisodePrecedentList:
+        """List the call type's precedents and how the episodes shown them ended (one page)."""
+        return self._client.request_model(
+            build(
+                "GET",
+                f"/v1/call-types/{seg(call_type)}/episode-memory/precedents",
+                query=compact(limit=limit, cursor=cursor, sort=sort, state=state, flagged=flagged),
+                options=options,
+            ),
+            EpisodePrecedentList,
+        )
+
+    def precedent(
+        self, call_type: str, precedent_id: str, *, options: RequestOptions | None = None
+    ) -> EpisodePrecedent:
+        """Read one precedent and the episodes it was shown to."""
+        return self._client.request_model(
+            build(
+                "GET",
+                f"/v1/call-types/{seg(call_type)}/episode-memory/precedents/{seg(precedent_id)}",
+                options=options,
+            ),
+            EpisodePrecedent,
         )
 
 
@@ -607,6 +719,96 @@ class AsyncEpisodeMemory(AsyncAPIResource):
                 "POST", f"/v1/call-types/{seg(call_type)}/episode-memory/disable", options=options
             ),
             EpisodeMemoryDisableResult,
+        )
+
+    async def evictions(
+        self,
+        call_type: str,
+        *,
+        limit: int | None = None,
+        cursor: str | None = None,
+        options: RequestOptions | None = None,
+    ) -> EpisodeEvictionList:
+        """The operations log; async twin of :meth:`EpisodeMemory.evictions`."""
+        return await self._client.request_model(
+            build(
+                "GET",
+                f"/v1/call-types/{seg(call_type)}/episode-memory/evictions",
+                query=compact(limit=limit, cursor=cursor),
+                options=options,
+            ),
+            EpisodeEvictionList,
+        )
+
+    async def evict(
+        self,
+        call_type: str,
+        *,
+        options: RequestOptions | None = None,
+        **params: Unpack[EpisodeEvictParams],
+    ) -> EpisodeEvictionResult:
+        """Evict or erase; async twin of :meth:`EpisodeMemory.evict`."""
+        return await self._client.request_model(
+            build(
+                "POST",
+                f"/v1/call-types/{seg(call_type)}/episode-memory/evictions",
+                body=dict(params),
+                options=options,
+            ),
+            EpisodeEvictionResult,
+        )
+
+    async def import_pairs(
+        self,
+        call_type: str,
+        *,
+        options: RequestOptions | None = None,
+        **params: Unpack[EpisodeMemoryImportParams],
+    ) -> EpisodeMemoryImportResult:
+        """Import approved pairs; async twin of :meth:`EpisodeMemory.import_pairs`."""
+        return await self._client.request_model(
+            build(
+                "POST",
+                f"/v1/call-types/{seg(call_type)}/episode-memory/imports",
+                body=dict(params),
+                options=options,
+            ),
+            EpisodeMemoryImportResult,
+        )
+
+    async def precedents(
+        self,
+        call_type: str,
+        *,
+        limit: int | None = None,
+        cursor: str | None = None,
+        sort: str | None = None,
+        state: str | None = None,
+        flagged: bool | None = None,
+        options: RequestOptions | None = None,
+    ) -> EpisodePrecedentList:
+        """List precedents; async twin of :meth:`EpisodeMemory.precedents`."""
+        return await self._client.request_model(
+            build(
+                "GET",
+                f"/v1/call-types/{seg(call_type)}/episode-memory/precedents",
+                query=compact(limit=limit, cursor=cursor, sort=sort, state=state, flagged=flagged),
+                options=options,
+            ),
+            EpisodePrecedentList,
+        )
+
+    async def precedent(
+        self, call_type: str, precedent_id: str, *, options: RequestOptions | None = None
+    ) -> EpisodePrecedent:
+        """Read one precedent; async twin of :meth:`EpisodeMemory.precedent`."""
+        return await self._client.request_model(
+            build(
+                "GET",
+                f"/v1/call-types/{seg(call_type)}/episode-memory/precedents/{seg(precedent_id)}",
+                options=options,
+            ),
+            EpisodePrecedent,
         )
 
 

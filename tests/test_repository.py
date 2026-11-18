@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+import typing_extensions
 import yaml
 
 import ultrarouter
@@ -92,6 +93,34 @@ def test_nullable_values_generate_their_type() -> None:
     assert typing.get_type_hints(PreflightParams)["messages"] == list[ChatMessageParam]
 
 
+def test_named_scalars_generate_their_value_type() -> None:
+    """A ``$ref`` to a named string (an id component) is typed ``str``, never an empty class."""
+    from ultrarouter.types import (
+        ArtifactCreateParams,
+        BenchOutcomeParams,
+        ExperimentOutcomeParams,
+        ExperimentReceiptParams,
+    )
+
+    def hint(cls: Any, name: str) -> Any:
+        # `Required[...]` is kept by some typing-extensions versions on Python 3.10: unwrap it.
+        value = typing_extensions.get_type_hints(cls, include_extras=True)[name]
+        if typing_extensions.get_origin(value) in (
+            typing_extensions.Required,
+            typing_extensions.NotRequired,
+        ):
+            (value,) = typing_extensions.get_args(value)
+        return value
+
+    assert hint(ArtifactCreateParams, "request_ids") == list[str]
+    assert hint(BenchOutcomeParams, "trace") is str
+    # `allOf: [{$ref: <id>}, {type: string, maxLength: …}]`: the id, narrowed, is still a string.
+    assert hint(ExperimentOutcomeParams, "request_ids") == list[str]
+    assert hint(ExperimentReceiptParams, "request_id") is str
+    assert not hasattr(ultrarouter.types, "LearningRequestIdParams")
+    assert not hasattr(ultrarouter.types, "LearningTraceIdParams")
+
+
 def test_scalar_components_are_inlined_by_the_generator() -> None:
     import gen_types
 
@@ -123,6 +152,28 @@ def test_scalar_components_are_inlined_by_the_generator() -> None:
     assert gen_types.is_scalar_schema({"type": "integer", "minimum": 0})
     assert not gen_types.is_scalar_schema({"type": "object", "properties": {}})
     assert not gen_types.is_scalar_schema({"type": "array", "items": {"type": "string"}})
+
+
+def test_shared_shapes_keep_their_public_names() -> None:
+    """A new operation whose inline shape equals an existing public type does not rename it."""
+    from ultrarouter.types import (
+        ArtifactFinalEpisodeCorrection,
+        CacheControlParam,
+        ChatContentPartParam,
+        ChatMessageParam,
+        OutcomeReceiptRecord,
+        OutcomeReceiptRecordEpisode,
+    )
+
+    receipt = ArtifactFinalEpisodeCorrection.model_fields["receipt"].annotation
+    assert receipt == (OutcomeReceiptRecord | None)
+    assert OutcomeReceiptRecord.model_fields["episode"].annotation in (
+        OutcomeReceiptRecordEpisode,
+        OutcomeReceiptRecordEpisode | None,
+    )
+    content = typing.get_type_hints(ChatMessageParam)["content"]
+    assert content == (str | list[ChatContentPartParam] | None)
+    assert typing.get_type_hints(ChatContentPartParam)["cache_control"] is CacheControlParam
 
 
 def test_parity_goldens_match_the_typescript_reference() -> None:

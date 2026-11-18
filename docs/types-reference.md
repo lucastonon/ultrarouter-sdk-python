@@ -112,7 +112,10 @@ Present only when a corrected body was supplied under consent. THE BARRIER: `/fi
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
 | `corrected_at` | `str \| None` | yes | When the stored correction is effective (ISO), or null. |
-| `status` | `str` | yes | Whether this correction reached episode memory: `applied` (stored, eligible to serve on the next request) \| `unchanged` (the same correction was already stored) \| `not_serving` (the call type is not opted into serve_corrections) \| `consent_off` \| `no_correction_text` \| `no_episode` (no failed episode holds this artifact’s request).  Known values: ``applied``, ``unchanged``, ``not_serving``, ``consent_off``, ``no_correction_text``, ``no_episode``. |
+| `pending_seconds` | `int \| None` | no | With `pending`: how long the gateway keeps the correction waiting for its episode (900). |
+| `reason` | `str \| None` | no | A permanent no_episode retains the request recording reason, such as route_not_recorded or record_off. |
+| `receipt` | `OutcomeReceiptRecord \| None` | no | Poll this durable receipt: pending until its trace and failure verdict land, then applied; expires after 15 minutes. References the existing consented final only. |
+| `status` | `str` | yes | Whether this correction reached episode memory: `applied` (stored, eligible to serve on the next request) \| `unchanged` (the same correction was already stored) \| `not_serving` (the call type is not opted into serve_corrections) \| `consent_off` \| `no_correction_text` \| `no_episode` (no failed episode holds this artifact’s request) \| `pending` (no failed episode holds it YET — the recorder writes it after the response and its verdict lands with the outcome — so the gateway keeps the correction for up to `pending_seconds` and applies it when the episode lands; the response does not wait, and the status route’s `traces.corrected` shows it applied).  Known values: ``applied``, ``unchanged``, ``not_serving``, ``consent_off``, ``no_correction_text``, ``no_episode``, ``pending``. |
 | `trace_id` | `str \| None` | yes | The episode trace the correction bound to, or null. |
 
 ### ArtifactFinalParams
@@ -124,7 +127,7 @@ Record the human-approved final output version (the correction channel).
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
 | `artifact_version` | `int` | no | The draft version the human reviewed (defaults to the current version). When supplied it must equal the artifact’s current version — a stale value (the draft moved since it was reviewed) is a 409 conflict, never a silent append; a correction derived from this final binds only to the version it was reviewed against. |
-| `diff_stats` | `DiffStatsParams` | no | CLIENT-computed diff stats (the no-consent path; the SDK `diffStats` helper). |
+| `diff_stats` | `DiffStatsParams` | no | CLIENT-computed diff stats (the no-consent path; the SDK `diffStats` helper): numbers and the final hash only. |
 | `draft` | `str` | no | The draft body — used ONLY to compute server-side diff_stats under consent. |
 | `final` | `str` | no | The final body — stored ONLY under corrections_consent. |
 | `final_hash` | `str` | no | The final content hash (required on the no-consent metadata-only path). |
@@ -365,11 +368,11 @@ A batch outcome keyed by request_id | artifact_id | artifact_key.
 | `evidence_hash` | `str` | no | A content hash of supporting evidence (never a body). |
 | `kind` | `Required[str]` | no | The channel `kind` (a closed vocabulary per channel). |
 | `observed_at` | `str` | no | The effective time (ISO-8601; must be ≥ the artifact occurred_at). Defaults to now. |
-| `request_id` | `str` | no | Target via the request shortcut (one-request artifact). |
+| `request_id` | `str` | no |  |
 | `source_event_id` | `str` | no | The caller idempotency discriminator (ULID at enqueue). Defaults to a server ULID. |
 | `supersedes_event_id` | `str` | no | The event this one supersedes. |
 | `tool_error_class` | `Literal['model', 'infra', 'unclassified']` | no | For mechanical:tool_error — refines learning_use (only model-class teaches). |
-| `value` | `dict[str, Any]` | no | The typed numeric/diff-stats payload — never a body. |
+| `value` | `dict[str, float \| bool \| str \| list[float] \| DiffStatsParams \| None]` | no | The typed metadata payload (numbers, tokens, `diff_stats` on a correction) — never a body. |
 
 ### BatchOutcomeResult
 
@@ -765,7 +768,7 @@ A customer Bench assertion input.
 | `config` | `dict[str, Any]` | no | The scorer config (required_fields / field / pattern+flags; a json_schema assertion may set closed:true to reject any leaf outside the pinned set); validated per kind. |
 | `item_content_hash` | `str` | no | Narrow the assertion to a specific dataset item content hash. |
 | `kind` | `Required[str]` | no | The assertion kind (json_schema/exact_field/regex_match/citation_substring). |
-| `request_id` | `str` | no | Narrow the assertion to a specific captured request id. |
+| `request_id` | `str` | no |  |
 
 ### BenchExpectations
 
@@ -828,7 +831,7 @@ A first-party per-trace outcome input.
 | `call_type` | `str` | no | The call type the trace belongs to (optional). |
 | `labels` | `dict[str, Any]` | no | Optional free-form labels (no PII). |
 | `passed` | `Required[bool]` | no | The binary ground-truth verdict for the whole trace. |
-| `trace` | `Required[str]` | no | The task/trace id the outcome grades (the stats cluster id). |
+| `trace` | `Required[str]` | no |  |
 
 ### BenchOutcomes
 
@@ -1707,6 +1710,48 @@ A customer-declared claim.
 | `stated_confidence` | `float` | no | The customer stated confidence ∈ (0,1). |
 | `statement` | `str` | no | A REDACTED claim statement (never a raw body — redact upstream). |
 
+### CompanyKnowledgeAnswer
+
+*response model*
+
+Response shape `CompanyKnowledgeAnswer`.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `answer` | `str \| None` | yes |  |
+| `citations` | `list[CompanyKnowledgeAnswerCitation]` | yes |  |
+| `considered` | `int` | yes |  |
+| `request_id` | `str \| None` | yes | The billed receipt id (req_int_ followed by a ULID) when a completion was made; null only for no_matching_knowledge, when no model call or charge was made. |
+| `status` | `str` | yes | Known values: ``answered``, ``no_matching_knowledge``, ``not_supported_by_knowledge``. |
+| `truncated` | `bool` | yes | The 1,000-current-item ranking bound cut the candidate set. |
+
+### CompanyKnowledgeAnswerCitation
+
+*response model*
+
+Response shape `CompanyKnowledgeAnswerCitation`.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `call_type_id` | `str \| None` | yes |  |
+| `id` | `str` | yes |  |
+| `kind` | `str` | yes | Known values: ``lesson``, ``fact``. |
+| `version_id` | `str \| None` | yes | Immutable lesson version used by this execution; null for facts. |
+
+### CompanyKnowledgeAskParams
+
+*request shape (TypedDict)*
+
+Request shape `CompanyKnowledgeAskParams`.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `call_type_id` | `str` | no |  |
+| `kind` | `Literal['lesson', 'fact']` | no |  |
+| `max_items` | `int` | no |  |
+| `model` | `str` | no |  |
+| `question` | `Required[str]` | no |  |
+
 ### CompanyKnowledgeDetail
 
 *response model*
@@ -1995,13 +2040,13 @@ Request shape `DiffLengthsParams`.
 
 *request shape (TypedDict)*
 
-CLIENT-computed diff stats (the no-consent path; the SDK `diffStats` helper).
+CLIENT-computed diff stats (the no-consent path; the SDK `diffStats` helper): numbers and the final hash only.
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
 | `changed_spans` | `int` | no |  |
 | `edit_ratio` | `float` | no |  |
-| `final_hash` | `str` | no |  |
+| `final_hash` | `str` | no | A content hash (hex, optionally prefixed `sha256:`) — never a body. |
 | `lengths` | `DiffLengthsParams` | no |  |
 
 ### Embedding
@@ -2118,6 +2163,173 @@ The manual-eval trigger result: the enqueued run (202) or a documented no-op (20
 | `status` | `str \| None` | no | The prior run’s current status (`queued`\|`running`\|`scored`\|`failed`) — present only on a dedupe. |
 | `trigger` | `str \| None` | no | The prior run’s trigger (e.g. `manual`, `model.release`) — present only on a dedupe. |
 
+### EpisodeEviction
+
+*response model*
+
+Response shape `EpisodeEviction`.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `actor_id` | `str \| None` | yes |  |
+| `actor_type` | `str` | yes | Known values: ``user``, ``api_key``, ``system``. |
+| `counts` | `dict[str, int]` | yes | Integer counts only. |
+| `created_at` | `str` | yes |  |
+| `fence_at` | `str \| None` | yes | Reserved: null, unless an experimental operator setting that is off by default is on. Do not rely on it. |
+| `id` | `str` | yes |  |
+| `operation` | `str` | yes | Known values: ``evict``, ``erase``, ``restore``. |
+| `reason` | `str` | yes | A closed reason code. |
+| `restores_id` | `str \| None` | yes | For a restore, the eviction it reversed. |
+| `selector_digest` | `str \| None` | yes |  |
+| `selector_fields` | `list[str]` | yes | The selector field names used, never their values. |
+
+### EpisodeEvictionList
+
+*response model*
+
+The operations log, newest first.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `data` | `list[EpisodeEviction]` | yes |  |
+| `next_cursor` | `str \| None` | yes |  |
+| `object` | `str` | yes | Known values: ``list``. |
+
+### EpisodeEvictionResult
+
+*response model*
+
+The result of an eviction or an erasure.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `already_erased` | `EpisodeEvictionResultAlreadyErased \| None` | yes | Per store, for an erasure: rows it reached that an earlier erasure had already erased. Only the stores that keep a marker of an erasure can tell (`outcome_receipts`, `outcome_values`, `bench_dataset_items`, `artifact_final_bodies`); every other store deletes its rows and reports 0 here. A store with 0 here and in `erased` matched nothing. A refused erasure is an error, never a count. Null for an eviction. |
+| `call_type_id` | `str` | yes |  |
+| `dry_run` | `bool` | yes |  |
+| `effective_within_seconds` | `int` | yes | The bound on when no request is served an evicted or erased row: 60 (the pinned cache TTL). |
+| `erased` | `EpisodeEvictionResultAlreadyErased \| None` | yes | Per store, for an erasure (for its dry run, what it would remove); null for an eviction. |
+| `evicted` | `int` | yes | Rows moved out of memory (0 for an erasure or a dry run). |
+| `fallback` | `EpisodeEvictionResultFallback \| None` | yes | For an erasure (and its dry run, what it would do): where each affected call type’s active lesson pointer went. Null for an eviction. |
+| `fence_at` | `str \| None` | yes | Reserved: null, unless an experimental operator setting that is off by default is on. Do not rely on it. A request still in flight when an erasure commits can leave its text behind until the retention period ends: erase after the end user’s requests have finished, or run the erasure again afterwards. |
+| `id` | `str \| None` | yes | The log entry (`epe_…`); null for a dry run. |
+| `matched` | `int` | yes | Rows the selector matched (for an eviction, rows not already evicted). |
+| `object` | `str` | yes | Known values: ``episode_memory_eviction``. |
+| `operation` | `str` | yes | Known values: ``evict``, ``erase``. |
+| `reason` | `str` | yes | Known values: ``bad_precedent``, ``bad_teacher``, ``provenance``, ``erasure_request``, ``incident``, ``other``. |
+| `restorable` | `bool` | yes | Whether `…/evictions/{eviction_id}/restore` can return the rows. |
+| `selector_digest` | `str \| None` | yes | The keyed digest the log stores instead of the selector; null for a dry run. |
+| `selector_fields` | `list[str]` | yes | Known values: ``precedent_ids``, ``config_id``, ``outcome_source``, ``correction_source``, ``producer``, ``outcome_event_rule_version``, ``partition``, ``taught_between``, ``judge_identity``, ``guard_identity``, ``rubric_hash``. |
+| `unresolved_fields` | `list[str]` | yes | Selector fields that match nothing yet (they resolve through reviewer receipts).  Known values: ``precedent_ids``, ``config_id``, ``outcome_source``, ``correction_source``, ``producer``, ``outcome_event_rule_version``, ``partition``, ``taught_between``, ``judge_identity``, ``guard_identity``, ``rubric_hash``. |
+
+### EpisodeEvictionResultAlreadyErased
+
+*response model*
+
+Per store, for an erasure: rows it reached that an earlier erasure had already erased. Only the stores that keep a marker of an erasure can tell (`outcome_receipts`, `outcome_values`, `bench_dataset_items`, `artifact_final_bodies`); every other store deletes its rows and reports 0 here. A store with 0 here and in `erased` matched nothing. A refused erasure is an error, never a count. Null for an eviction.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `adaptive_study_payloads` | `int` | yes | Stored adaptive study reports that named a request, capture or precedent the erasure reached, removed. |
+| `analyzer_drafts` | `int` | yes | Analyzer drafts whose sample window held a capture the erasure reached, and the rubrics compiled from them: their drafted text removed. |
+| `artifact_final_bodies` | `int` | yes | Final versions a stored correction was copied from, their body removed (the version keeps its hash). |
+| `bench_captures` | `int` | yes | Benchmark captures of those requests (their full bodies). |
+| `bench_dataset_items` | `int` | yes | Frozen benchmark items folded from a capture the erasure reached: their text and contract removed, the item kept as an empty marker; the dataset and the evaluation runs over it become partial. |
+| `bench_evidence` | `int` | yes | Benchmark outcome labels and assertions on a request the erasure reached, and public share previews built from an item it reached, removed. |
+| `cee_blobs` | `int` | yes | Encrypted bodies (captures, correction sources, receipt bodies) no other record still references. |
+| `cee_envelopes` | `int` | yes | Capture envelopes of those requests. |
+| `cee_outbox` | `int` | yes | Captured bodies of those requests still queued for the capture drain. |
+| `claims` | `int` | yes | Claim statements and free-form situation facets on an artifact the erasure reached, removed (the claim and the artifact stay). |
+| `correction_receipt_bodies` | `int` | yes | Verified correction bodies submitted for those requests, removed (the receipt keeps its hash). |
+| `episode_playbook_attempts` | `int` | yes | Lesson distillations still in progress over an erased trace, stopped before they could publish. |
+| `episode_playbooks` | `int` | yes | Learned-lesson versions retired because a cohort held an erased trace (and every later version). |
+| `episode_precedent_stats` | `int` | yes | Attribution rows of the erased precedents. |
+| `episode_traces` | `int` | yes | Episode traces, each with its answer index text and task digest. |
+| `evaluation_outputs` | `int` | yes | Evaluation outputs, output vectors, judge rationales and spot-check notes made from those golden items, removed. |
+| `golden_items` | `int` | yes | Evaluation golden items copied from a request, verified correction or capture the erasure reached: their input and reference are removed and the item is retired. |
+| `idempotency_keys` | `int` | yes | Stored responses of those requests kept for an `Idempotency-Key` replay (24 hours); a retry with the key runs the request again. |
+| `import_execution_calls` | `int` | yes | Imported workflow calls recorded against a request the erasure reached, their bodies removed. |
+| `import_records` | `int` | yes | Imported records and executions on an artifact the erasure reached, their bodies removed. |
+| `knowledge_facts` | `int` | yes | Knowledge facts whose content came from a final or a verified correction the erasure reached: retired (no longer read or served) and their text removed. A fact other end users also supported is retired whole and re-derived from what remains on the next learning pass. |
+| `oracle_jobs` | `int` | yes | Verification jobs on a request the erasure reached, their payload removed. |
+| `outcome_details` | `int` | yes | Outcome details (a reason you sent with an edited or rejected outcome) for those requests, their text and its fingerprints removed (the detail keeps its length). |
+| `outcome_receipts` | `int` | yes | Outcome reports received for those requests, kept as a marker with `status: erased` and their input removed. |
+| `outcome_values` | `int` | yes | Outcome values and final diff statistics on what the erasure reached: the whole value removed (the event keeps its kind, its time and a keyed hash of the removed value; nothing that learns or counts reads it). |
+| `request_feedback` | `int` | yes | Feedback left on those requests, with its comment. |
+| `request_payloads` | `int` | yes | Stored request and response bodies of every request of the traces. |
+| `review_notes` | `int` | yes | Reviewer notes on an artifact the erasure reached, whatever outcome they accompany, their text removed (the note keeps its hash and length). |
+| `template_samples` | `int` | yes | Masked prompt samples, and the vectors made from them, of every template group a reached request belonged to: the whole group is cleared (other requests of those groups lose their samples too; new traffic samples again). |
+| `workflow_repair_chains` | `int` | yes | Repair-chain rows derived from those requests, in any call type; a lesson version or a pending distillation whose cohort holds one is retired with them (counted above). |
+| `workflow_step_links` | `int` | yes | Workflow step rows derived from those requests (ids, roles and counts the product found in your traffic), in any call type. |
+
+### EpisodeEvictionResultFallback
+
+*response model*
+
+For an erasure (and its dry run, what it would do): where each affected call type’s active lesson pointer went. Null for an eviction.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `activated` | `int` | yes | Call types whose active lesson version was erased and which now serve an earlier version. |
+| `call_types` | `list[EpisodeEvictionResultFallbackCallType]` | yes | One entry per call type with learning controls whose ACTIVE version the erasure removed, by call type id. A call type without learning controls is not listed: it serves its latest remaining version. |
+| `cleared` | `int` | yes | Call types whose active lesson version was erased with no version to fall back to: they serve no lessons until an owner promotes a version. |
+
+### EpisodeEvictionResultFallbackCallType
+
+*response model*
+
+Response shape `EpisodeEvictionResultFallbackCallType`.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `call_type_id` | `str` | yes |  |
+| `outcome` | `str` | yes | Known values: ``activated``, ``cleared``. |
+| `version` | `int \| None` | yes | Its version number; null when cleared. |
+| `version_id` | `str \| None` | yes | The version now active (`activated`); null when the pointer was cleared. |
+
+### EpisodeEvictParams
+
+*request shape (TypedDict)*
+
+Evict a call type’s episode memory by selector, or erase it.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `dry_run` | `bool` | no | Count only and write nothing (an erasure dry run reports exactly what it would remove). |
+| `erase` | `bool` | no | Hard-delete the matched episodes of this call type and the stores listed in `erased` for them, instead of moving them out of memory. Not restorable. Owner only: an owner session, or an api key with `memory:manage` whose creator is an owner of the workspace when the erasure runs (403 `permission`, message `memory_manage_owner_only: …`, otherwise). |
+| `reason` | `Required[Literal['bad_precedent', 'bad_teacher', 'provenance', 'erasure_request', 'incident', 'other']]` | no | Why, as a closed code (stored in the append-only log). |
+| `selector` | `Required[EpisodeEvictParamsSelector]` | no | Which rows: every field set is ANDed; at least one is required. |
+
+### EpisodeEvictParamsSelector
+
+*request shape (TypedDict)*
+
+Which rows: every field set is ANDed; at least one is required.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `config_id` | `str` | no | The `config_id` of the outcome event that verified the rows: matches passes and corrections alike. |
+| `correction_source` | `Literal['declared', 'inferred', 'imported']` | no | Where the stored correction came from: `declared` (the customer’s `/final`), `inferred` (the reviewer), `imported` (an approved pair the customer imported). |
+| `guard_identity` | `str` | no | Resolved through the reviewer receipts, which do not exist yet: matches nothing today. |
+| `judge_identity` | `str` | no | Resolved through the reviewer receipts, which do not exist yet: matches nothing today. |
+| `outcome_event_rule_version` | `str` | no | The rule version of the verifying outcome event. |
+| `outcome_source` | `Literal['declared', 'inferred', 'gateway', 'imported']` | no | The source of the verifying outcome event. |
+| `partition` | `str` | no | An end user’s key, as the requests sent it (`ur.memory_partition`, the header or `user`). Surrounding whitespace is ignored and the key is compared in Unicode NFC, as when requests are recorded (a key sent in the header is read as the UTF-8 bytes the client sent); at most 1,024 characters once trimmed and in NFC. It is digested on arrival and matched against the stored digest; the raw value is never stored or logged. |
+| `precedent_ids` | `list[str]` | no | Precedent (episode trace) ids, from the precedent list or a lever stamp; at most 1,000. |
+| `producer` | `str` | no | The producer of the verifying outcome event. |
+| `rubric_hash` | `str` | no | Resolved through the reviewer receipts, which do not exist yet: matches nothing today. |
+| `taught_between` | `EpisodeEvictParamsSelectorTaughtBetween` | no | When the rows entered memory: the later of their verdict and their correction. |
+
+### EpisodeEvictParamsSelectorTaughtBetween
+
+*request shape (TypedDict)*
+
+When the rows entered memory: the later of their verdict and their correction.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `from` | `str \| None` | no |  |
+| `to` | `str \| None` | no |  |
+
 ### EpisodeMemoryDisableResult
 
 *response model*
@@ -2146,6 +2358,7 @@ Enable episode memory for a call type (the lab-authorised, pre-evidence activati
 | `importance_boost` | `float` | no | Weight corrected misses in ranking: a corrected miss’s similarity is multiplied by `1 + importance_boost` (0..100; default 0, no boost). The min_similarity floor applies to the raw similarity, before the boost. |
 | `index_actions` | `bool` | no | Index a candidate on its task text plus identifier tokens from its verified answer (SQL tables/columns/operators and literal shapes — never literal values; otherwise the action tokens), so retrieval can match on schema-linked terms. The query side stays the request’s task text (default false). |
 | `k` | `int` | no | Precedents served per episode (1..5; default 3). |
+| `learned_read_timeout_ms` | `int` | no | The shared learned-memory read deadline in milliseconds (25..2000, default 250). A ceiling, not a delay: a read completed in 3 ms costs 3 ms. Bounds latency before the first token. Skips carry refusal fell_back on the receipt; GET learning reports the last 24 hours of completed hourly buckets. The default is 250 ms; lower it if your first-token latency matters more than memory. |
 | `lessons` | `EpisodeMemoryEnableParamsLessons` | no | The learned-playbook block (absent ⇒ lessons off, byte-identical). |
 | `max_chars_per_episode` | `int` | no | Characters of actions shown per precedent (500..8000; default 3500). |
 | `min_similarity` | `float` | no | Serve only precedents at least this similar to the task (0..1; default 0, no floor). |
@@ -2186,6 +2399,85 @@ The result of enabling episode memory (a refusal is a named HTTP error, never a 
 | `previous` | `EpisodeMemoryStatusSetting \| None` | yes | The setting this one replaced (null when off). |
 | `setting` | `EpisodeMemoryStatusSetting` | yes | The frozen episode-memory setting on a call-type config version. |
 
+### EpisodeMemoryImportCounts
+
+*response model*
+
+Response shape `EpisodeMemoryImportCounts`.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `conflict` | `int` | yes |  |
+| `duplicate` | `int` | yes |  |
+| `imported` | `int` | yes |  |
+| `refused` | `int` | yes |  |
+
+### EpisodeMemoryImportPairResult
+
+*response model*
+
+One pair’s result, in request order.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `imported_at` | `str \| None` | yes | The import instant: the pair ranks at it, so an `as_of` pin at or after it sees it. Null unless imported or duplicate. |
+| `job_id` | `str` | yes |  |
+| `precedent_id` | `str \| None` | yes | The stored pair (an episode trace id, `ept_…`): what the precedent reads, the request read’s `item_ids` and an erasure by `precedent_ids` name. Null when refused. |
+| `reason` | `str \| None` | yes | Why it was refused.  Known values: ``job_id_invalid``, ``job_id_repeated``, ``no_task``, ``no_answer``, ``end_user_required``, ``end_user_invalid``, ``approved_at_invalid``, ``approved_in_future``, ``approved_past_retention``. |
+| `screen_flagged` | `bool \| None` | yes | The flag-only injection screen flagged the stored text (it is still served, as any flagged row is). |
+| `status` | `str` | yes | `imported` now; `duplicate` (already stored with the same content: nothing written); `conflict` (stored with other content: nothing written); `refused` (see `reason`).  Known values: ``imported``, ``duplicate``, ``conflict``, ``refused``. |
+
+### EpisodeMemoryImportParams
+
+*request shape (TypedDict)*
+
+Approved pairs to import into the call type’s episode memory.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `config_id` | `str` | no | Optional: a label of the configuration that produced the answers. Stored on each pair, so an erasure by `config_id` reaches it. |
+| `pairs` | `Required[list[EpisodeMemoryImportParamsPair]]` | no | 1 to 100 approved pairs. |
+
+### EpisodeMemoryImportParamsPair
+
+*request shape (TypedDict)*
+
+One approved pair.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `answer` | `Required[str]` | no | The approved answer, exactly as the customer’s people approved it. |
+| `approved_at` | `Required[str]` | no | When the answer was approved (ISO-8601). At most 5 minutes in the future, and not older than the workspace’s retention window. |
+| `end_user` | `str` | no | The end user the pair belongs to: required when the call type’s scope is `partitioned` (the pair is then shown only to that end user’s requests). Normalised and stored as a digest, exactly as a request’s `ur.memory_partition` is. |
+| `job_id` | `Required[str]` | no | The customer’s own job id. Importing the same job id again is idempotent: the same content is a `duplicate`, other content a `conflict` (nothing is changed; erase the stored pair first to replace it). |
+| `messages` | `Required[list[EpisodeMemoryImportParamsPairMessage]]` | no | The task as the application sent it (its chat messages). As for a recorded episode, the task is the first user message, so a later request with a similar first user message is matched against it. |
+
+### EpisodeMemoryImportParamsPairMessage
+
+*request shape (TypedDict)*
+
+Request shape `EpisodeMemoryImportParamsPairMessage`.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `content` | `Required[str \| list[ChatContentPartParam]]` | no | The message text, or its content parts, as the application sent it. |
+| `role` | `Required[str]` | no | `system`, `user`, `assistant`, … as the application sent it. |
+
+### EpisodeMemoryImportResult
+
+*response model*
+
+What the import stored.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `call_type_id` | `str` | yes |  |
+| `counts` | `EpisodeMemoryImportCounts` | yes |  |
+| `object` | `str` | yes | Known values: ``episode_memory_import``. |
+| `results` | `list[EpisodeMemoryImportPairResult]` | yes |  |
+| `scope` | `str` | yes | The declared scope the pairs were stored under.  Known values: ``shared``, ``partitioned``. |
+| `workspace_imported` | `int` | yes | The workspace’s imported pairs after this call (at most 10,000 at once). |
+
 ### EpisodeMemoryStatus
 
 *response model*
@@ -2194,16 +2486,87 @@ A call type’s episode-memory status.
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
+| `awaiting_approval` | `int \| None` | no | Count of versions awaiting approval, visible only to workspace owners and admins. |
 | `call_type_id` | `str` | yes |  |
 | `config_version` | `int \| None` | yes |  |
 | `enabled` | `bool` | yes | Whether the active config version carries a readable EXPLICIT setting (false for the explicit-off marker, an unreadable value, or no setting). |
+| `explanation` | `EpisodeMemoryStatusExplanation \| None` | yes | Why memory is, or is not, helping this call type yet — the stage, the blocking codes with their action text, progress and the fit. The same object the learning status returns. Null while memory is not active for the call type (no setting, switched off, or not permitted for the workspace). |
 | `lab_authorised` | `bool` | yes | The workspace’s staff-granted lab authorisation (`flywheel.episode_memory_lab`). |
 | `memory` | `EpisodeMemoryStatusMemory` | yes | A content-addressed preview of the memory the setting (or `?as_of`) would serve now. |
 | `object` | `str` | yes | Known values: ``episode_memory``. |
-| `playbook` | `EpisodeMemoryStatusPlaybook` | yes | The latest learned playbook of the source call type (version null when none). |
+| `playbook` | `EpisodeMemoryStatusPlaybook` | yes | The playbook version this call type serves (version null when none): never a held, candidate or evaluating version. |
+| `scope` | `EpisodeMemoryStatusScope` | yes | The end-user scope this call type serves under, and where it came from. |
+| `screen` | `EpisodeMemoryStatusScreen` | yes | The stored-injection screen (flag-only): every verified or corrected trace is screened and a flagged trace still serves. Blocking is not available. A neutralised block (self-serve, the default path) fences and marks stored structure either way; a model may still follow text it reads inside the fence. |
 | `setting` | `EpisodeMemoryStatusSetting \| None` | yes | The frozen episode-memory setting on a call-type config version. |
 | `source` | `str` | yes | The per-call-type state — `explicit` (a readable setting is stored), `off` (an explicit opt-out, or an unreadable value fail-closed), or `default` (nothing stored — the call type follows the workspace default `flywheel.episode_memory_default`).  Known values: ``explicit``, ``default``, ``off``. |
 | `traces` | `EpisodeMemoryStatusTraces` | yes | The call type’s episode-trace accounting (counts only). |
+
+### EpisodeMemoryStatusExplanation
+
+*response model*
+
+Why memory is, or is not, helping this call type yet — the stage, the blocking codes with their action text, progress and the fit. The same object the learning status returns. Null while memory is not active for the call type (no setting, switched off, or not permitted for the workspace).
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `blocking` | `list[EpisodeMemoryStatusExplanationBlockingItem]` | yes | What stands between the call type and memory that helps it. |
+| `fit` | `EpisodeMemoryStatusExplanationFit` | yes |  |
+| `progress` | `EpisodeMemoryStatusExplanationProgress` | yes |  |
+| `serving` | `EpisodeMemoryStatusExplanationServing` | yes |  |
+| `stage` | `str` | yes | `recording` (nothing recorded yet), `waiting_for_verdicts` (recorded, none verified), `building` (verified, not served yet), `serving`, `stalled` (a blocking condition held for 7 days or 200 requests), `paused` (reserved), `not_a_fit`.  Known values: ``recording``, ``waiting_for_verdicts``, ``building``, ``serving``, ``stalled``, ``paused``, ``not_a_fit``. |
+
+### EpisodeMemoryStatusExplanationBlockingItem
+
+*response model*
+
+Response shape `EpisodeMemoryStatusExplanationBlockingItem`.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `action` | `str` | yes | Fixed text: what the condition means and what to change. |
+| `code` | `str` | yes | A closed code, most important first. `paused_auto`, `prompt_changed` and `quarantine` are reserved and not emitted yet.  Known values: ``recording_off``, ``no_traffic``, ``partition_required``, ``verdicts_unmatched``, ``no_verdicts``, ``only_failures``, ``retrieval_degraded``, ``screen_flags``, ``scope_notice``, ``cache_conflict``, ``low_repeat``, ``paused_auto``, ``prompt_changed``, ``quarantine``. |
+| `detail` | `dict[str, float \| str \| None]` | yes | The numbers behind the code (shares, counts); never text from a request. |
+
+### EpisodeMemoryStatusExplanationFit
+
+*response model*
+
+Response shape `EpisodeMemoryStatusExplanationFit`.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `reasons` | `list[str]` | yes | Known values: ``too_few_requests``, ``unstable``, ``no_spec_detected``, ``low_repeat``. |
+| `repeat_rate` | `float \| None` | yes | The median similarity of a recent request to its nearest other recent request (null below 20). Shown as a number: its threshold is not set yet. |
+| `repeat_sample` | `int` | yes | How many recent requests the repeat rate was computed over. |
+| `source` | `str` | yes | `census` (the platform fit census), `heuristic` (the repeat rate), `unknown`.  Known values: ``census``, ``heuristic``, ``unknown``. |
+| `verdict` | `str \| None` | yes | Null until a census or a set threshold decides it.  Known values: ``fit``, ``not_a_fit``. |
+| `wording` | `str \| None` | yes | The not-a-fit explanation, scoped to its reason. |
+
+### EpisodeMemoryStatusExplanationProgress
+
+*response model*
+
+Response shape `EpisodeMemoryStatusExplanationProgress`.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `eta_requests` | `int \| None` | yes | Requests until memory serves: not estimated yet (always null). |
+| `needed` | `int` | yes | Verified passes or corrections memory needs before it can serve anything. |
+| `precedents_servable` | `int` | yes | Verified precedents the memory would serve now. |
+| `served_last_7d` | `int` | yes | Requests served a block in the last 7 days (from the hourly rollup). |
+| `verified` | `int` | yes | Verified episodes (passes and failures). |
+
+### EpisodeMemoryStatusExplanationServing
+
+*response model*
+
+Response shape `EpisodeMemoryStatusExplanationServing`.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `active` | `bool` | yes | Memory serves for this call type now. |
+| `recording` | `bool` | yes | New episodes are recorded: record on, corrections consent on, retention full. |
+| `serves_precedents` | `bool` | yes | It serves precedents (not lessons only). |
 
 ### EpisodeMemoryStatusMemory
 
@@ -2222,7 +2585,7 @@ A content-addressed preview of the memory the setting (or `?as_of`) would serve 
 
 *response model*
 
-The latest learned playbook of the source call type (version null when none).
+The playbook version this call type serves (version null when none): never a held, candidate or evaluating version.
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
@@ -2232,6 +2595,49 @@ The latest learned playbook of the source call type (version null when none).
 | `source_call_type_id` | `str` | yes | The call type whose playbook is reported. |
 | `version` | `int \| None` | yes | The latest version number, or null when none. |
 | `version_id` | `str \| None` | yes | The latest version row id (`epb_…`), or null. |
+
+### EpisodeMemoryStatusScope
+
+*response model*
+
+The end-user scope this call type serves under, and where it came from.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `notice` | `bool` | yes | True while the scope was recorded rather than declared (a one-time notice until the owner declares one). |
+| `scope` | `str \| None` | yes | The end-user scope it serves under; null ⇒ nothing serves (memory off, or no default scope).  Known values: ``shared``, ``partitioned``. |
+| `source` | `str \| None` | yes | `declared` by the owner; `recorded` as `shared` for a self-serve setting with no declared scope (one enabled before scopes existed, or a lessons-only learner); `lab` (always `shared`); or the workspace’s default-path scope.  Known values: ``declared``, ``recorded``, ``lab``, ``workspace_default``. |
+
+### EpisodeMemoryStatusScreen
+
+*response model*
+
+The stored-injection screen (flag-only): every verified or corrected trace is screened and a flagged trace still serves. Blocking is not available. A neutralised block (self-serve, the default path) fences and marks stored structure either way; a model may still follow text it reads inside the fence.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `by_reason` | `EpisodeMemoryStatusScreenByReason` | yes | Flagged traces of this call type per reason; a trace with two reasons counts under both. Only the closed codes are counted: a code a later screen version adds is not, so `flagged` can exceed the sum. |
+| `flagged` | `int` | yes | Traces OF THIS CALL TYPE the screen flagged (its own traces, even when it serves a source call type). Reviewer and shadow-replay traffic is not separated yet. |
+| `flagged_in_memory` | `int` | yes | Of the precedents the setting (or `?as_of`) would serve now, how many are flagged. These are drawn from the SOURCE call type when the setting names one, so this can be non-zero while `flagged` is 0. |
+| `screened` | `int` | yes | Traces of this call type that carry a screen result. Traces verified before the screen shipped get one from the hourly rescreen pass. |
+| `version` | `str` | yes | The screen version the writers record today (`eps1`); a rule change moves it. |
+
+### EpisodeMemoryStatusScreenByReason
+
+*response model*
+
+Flagged traces of this call type per reason; a trace with two reasons counts under both. Only the closed codes are counted: a code a later screen version adds is not, so `flagged` can exceed the sum.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `bidi_override` | `int` | yes | Flagged for a bidirectional override character. |
+| `chat_template_marker` | `int` | yes | Flagged for a chat-template role marker. |
+| `encoded_payload` | `int` | yes | Flagged for an encoded blob that decodes to an instruction. |
+| `future_instruction` | `int` | yes | Flagged for an instruction about future requests. |
+| `homoglyph_obfuscation` | `int` | yes | Flagged for look-alike letters in an instruction word. |
+| `imperative_override` | `int` | yes | Flagged for an order to ignore or replace instructions. |
+| `reviewer_addressed` | `int` | yes | Flagged for a phrase addressed to a reviewer or grader. |
+| `zero_width_obfuscation` | `int` | yes | Flagged for zero-width characters inside words. |
 
 ### EpisodeMemoryStatusSetting
 
@@ -2247,8 +2653,10 @@ The frozen episode-memory setting on a call-type config version.
 | `importance_boost` | `float \| None` | no | Present only when set (not 0). |
 | `index_actions` | `bool \| None` | no | Present only when true. |
 | `k` | `int` | yes |  |
+| `learned_read_timeout_ms` | `int \| None` | no | The shared learned-memory read deadline in milliseconds (25..2000, default 250). A ceiling, not a delay: a read completed in 3 ms costs 3 ms. Bounds latency before the first token. Skips carry refusal fell_back on the receipt; GET learning reports the last 24 hours of completed hourly buckets. The default is 250 ms; lower it if your first-token latency matters more than memory. |
 | `lessons` | `EpisodeMemoryStatusSettingLessons \| None` | no | Present only when the learned-playbook mode is not `off`. |
 | `max_chars_per_episode` | `int` | yes |  |
+| `memory_scope` | `str \| None` | no | The end-user scope the owner declared on the self-serve enable. Absent on a `lab` setting (one ultrarouter staff enabled; always `shared`) and on a self-serve setting from before scopes existed (recorded as `shared`; see the status `scope`).  Known values: ``shared``, ``partitioned``. |
 | `min_similarity` | `float \| None` | no | Present only when set (not 0). |
 | `observation_chars` | `int` | yes |  |
 | `prefer_shorter` | `bool \| None` | no | Present only when true. |
@@ -2283,8 +2691,8 @@ Present only for a non-legacy learner recipe (absent ⇒ the legacy learner).
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
 | `generation` | `str` | yes | Known values: ``bundled``, ``atomic``. |
-| `observations` | `str` | yes | Known values: ``legacy``, ``elo2``. |
-| `validator` | `str` | yes | Known values: ``elv1``, ``elv2``. |
+| `observations` | `str` | yes | Known values: ``legacy``, ``elo2``, ``corrections_v1``, ``repair_chains_v1``. |
+| `validator` | `str` | yes | Known values: ``elv1``, ``elv2``, ``elv3``. |
 
 ### EpisodeMemoryStatusTraces
 
@@ -2296,10 +2704,76 @@ The call type’s episode-trace accounting (counts only).
 | --- | --- | --- | --- |
 | `corrected` | `int` | yes | Fail episodes with a stored customer correction (served when serve_corrections is on; reported separately — never counted as a pass). |
 | `fail` | `int` | yes |  |
+| `imported` | `int` | yes | Approved pairs the customer imported (`POST …/episode-memory/imports`). No request happened for them, so they carry no verdict: counted here and in `total`, never in `pass`, `fail`, `corrected` or `unverified`. |
 | `latest_verified_at` | `str \| None` | yes | The newest verification instant (ISO) of a servable pass, or null. |
 | `pass` | `int` | yes | Verified passing episodes with recorded steps (servable). A verified pass with no recorded steps is left out, so total can exceed pass + fail + unverified. |
 | `total` | `int` | yes |  |
-| `unverified` | `int` | yes | Episodes still recording (no verdict yet). |
+| `unverified` | `int` | yes | Episodes still recording (no verdict yet). An imported pair is never one. |
+
+### EpisodePrecedent
+
+*response model*
+
+Response shape `EpisodePrecedent`.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `object` | `str` | yes | Known values: ``episode_precedent``. |
+| `precedent` | `EpisodePrecedentListItem` | yes | A served precedent. The outcomes of the episodes it was shown to are an association, not an effect: they do not say the precedent caused them. Never its task text or answer. |
+| `served_in` | `list[EpisodePrecedentServedInItem]` | yes | Up to 50 newest episodes shown this precedent, with their request ids. Ids only. |
+
+### EpisodePrecedentList
+
+*response model*
+
+Response shape `EpisodePrecedentList`.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `data` | `list[EpisodePrecedentListItem]` | yes |  |
+| `next_cursor` | `str \| None` | yes | Pass as `cursor` for the next page; null on the last. |
+| `object` | `str` | yes | Known values: ``list``. |
+
+### EpisodePrecedentListItem
+
+*response model*
+
+A served precedent. The outcomes of the episodes it was shown to are an association, not an effect: they do not say the precedent caused them. Never its task text or answer.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `call_type_id` | `str` | yes |  |
+| `config_id` | `str \| None` | yes |  |
+| `corrected_at` | `str \| None` | yes |  |
+| `correction_source` | `str \| None` | yes | Where the served answer came from when it is not a verified pass: `declared` (the customer’s `/final`), `inferred` (the reviewer) or `imported` (an approved pair the customer imported: no request happened, so `outcome` is null). |
+| `first_served_at` | `str \| None` | yes |  |
+| `id` | `str` | yes | The precedent (an episode trace id, `ept_…`). |
+| `last_served_at` | `str \| None` | yes |  |
+| `mean_rank` | `float \| None` | yes | Its mean 0-based rank when shown. |
+| `outcome` | `str \| None` | yes | Known values: ``pass``, ``fail``. |
+| `outcome_source` | `str \| None` | yes |  |
+| `partitioned` | `bool` | yes | Recorded under an end-user key (the key itself is never returned). |
+| `pool_kind` | `str` | yes | `pass` or `correction`. |
+| `screen_flagged` | `bool \| None` | yes | The injection screen flagged it (null: not screened). |
+| `screen_reasons` | `list[str]` | yes | Closed reason codes, never text. |
+| `served_episodes` | `int` | yes | Later episodes shown this precedent. |
+| `served_fail` | `int` | yes | Of those, episodes reported failed. |
+| `served_pass` | `int` | yes | Of those, episodes reported passed. |
+| `served_unknown` | `int` | yes | Of those, episodes with no outcome yet. |
+| `serving_state` | `str` | yes | `active`, `quarantined`, `recording` or `evicted`. |
+| `verified_at` | `str \| None` | yes |  |
+
+### EpisodePrecedentServedInItem
+
+*response model*
+
+Response shape `EpisodePrecedentServedInItem`.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `episode_id` | `str` | yes |  |
+| `outcome` | `str \| None` | yes | Known values: ``pass``, ``fail``. |
+| `request_ids` | `list[str]` | yes | Up to 10 request ids of the episode. |
 
 ### EvalRun
 
@@ -3343,13 +3817,14 @@ Post-hoc stats for one request (GET /v1/generation).
 | --- | --- | --- | --- |
 | `byok` | `bool` | yes | Whether a workspace BYOK key served the request. |
 | `call_type` | `str \| None` | yes | Resolved call type (`ct_…`), or null. |
+| `client_request_id` | `str \| None` | yes | The alias the client sent as `X-UR-Request-Id` for this request, or null. An alias is never a request id: memory routes do not accept it. |
 | `compression` | `dict[str, Any]` | yes | Compression summary — the applied compression safety tier + savings provenance. |
 | `contract_digest` | `str \| None` | yes | The request's declared-contract digest (json_schema / tools / tool_choice / response_format); the distinguished empty-contract digest for a plain-text request, null on a request recorded before contract digests existed. |
 | `cost` | `GenerationStatsCost` | yes | Cost accounting (money is integer micro-USD). |
 | `created_at` | `str` | yes | ISO-8601 timestamp the request was recorded. |
 | `error_class` | `str \| None` | yes | The gateway error code (see `GatewayError.error.code`) when status != ok, else null. |
 | `exposure` | `GenerationStatsExposure` | yes | The immutable pre-dispatch exposure stamp (read-back; never a decision input). |
-| `id` | `str` | yes | The `req_…` id these stats describe. |
+| `id` | `str` | yes | The `req_…` id these stats describe (always the gateway’s). |
 | `lever` | `GenerationStatsLever` | yes | The learned-context lever stamp for this request. |
 | `model_requested` | `str` | yes | The logical model the caller asked for. |
 | `model_served` | `str \| None` | yes | The model actually served, or null on failure. |
@@ -3392,7 +3867,7 @@ The learned-context lever stamp for this request.
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
 | `epoch` | `int \| None` | yes | The measurement epoch the injection was bound to. |
-| `injection` | `dict[str, Any] \| None` | yes | The serve-time retrieval provenance (`module_id`, `item_ids[]`, `served_rank[]`, `propensity[]`) when injected, or the NAMED refusal that withheld the lever (`holdout`, `candidate_unknown`, `pack_hash_mismatch`, …). Propensity is computable only at serve time and is never backfilled. Ids and numbers only — never a body. |
+| `injection` | `dict[str, Any] \| None` | yes | The serve-time retrieval provenance (`module_id`, `item_ids[]`, `served_rank[]`, `propensity[]`) when injected, or the NAMED refusal that withheld the lever (an episode-memory injection, `source: episode_memory`, also carries `item_sources[]`, aligned with `item_ids` and read now: `pass`, `correction`, `inferred_correction`, `imported` — an approved pair the customer imported — or null once the example is no longer stored; and `item_similarities[]`, the ranking score each example was selected at, aligned with `item_ids`, 4 places, the same on every step of an episode) (`holdout`, `candidate_unknown`, `pack_hash_mismatch`, …). Propensity is computable only at serve time and is never backfilled. Ids and numbers only — never a body. |
 | `lever_id` | `str \| None` | yes | The lever family injected (`learned_context`), or null when none was. |
 | `module_version` | `str \| None` | yes | The injected module’s PINNED version — its recipe hash. |
 | `pack_hash` | `str \| None` | yes | The content address of the ORDERED item set actually served. |
@@ -3592,7 +4067,7 @@ Create or resume a history import (consent-gated; owner/admin or outcomes:write)
 | `jsonl` | `str` | no | The uploaded records as JSONL (newline-delimited JSON). Alternative to `records`. |
 | `mode` | `Literal['preview', 'commit']` | no | preview = capability report only (nothing stored); commit = ingest. Defaults to commit. |
 | `reason_vocabulary` | `ImportCreateParamsReasonVocabulary` | no | workflow_execution_jsonl only: the typed hold-reason codes this batch’s executions may use (`{ id, codes[] }`). Registered ONCE at the batch creation (insert-only; a resume inherits it). An execution whose terminal names an unregistered code is refused `reason_code_unregistered`. Required for a workflow import (409 `workflow_requires_reason_vocabulary` otherwise). |
-| `records` | `list[Any]` | no | The uploaded records (array form). Intact-trace records may carry request/response bodies — the ONLY import field that does; stored ONLY under corrections_consent, redacted on ingest. A workflow_execution_jsonl record groups the EXISTING gateway request rows its `calls` name into one artifact with one terminal outcome. |
+| `records` | `list[ImportCreateParamsRecord \| dict[str, Any] \| str \| float \| bool \| list[Any] \| None]` | no | The uploaded records (array form). Intact-trace records may carry request/response bodies — the ONLY import field that does; stored ONLY under corrections_consent, redacted on ingest. A workflow_execution_jsonl record groups the EXISTING gateway request rows its `calls` name into one artifact with one terminal outcome. |
 
 ### ImportCreateParamsReasonVocabulary
 
@@ -3604,6 +4079,27 @@ workflow_execution_jsonl only: the typed hold-reason codes this batch’s execut
 | --- | --- | --- | --- |
 | `codes` | `Required[list[str]]` | no |  |
 | `id` | `Required[str]` | no |  |
+
+### ImportCreateParamsRecord
+
+*request shape (TypedDict)*
+
+Request shape `ImportCreateParamsRecord`.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `calls` | `list[ImportCreateParamsRecordCall]` | no |  |
+| `orphan_calls` | `list[ImportCreateParamsRecordCall]` | no |  |
+
+### ImportCreateParamsRecordCall
+
+*request shape (TypedDict)*
+
+Request shape `ImportCreateParamsRecordCall`.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `request_id` | `str` | no |  |
 
 ### ImportEnvelope
 
@@ -3791,8 +4287,8 @@ The learner recipe the distiller runs (absent ⇒ the legacy learner).
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
 | `generation` | `Literal['bundled', 'atomic']` | no | Lesson generation: `bundled` (legacy, the default) or `atomic` (one complete rule per item with conditions, exceptions and required tools; never clipped). |
-| `observations` | `Literal['legacy', 'elo2']` | no | Observation selection: `legacy` (the default) or `elo2` (error→correction transitions, passed-case results and labelled user turns at the same total budget, with measured omissions). |
-| `validator` | `Literal['elv1', 'elv2']` | no | Lesson admission: `elv1` (legacy literal rule, the default) or `elv2` (provenance-aware: evidence support + value handling, documented constants scoped to their tool). |
+| `observations` | `Literal['legacy', 'elo2', 'corrections_v1', 'repair_chains_v1']` | no | Observation selection: `legacy` (the default), `elo2` (error→correction transitions, passed-case results and labelled user turns at the same total budget, with measured omissions), `corrections_v1` (the corrections end users declared) or `repair_chains_v1` (correction cases the gateway inferred from your application’s own repair loop: the line as first written, what your check or reviewer said was wrong with it, the line after the repair; built and admitted like `corrections_v1`, never from held-out traffic, and served to treated traffic only, as a candidate). |
+| `validator` | `Literal['elv1', 'elv2', 'elv3']` | no | Lesson admission: `elv1` (legacy literal rule, the default), `elv2` (provenance-aware: evidence support + value handling, documented constants scoped to their tool) or `elv3` (a value counts as task-local only when it can identify and fewer than max(3, 25%) of the batch end users hold it; such a value becomes a typed placeholder, and a lesson with no rule left is refused; bundled generation only). |
 
 ### LearningControl
 
@@ -3810,6 +4306,127 @@ The result of a learning control.
 | `stopped_evaluation_id` | `str \| None` | yes | A running evaluation the control stopped (`stopped_manual`). |
 | `version_id` | `str \| None` | yes | The version a rollback / promote / reject acted on. |
 
+### LearningCost
+
+*response model*
+
+What episode memory costs this call type: an estimate and an observed difference. Display only.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `cache` | `LearningCostCache` | yes |  |
+| `call_type_id` | `str` | yes |  |
+| `call_type_spend_micro_usd` | `int` | yes | What the call type’s requests cost in the window, both arms, over the hours that held a memory stamp. |
+| `loop` | `int \| None` | yes | Reviewer-loop spend in micro-USD: null until the platform review exists. |
+| `memory_overhead` | `LearningCostMemoryOverhead` | yes |  |
+| `object` | `str` | yes | Known values: ``learning_cost``. |
+| `repair_loop` | `LearningCostRepairLoop` | yes | The repair loop the gateway found in this call type’s traffic (the `flywheel.link` worker), per exposure arm of each job’s first write — the treated-against-holdout numbers, DESCRIPTIVE only: the live confirmation of an inferred version compares candidate against incumbent inside its own evaluation (`rpl2`), not these. Counts from link rows only (ids, roles, token counts). |
+| `window_days` | `int` | yes |  |
+
+### LearningCostCache
+
+*response model*
+
+Response shape `LearningCostCache`.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `rate_holdout` | `float \| None` | yes | The same for the standing holdout. |
+| `rate_treated` | `float \| None` | yes | Cached input tokens ÷ input tokens, treated. |
+
+### LearningCostMemoryOverhead
+
+*response model*
+
+Response shape `LearningCostMemoryOverhead`.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `block_tokens` | `int` | yes | Their block tokens, summed. |
+| `estimate_micro_usd` | `int` | yes | The ESTIMATE: each served block’s tokens at its request’s own input price, summed. |
+| `injected` | `int` | yes | Requests served a block in the window. |
+| `observed_difference` | `LearningCostMemoryOverheadObservedDifference \| None` | yes | The observed difference in cost per request between requests outside the standing holdout and the holdout, with a two-sample cluster-bootstrap interval over hourly buckets. Display only: no budget rule reads it. It includes cache effects and output length; the estimate does not. Requests with no arm count as outside the holdout, which pulls the difference toward zero. Null without both arms. |
+
+### LearningCostMemoryOverheadObservedDifference
+
+*response model*
+
+The observed difference in cost per request between requests outside the standing holdout and the holdout, with a two-sample cluster-bootstrap interval over hourly buckets. Display only: no budget rule reads it. It includes cache effects and output length; the estimate does not. Requests with no arm count as outside the holdout, which pulls the difference toward zero. Null without both arms.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `buckets` | `int` | yes | Hourly buckets the interval resamples. |
+| `holdout_requests` | `int` | yes | Requests in the standing holdout. |
+| `interval` | `LearningCostMemoryOverheadObservedDifferenceInterval` | yes |  |
+| `per_request_micro_usd` | `int` | yes | Treated minus held-out cost per request (can be negative): the difference of the hourly buckets’ mean cost per request, each hour weighted equally, so it is the interval’s own point. |
+| `treated_requests` | `int` | yes | Requests outside the standing holdout, including requests with no arm (before memory served). |
+
+### LearningCostMemoryOverheadObservedDifferenceInterval
+
+*response model*
+
+Response shape `LearningCostMemoryOverheadObservedDifferenceInterval`.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `high` | `int` | yes |  |
+| `low` | `int` | yes |  |
+
+### LearningCostRepairLoop
+
+*response model*
+
+The repair loop the gateway found in this call type’s traffic (the `flywheel.link` worker), per exposure arm of each job’s first write — the treated-against-holdout numbers, DESCRIPTIVE only: the live confirmation of an inferred version compares candidate against incumbent inside its own evaluation (`rpl2`), not these. Counts from link rows only (ids, roles, token counts).
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `arms` | `list[LearningCostRepairLoopArm]` | yes | One entry per arm of the first write. |
+| `coverage` | `LearningCostRepairLoopCoverage` | yes | How much of the window the numbers cover. |
+| `jobs_without_first_write` | `int` | yes | Jobs whose first write has no stored link row (expired or never read): left out. |
+
+### LearningCostRepairLoopArm
+
+*response model*
+
+Response shape `LearningCostRepairLoopArm`.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `arm` | `str` | yes | The exposure arm of each job’s FIRST WRITE (`treated`, `holdout`, `lever_holdout`, `pre_lever`, or `unstamped`). Arms are never pooled. |
+| `first_pass` | `LearningCostRepairLoopArmFirstPass` | yes | The first pass of each job, one of three values. |
+| `first_pass_clean_share` | `float \| None` | yes | clean ÷ (clean + flagged); null when no first draft was checked. |
+| `jobs` | `int` | yes | Jobs whose first write is of this call type, in the window. |
+| `jobs_with_repairs_under_another_key` | `int` | yes | Jobs with a repair whose grouping key differs from the first write’s (a check usually opens its own conversation). |
+| `jobs_with_steps_in_another_arm` | `int` | yes | Jobs with a step served under another arm than the first write. |
+| `jobs_with_steps_under_another_key` | `int` | yes | Jobs with a step whose grouping key differs from the first write’s (the job keeps the first write’s arm). |
+| `repairs_per_job` | `float \| None` | yes |  |
+| `tokens_per_job` | `float \| None` | yes | Input plus output tokens of every call of a job, as its requests recorded them. |
+
+### LearningCostRepairLoopArmFirstPass
+
+*response model*
+
+The first pass of each job, one of three values.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `clean` | `int` | yes | A check read the first draft, none flagged it, and no repair revised it. |
+| `flagged` | `int` | yes | A repair revised the first draft, or a check of it flagged a line. |
+| `no_check_seen` | `int` | yes | No check and no repair of the first draft was seen. Never counted as clean. |
+
+### LearningCostRepairLoopCoverage
+
+*response model*
+
+How much of the window the numbers cover.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `complete` | `bool` | yes | False when the read bound left the window’s newest jobs unread or a job is incomplete: the numbers above are of the whole jobs read only. |
+| `jobs` | `int` | yes | Jobs in the window whose first write is of this call type (unexpired rows). |
+| `jobs_incomplete` | `int` | yes | Jobs whose live link rows are fewer than the job’s recorded membership (a member past retention) or whose membership was never recorded: left out, never read as a smaller job. |
+| `jobs_read` | `int` | yes | Jobs read whole (a job is never read in part). |
+
 ### LearningEnableParams
 
 *request shape (TypedDict)*
@@ -3818,10 +4435,11 @@ Enable learning for a call type (owner/admin session or a `config:write` key).
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
+| `learned_read_timeout_ms` | `int` | no | The shared learned-memory read deadline in milliseconds (25..2000, default 250). A ceiling, not a delay: a read completed in 3 ms costs 3 ms. Bounds latency before the first token. Skips carry refusal fell_back on the receipt; GET learning reports the last 24 hours of completed hourly buckets. The default is 250 ms; lower it if your first-token latency matters more than memory. |
 | `lessons_k` | `int` | no | Lessons served per episode (1..20; default 8). |
-| `lessons_mode` | `Literal['only', 'with_precedents']` | no | `only` (default): serve the learned lessons; `with_precedents`: lessons first, then similar verified past episodes. |
+| `lessons_mode` | `Literal['only', 'with_precedents']` | no | `only`: serve the learned lessons; `with_precedents`: lessons first, then similar verified past episodes. Omitted: `with_precedents` when the call type already serves precedents (its memory setting is kept — switching lessons on never changes what it records or serves), else `only`. `with_precedents` needs the end-user scope the owner declared on `POST /v1/call-types/{id}/episode-memory/self-serve` (400 `memory_scope_required` without one). The enable keeps that declared scope. Lessons are distilled from every end user’s episodes, so a call type declared `partitioned` refuses the learning enable (400 `lessons_not_partitioned`). |
 | `promotion` | `LearningPromotionParams` | no | Promotion-policy changes, merged over the current policy (or the defaults). |
-| `recipe` | `LearnerRecipeParams` | no | The learner recipe the reflection runs — its validator, lesson generation and observation selection, each optional (an absent field is the legacy value). Stored on the call type’s episode-memory setting, the ONE place the recipe lives. Omitted: the call type keeps its current recipe (the legacy learner when it has none). |
+| `recipe` | `LearnerRecipeParams` | no | The learner recipe the reflection runs — its validator, lesson generation and observation selection, each optional (an absent field is the legacy value). Stored on the call type’s episode-memory setting, the ONE place the recipe lives. Omitted: an existing learner keeps its stored recipe; a newly enabled learner uses elv3/bundled/corrections_v1 (corrections read by the learner; task-local values parameterized by kind and spread). A pre-existing legacy learner keeps legacy when it has no explicit recipe. |
 | `reflection_model` | `Required[str]` | no | The model the learner reflects with. It must resolve to a WORKSPACE-OWNED offer — one of the workspace’s custom providers, or a catalog provider the workspace stored its own key for. A platform-keyed model is refused; there is no paid fallback. |
 
 ### LearningEvaluation
@@ -3837,12 +4455,14 @@ A prospective randomized evaluation of a candidate against the incumbent.
 | `candidate_version_id` | `str` | yes |  |
 | `decided_at` | `str \| None` | yes | ISO 8601 instant. |
 | `decided_by` | `LearningEvaluationDecidedBy \| None` | yes |  |
-| `decision` | `str` | yes | Every decision except `promoted` keeps the incumbent.  Known values: ``running``, ``promoted``, ``retained``, ``inconclusive``, ``rejected``, ``stopped_budget``, ``stopped_manual``. |
+| `decision` | `str` | yes | Every decision except `promoted` keeps the incumbent. Under `rpl2` (an inferred version) nothing promotes: `recommended` means your own loop credibly improved under the candidate, and you may promote it; `rejected` is a roll-back (a metric credibly worse) and `inconclusive` means not confirmed (the last look or the deadline passed without a recommendation; `decision_reason` names what could not be said). Each stops serving the candidate. `rpl1` (retired) promoted by itself; a running `rpl1` evaluation is stopped (`stopped_budget`, `rule_retired`).  Known values: ``running``, ``promoted``, ``recommended``, ``retained``, ``inconclusive``, ``rejected``, ``stopped_budget``, ``stopped_manual``. |
 | `decision_reason` | `str` | yes |  |
 | `difference` | `LearningEvaluationDifference \| None` | yes | candidate − incumbent success (a fraction) with one-sided bounds at the frozen alpha; null until both arms have a verified episode. |
 | `id` | `str` | yes | `lev_…` |
 | `incumbent_version_id` | `str \| None` | yes | Null: the candidate is compared with serving no lessons. |
 | `object` | `str` | yes | Known values: ``learning_evaluation``. |
+| `observed` | `LearningEvaluationObserved \| None` | yes | `gateway_repair_loop` only: the observed numbers at the current look; null otherwise. |
+| `outcome_source` | `str` | yes | What one observation is: `verified_teaching_episode`, an episode with a teaching outcome your application declared; `gateway_repair_loop`, a job of your repair loop as the gateway observed it (an inferred version’s live confirmation: first pass clean among checked jobs, repairs per job).  Known values: ``verified_teaching_episode``, ``gateway_repair_loop``. |
 | `rule` | `LearningEvaluationRule \| None` | yes | The decision rule frozen when the evaluation started. lpr2 selects episodes before inspecting their outcomes, freezes one cohort, and makes one decision only from complete selected outcomes or the fixed deadline. |
 | `rule_hash` | `str` | yes | `lrh1_…` content address of the frozen rule. |
 | `started_at` | `str` | yes | ISO 8601 instant. |
@@ -3857,10 +4477,10 @@ Response shape `LearningEvaluationArm`.
 | --- | --- | --- | --- |
 | `cost_micro_usd` | `int \| None` | yes | Summed request cost of verified episodes within the selected cohort (cost objective only). |
 | `mean_cost_micro_usd` | `float \| None` | yes |  |
-| `pass` | `int` | yes |  |
+| `pass` | `int` | yes | Passes. Under `rpl1`: jobs whose first pass came back clean from your own check. |
 | `success_rate` | `float \| None` | yes | Descriptive pass / verified rate. Under lpr2 a promotion decision waits for complete outcomes in the frozen cohort. |
-| `unknown` | `int` | yes | Selected episodes without an eligible verified outcome, including reports after the fixed deadline. Under lpr2 they remain in the frozen cohort and block promotion; missing outcomes at the fixed deadline leave the incumbent active. Historical lpr1 evaluations excluded and counted unknown outcomes. |
-| `verified` | `int` | yes | Episodes with a verified teaching outcome. |
+| `unknown` | `int` | yes | Selected episodes without an eligible verified outcome, including reports after the fixed deadline (under `rpl1`: enrolled first writes whose job has not settled). Under lpr2 they remain in the frozen cohort and block promotion; missing outcomes at the fixed deadline leave the incumbent active. Historical lpr1 evaluations excluded and counted unknown outcomes. |
+| `verified` | `int` | yes | Episodes with a verified teaching outcome. Under `rpl1` (gateway-observed): jobs whose first pass a check read. |
 
 ### LearningEvaluationArms
 
@@ -3907,6 +4527,57 @@ The evaluations, newest first.
 | `data` | `list[LearningEvaluation]` | yes |  |
 | `object` | `str` | yes | Known values: ``list``. |
 
+### LearningEvaluationObserved
+
+*response model*
+
+`gateway_repair_loop` only: the observed numbers at the current look; null otherwise.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `arms` | `LearningEvaluationObservedArms` | yes |  |
+| `cannot_say` | `str \| None` | no | `rpl2`: what kept the look from a recommendation (`cannot_say_incomplete_outcomes`, `cannot_say_mixed_exposure`, `cannot_say_too_few_end_users`, `cannot_say_too_few_checked_jobs`, `cannot_say_no_variance`), or null. |
+| `look` | `int \| None` | yes | The look the numbers are from; null before the first. |
+| `looks` | `int` | yes |  |
+| `repairs_per_job` | `LearningEvaluationDifference \| None` | yes | candidate − incumbent repairs per job (negative = fewer), one-sided bounds at `alpha_per_test`. |
+| `tokens_per_job` | `LearningEvaluationDifference \| None` | yes | candidate − incumbent tokens per job, same level (reported, never decisive). |
+
+### LearningEvaluationObservedArms
+
+*response model*
+
+Response shape `LearningEvaluationObservedArms`.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `candidate` | `LearningEvaluationObservedArmsCandidate` | yes |  |
+| `incumbent` | `LearningEvaluationObservedArmsCandidate` | yes |  |
+
+### LearningEvaluationObservedArmsCandidate
+
+*response model*
+
+Response shape `LearningEvaluationObservedArmsCandidate`.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `checked` | `int` | yes | Jobs whose first pass one of your checks read. |
+| `clean` | `int` | yes |  |
+| `effective_end_users` | `float \| None` | no | `rpl2`: Kish’s effective number of end users over the complete jobs. |
+| `flagged` | `int` | yes |  |
+| `incomplete_jobs` | `int \| None` | no | `rpl2`: settled jobs whose outcome evidence is not whole (no check seen, a member past retention, a frozen trace erased, a membership not recorded): kept, never favourable. |
+| `jobs` | `int` | yes | Enrolled first writes counted at this look. |
+| `mixed_arm_jobs` | `int` | yes | Jobs with a step served in the other arm: kept with their first write’s arm (intention to treat). |
+| `no_check_seen` | `int` | yes |  |
+| `not_first_write` | `int` | yes | Enrolled requests the linker found to be a check or a repair, not a first write (not counted as jobs). |
+| `repairs` | `int` | yes |  |
+| `repairs_per_job` | `float \| None` | yes |  |
+| `tokens` | `int` | yes |  |
+| `tokens_per_job` | `float \| None` | yes |  |
+| `under_another_key_jobs` | `int` | yes | Jobs with a step under another grouping key than their first write. |
+| `unknown_identity_jobs` | `int \| None` | no | `rpl2`: complete jobs that carried no end-user identity (one unit together). |
+| `unresolved` | `int` | yes | Of them, jobs that have not settled yet. |
+
 ### LearningEvaluationRule
 
 *response model*
@@ -3916,16 +4587,24 @@ The decision rule frozen when the evaluation started. lpr2 selects episodes befo
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
 | `alpha_one_sided` | `float` | yes |  |
+| `alpha_per_test` | `float \| None` | no | `rpl1` only: the one-sided level of each metric at each look (alpha / (looks × 2)). |
 | `candidate_share` | `float` | yes |  |
-| `interval` | `str` | yes | `newcombe_hybrid_score`. |
+| `incomplete_or_mixed` | `str \| None` | no | `rpl2`: `cannot_say` — a look holding a job that crossed arms or whose outcome evidence is incomplete cannot recommend. |
+| `interval` | `str` | yes | `newcombe_hybrid_score`; `rpl1` (retired): `newcombe_hybrid_score+cluster_robust_normal`; `rpl2`: `cluster_robust_normal_by_end_user` (both metrics, end users as the units). |
+| `looks` | `list[int] \| None` | no | `rpl1` only: the planned looks, as jobs per arm (the minimum, doubling, the maximum last). Each look is taken on the first jobs enrolled in each arm once all of them have settled. |
 | `max_duration_hours` | `int` | yes |  |
+| `max_mixed_share` | `float \| None` | no | `rpl1` frozen from L3c: a look may promote only while mixed-arm jobs are at most this share of each arm. |
 | `max_verified_per_arm` | `int` | yes |  |
 | `min_effect_pp` | `float` | yes |  |
+| `min_end_users_per_arm` | `int \| None` | no | `rpl2`: the effective number of end users (Kish) each arm needs before a look may recommend (20). |
 | `min_verified_per_arm` | `int` | yes |  |
+| `mixed_arm_eligibility` | `str \| None` | no | `rpl1` frozen from L3c: `unmixed_only_v1` — a job with a step served in the other arm is counted but never decides. Absent on an older rule (every job decides, intention to treat). |
 | `noninferiority_margin_pp` | `float` | yes |  |
 | `objective` | `str` | yes | `success`: a higher whole-task success rate (the one-sided lower bound of the difference > 0 and the point difference ≥ `min_effect_pp`). `cost_noninferior`: a lower mean cost per episode with success not worse than the incumbent by more than `noninferiority_margin_pp`.  Known values: ``success``, ``cost_noninferior``. |
-| `outcome_source` | `str` | yes | `verified_teaching_episode`. |
+| `on_improvement` | `str \| None` | no | `rpl2`: `recommend` — a favourable look recommends the candidate to you; only you promote it. |
+| `outcome_source` | `str` | yes | `verified_teaching_episode` (outcomes your application declared); `gateway_repair_loop` (`rpl1`, `rpl2`: jobs of your repair loop as the gateway observed them). |
 | `rule_version` | `str` | yes | lpr2 freezes enrollment before waiting for outcomes; lpr1 identifies historical verified-only rules. |
+| `unit` | `str \| None` | no | `rpl2`: `end_user` — the interval’s unit; every job without an identity is one unit. |
 
 ### LearningPlan
 
@@ -4061,6 +4740,16 @@ The promotion policy. Defaults: evaluate / success / enrollment thresholds 30–
 | `noninferiority_margin_pp` | `float` | yes | `cost_noninferior`: the success non-inferiority margin in percentage points (default 5). |
 | `objective` | `str` | yes | `success`: a higher whole-task success rate (the one-sided lower bound of the difference > 0 and the point difference ≥ `min_effect_pp`). `cost_noninferior`: a lower mean cost per episode with success not worse than the incumbent by more than `noninferiority_margin_pp`.  Known values: ``success``, ``cost_noninferior``. |
 
+### LearningReadLimitParams
+
+*request shape (TypedDict)*
+
+Change only the learned read limit on an existing memory setting. 25..2000 ms; config:write or owner/admin session. Audited before/after and visible within the versioned-config 5 s window.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `learned_read_timeout_ms` | `Required[int]` | no | The default is 250 ms; lower it if your first-token latency matters more than memory. This is a ceiling, not a delay: a read completed in 3 ms costs 3 ms. |
+
 ### LearningRollbackParams
 
 *request shape (TypedDict)*
@@ -4083,12 +4772,15 @@ A call type’s learning status.
 | `budget` | `LearningStatusBudget` | yes |  |
 | `call_type_id` | `str` | yes |  |
 | `config_version` | `int \| None` | yes |  |
+| `correction_lesson_sharing` | `str \| None` | no | Approval is the default for lessons written from end users corrections.  Known values: ``approval``, ``automatic``. |
 | `enabled` | `bool` | yes | Lessons are switched on for the call type. |
 | `evaluation` | `LearningEvaluation \| None` | yes | The RUNNING evaluation, if any. |
 | `evidence` | `LearningStatusEvidence` | yes | Evidence arrived vs verified vs incorporated vs pending. |
+| `explanation` | `EpisodeMemoryStatusExplanation \| None` | yes | The episode-memory explanation (the same object `GET …/episode-memory` returns); null while episode memory is not active for the call type. |
 | `governed` | `bool` | yes | Uses a configured promotion policy. In evaluate mode, candidates receive a randomized share of eligible episodes before any active-version change. |
 | `last_evaluation` | `LearningEvaluation \| None` | yes | The newest evaluation (any decision). |
 | `latest_candidate` | `LearningVersionRef \| None` | yes |  |
+| `memory_read` | `LearningStatusMemoryRead \| None` | no | Last 24 hours of completed hourly serving rollups; through is the bucket boundary, hourly refresh. The denominator eligible counts eligible TREATMENT requests only; holdout is separate and never counted as skips. Counts include served requests and skips specifically due to the read deadline. The current limit is 250 ms unless configured. |
 | `object` | `str` | yes | Known values: ``learning``. |
 | `outcome_receipts` | `LearningStatusOutcomeReceipts` | yes | Outcome receipts (`POST /v1/requests/{id}/outcomes`) attributed to this call type’s requests, by state: a receipt counts once its request or its episode has been recorded for the call type. Settled receipts are counted until they are purged (30 days). |
 | `paused` | `bool` | yes |  |
@@ -4097,7 +4789,8 @@ A call type’s learning status.
 | `recipe` | `LearningStatusRecipe \| None` | yes | The learner recipe the next reflection runs, read from the call type’s episode-memory setting (the one place it lives); null when the call type has no explicit setting. |
 | `reflection` | `LearningStatusReflection` | yes |  |
 | `self_serve` | `bool` | yes | Enabled through this API (not a staff-granted study). |
-| `state` | `str` | yes | `collecting` (enabled, waiting for evidence), `learning` (a reflection is due or an evaluation runs), `paused`, `disabled` (the kill switch), `unavailable` (consent, provider or repeated failures), `quota_exhausted` / `budget_exhausted` (refused for resources — retried with backoff), `off`.  Known values: ``off``, ``collecting``, ``learning``, ``paused``, ``disabled``, ``unavailable``, ``quota_exhausted``, ``budget_exhausted``. |
+| `serving_stopped` | `LearningStatusServingStopped \| None` | yes | Set while the call type serves NO lessons because an erasure cleared its active version (precedents still serve). It clears when a version is activated again: promote one with `POST /v1/call-types/{id}/learning/versions/{version_id}/promote`. Null otherwise. |
+| `state` | `str` | yes | `collecting` (enabled, waiting for evidence), `learning` (a reflection is due or an evaluation runs), `paused`, `disabled` (the kill switch), `unavailable` (consent, provider or repeated failures), `quota_exhausted` / `budget_exhausted` (refused for resources — retried with backoff), `off`. With lessons off and precedent memory serving, the state is the memory stage’s: `serving`, `stalled`, `not_a_fit` or `collecting` (never `off`). New values may be added: a client must accept a state it does not know and treat it as `collecting`.  Known values: ``off``, ``collecting``, ``learning``, ``paused``, ``disabled``, ``unavailable``, ``quota_exhausted``, ``budget_exhausted``, ``serving``, ``stalled``, ``not_a_fit``. |
 | `usage` | `LearningStatusUsage` | yes | Subscription / token usage, recorded separately from cash. |
 
 ### LearningStatusBudget
@@ -4133,6 +4826,24 @@ Evidence arrived vs verified vs incorporated vs pending.
 | `verified_fail` | `int` | yes |  |
 | `verified_pass` | `int` | yes |  |
 
+### LearningStatusMemoryRead
+
+*response model*
+
+Last 24 hours of completed hourly serving rollups; through is the bucket boundary, hourly refresh. The denominator eligible counts eligible TREATMENT requests only; holdout is separate and never counted as skips. Counts include served requests and skips specifically due to the read deadline. The current limit is 250 ms unless configured.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `eligible` | `int` | yes |  |
+| `holdout` | `int \| None` | no |  |
+| `limit_ms` | `int` | yes |  |
+| `served` | `int` | yes |  |
+| `since` | `str` | yes | ISO 8601 instant. |
+| `skipped` | `int \| None` | no |  |
+| `skipped_time_limit` | `int` | yes |  |
+| `through` | `str` | yes | ISO 8601 instant. |
+| `unclassified_fell_back` | `int \| None` | no | Older hourly buckets may count fallbacks without distinguishing timeouts from read errors. These are reported here, never guessed to be time-limit skips. |
+
 ### LearningStatusOutcomeReceipts
 
 *response model*
@@ -4158,8 +4869,8 @@ The learner recipe the next reflection runs, read from the call type’s episode
 | --- | --- | --- | --- |
 | `generation` | `str` | yes | Known values: ``bundled``, ``atomic``. |
 | `legacy` | `bool` | yes | All three are the legacy values (the original learner). |
-| `observations` | `str` | yes | Known values: ``legacy``, ``elo2``. |
-| `validator` | `str` | yes | Known values: ``elv1``, ``elv2``. |
+| `observations` | `str` | yes | Known values: ``legacy``, ``elo2``, ``corrections_v1``, ``repair_chains_v1``. |
+| `validator` | `str` | yes | Known values: ``elv1``, ``elv2``, ``elv3``. |
 
 ### LearningStatusReflection
 
@@ -4169,13 +4880,32 @@ Response shape `LearningStatusReflection`.
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
+| `last_attempt_admission` | `LearningStatusReflectionLastAttemptAdmission \| None` | no | LESSON1: what the last attempt did with its proposed lessons — a `published` attempt can keep none (null when it published no version or the version records no counts). |
 | `last_attempt_at` | `str \| None` | yes | ISO 8601 instant. |
+| `last_attempt_model_calls` | `int \| None` | no |  |
+| `last_attempt_published` | `bool \| None` | no |  |
 | `last_attempt_reason` | `str \| None` | yes |  |
+| `last_attempt_spend_micro_usd` | `int \| None` | no |  |
 | `last_attempt_status` | `str \| None` | yes |  |
 | `last_published_at` | `str \| None` | yes | ISO 8601 instant. |
+| `message` | `str \| None` | no | Plain explanation of the last lesson job refusal and its remedy. |
 | `model` | `str \| None` | yes |  |
 | `next` | `LearningStatusReflectionNext` | yes | Whether the next server reflection scan will reflect, and why (not). |
 | `provider` | `LearningStatusReflectionProvider` | yes |  |
+
+### LearningStatusReflectionLastAttemptAdmission
+
+*response model*
+
+LESSON1: what the last attempt did with its proposed lessons — a `published` attempt can keep none (null when it published no version or the version records no counts).
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `kept` | `int` | yes | Lessons the admission kept. |
+| `parameterized` | `int \| None` | yes | `elv3`: kept lessons whose task-local values became typed placeholders (`<string_1>`); null for other validators. |
+| `proposed` | `int` | yes | Lessons the reflection proposed. |
+| `refused` | `int` | yes | Lessons the admission refused. |
+| `refused_by_reason` | `dict[str, int]` | yes | Refusals by reason code: `no_anchor` (cites no case of the batch), `task_local_literal` (`elv1`: a value of a job of the batch), `parameterized_no_rule` (`elv3`: no rule left once the values of one job or end user are replaced), `verbatim_source` (copies six or more words of a source), `insufficient_cases` (cites fewer than two cases), `insufficient_partitions` (draws on fewer than two end users), and the `elv2` reasons. |
 
 ### LearningStatusReflectionNext
 
@@ -4203,6 +4933,17 @@ Response shape `LearningStatusReflectionProvider`.
 | `ownership` | `str \| None` | yes | Known values: ``custom``, ``byok``, ``platform``. |
 | `provider_slug` | `str \| None` | yes |  |
 | `reason` | `str \| None` | yes | Why it is unavailable: `no_reflection_model`, `no_offer`, `platform_offer_only`, `no_workspace_key`, `model_denied_by_policy`. |
+
+### LearningStatusServingStopped
+
+*response model*
+
+Set while the call type serves NO lessons because an erasure cleared its active version (precedents still serve). It clears when a version is activated again: promote one with `POST /v1/call-types/{id}/learning/versions/{version_id}/promote`. Null otherwise.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `at` | `str` | yes | When the erasure cleared the active version. |
+| `reason` | `str` | yes | `erasure_cleared`: an erasure retired the active version and no earlier version could be activated in its place.  Known values: ``erasure_cleared``. |
 
 ### LearningStatusUsage
 
@@ -4268,16 +5009,18 @@ A learned playbook version.
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
 | `active_lessons` | `int` | yes |  |
+| `admission` | `LearningStatusReflectionLastAttemptAdmission \| None` | no | LESSON1: lessons proposed, kept and refused by reason when this version was written (null for a legacy version). |
 | `cohort` | `LearningVersionCohort` | yes | The verified episodes the version was learned from. |
 | `created_at` | `str` | yes | ISO 8601 instant. |
 | `digest` | `str` | yes | A content address of the version’s active lessons (`epb1_…`). |
 | `evaluation_id` | `str \| None` | yes | The evaluation that set the state, if any. |
 | `id` | `str` | yes | The immutable version id (`epb_…`). |
+| `lesson_source` | `str` | yes | Where the lessons came from: `declared` (the outcomes and corrections your application reported) or `inferred` (repairs the gateway found in your own repair loop, `repair_chains_v1`). An inferred version is never active for everyone until its live confirmation, on outcomes the gateway observed, promotes it: approving it makes it a candidate.  Known values: ``declared``, ``inferred``. |
 | `object` | `str` | yes | Known values: ``learning_version``. |
 | `parent_id` | `str \| None` | yes |  |
 | `recipe` | `str` | yes |  |
 | `reflection_model` | `str \| None` | yes |  |
-| `state` | `str` | yes | `candidate` (published, waiting), `evaluating`, `active` (served outside an evaluation), `retired` (replaced), `rejected` (lost / stopped / rejected by an owner), `superseded` (a newer candidate, or identical to the active version).  Known values: ``candidate``, ``evaluating``, ``active``, ``retired``, ``rejected``, ``superseded``. |
+| `state` | `str` | yes | `held_for_approval` (stored for owner/admin review, never served until approved), `candidate` (published, waiting), `evaluating`, `active` (served outside an evaluation), `retired` (replaced), `rejected` (lost / stopped / rejected by an owner), `superseded` (a newer candidate, or identical to the active version).  Known values: ``held_for_approval``, ``candidate``, ``evaluating``, ``active``, ``retired``, ``rejected``, ``superseded``. |
 | `state_reason` | `str \| None` | yes | Why it entered its state (a bounded code); null when the state is derived. |
 | `state_since` | `str \| None` | yes | ISO 8601 instant. |
 | `version` | `int` | yes |  |
@@ -4290,6 +5033,7 @@ The verified episodes the version was learned from.
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
+| `end_users` | `int \| None` | no |  |
 | `fail` | `int` | yes |  |
 | `pass` | `int` | yes |  |
 | `size` | `int` | yes |  |
@@ -4303,6 +5047,7 @@ One version’s lessons and provenance summary.
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
 | `active_lessons` | `int` | yes |  |
+| `admission` | `LearningStatusReflectionLastAttemptAdmission \| None` | no | LESSON1: lessons proposed, kept and refused by reason when this version was written (null for a legacy version). |
 | `cohort` | `LearningVersionCohort` | yes | The verified episodes the version was learned from. |
 | `created_at` | `str` | yes | ISO 8601 instant. |
 | `digest` | `str` | yes | A content address of the version’s active lessons (`epb1_…`). |
@@ -4310,13 +5055,14 @@ One version’s lessons and provenance summary.
 | `evaluation_id` | `str \| None` | yes | The evaluation that set the state, if any. |
 | `id` | `str` | yes | The immutable version id (`epb_…`). |
 | `known_functions` | `int` | yes |  |
+| `lesson_source` | `str` | yes | Where the lessons came from: `declared` (the outcomes and corrections your application reported) or `inferred` (repairs the gateway found in your own repair loop, `repair_chains_v1`). An inferred version is never active for everyone until its live confirmation, on outcomes the gateway observed, promotes it: approving it makes it a candidate.  Known values: ``declared``, ``inferred``. |
 | `lessons` | `list[LearningVersionDetailLesson]` | yes | The version’s active lessons, in served-ranking order input. |
 | `object` | `str` | yes | Known values: ``learning_version``. |
 | `parent_id` | `str \| None` | yes |  |
 | `recipe` | `str` | yes |  |
 | `reflection_model` | `str \| None` | yes |  |
 | `retired_lessons` | `int` | yes |  |
-| `state` | `str` | yes | `candidate` (published, waiting), `evaluating`, `active` (served outside an evaluation), `retired` (replaced), `rejected` (lost / stopped / rejected by an owner), `superseded` (a newer candidate, or identical to the active version).  Known values: ``candidate``, ``evaluating``, ``active``, ``retired``, ``rejected``, ``superseded``. |
+| `state` | `str` | yes | `held_for_approval` (stored for owner/admin review, never served until approved), `candidate` (published, waiting), `evaluating`, `active` (served outside an evaluation), `retired` (replaced), `rejected` (lost / stopped / rejected by an owner), `superseded` (a newer candidate, or identical to the active version).  Known values: ``held_for_approval``, ``candidate``, ``evaluating``, ``active``, ``retired``, ``rejected``, ``superseded``. |
 | `state_reason` | `str \| None` | yes | Why it entered its state (a bounded code); null when the state is derived. |
 | `state_since` | `str \| None` | yes | ISO 8601 instant. |
 | `transitions` | `list[LearningVersionDetailTransition]` | yes | Every recorded state transition, oldest first. |
@@ -4362,7 +5108,7 @@ Response shape `LearningVersionDetailTransition`.
 | `at` | `str` | yes | ISO 8601 instant. |
 | `evaluation_id` | `str \| None` | yes |  |
 | `reason` | `str` | yes |  |
-| `state` | `str` | yes | `candidate` (published, waiting), `evaluating`, `active` (served outside an evaluation), `retired` (replaced), `rejected` (lost / stopped / rejected by an owner), `superseded` (a newer candidate, or identical to the active version).  Known values: ``candidate``, ``evaluating``, ``active``, ``retired``, ``rejected``, ``superseded``. |
+| `state` | `str` | yes | `held_for_approval` (stored for owner/admin review, never served until approved), `candidate` (published, waiting), `evaluating`, `active` (served outside an evaluation), `retired` (replaced), `rejected` (lost / stopped / rejected by an owner), `superseded` (a newer candidate, or identical to the active version).  Known values: ``held_for_approval``, ``candidate``, ``evaluating``, ``active``, ``retired``, ``rejected``, ``superseded``. |
 
 ### LearningVersionList
 
@@ -4387,7 +5133,7 @@ The incumbent served outside an evaluation.
 | `created_at` | `str` | yes | ISO 8601 instant. |
 | `digest` | `str` | yes |  |
 | `id` | `str` | yes |  |
-| `state` | `str` | yes | `candidate` (published, waiting), `evaluating`, `active` (served outside an evaluation), `retired` (replaced), `rejected` (lost / stopped / rejected by an owner), `superseded` (a newer candidate, or identical to the active version).  Known values: ``candidate``, ``evaluating``, ``active``, ``retired``, ``rejected``, ``superseded``. |
+| `state` | `str` | yes | `held_for_approval` (stored for owner/admin review, never served until approved), `candidate` (published, waiting), `evaluating`, `active` (served outside an evaluation), `retired` (replaced), `rejected` (lost / stopped / rejected by an owner), `superseded` (a newer candidate, or identical to the active version).  Known values: ``held_for_approval``, ``candidate``, ``evaluating``, ``active``, ``retired``, ``rejected``, ``superseded``. |
 | `version` | `int` | yes |  |
 
 ### ManifestWireEntryParam
@@ -5125,32 +5871,32 @@ A single outcome event to record (the server assigns provenance + learning_use).
 | `source_event_id` | `str` | no | The caller idempotency discriminator (ULID at enqueue). Defaults to a server ULID. |
 | `supersedes_event_id` | `str` | no | The event this one supersedes. |
 | `tool_error_class` | `Literal['model', 'infra', 'unclassified']` | no | For mechanical:tool_error — refines learning_use (only model-class teaches). |
-| `value` | `dict[str, Any]` | no | The typed numeric/diff-stats payload — never a body. |
+| `value` | `dict[str, float \| bool \| str \| list[float] \| DiffStatsParams \| None]` | no | The typed metadata payload (numbers, tokens, `diff_stats` on a correction) — never a body. |
 
 ### OutcomeReceiptRecord
 
 *response model*
 
-A durable receipt for one reported outcome.
+Poll this durable receipt: pending until its trace and failure verdict land, then applied; expires after 15 minutes. References the existing consented final only.
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
 | `applied_at` | `str \| None` | yes | When the outcome was recorded. |
 | `artifact_id` | `str \| None` | yes | The artifact the outcome landed on, once applied. |
 | `attempts` | `int` | yes | Recording attempts that hit an internal error (bounded; then `failed`). |
-| `channel` | `str` | yes | The outcome channel as sent. |
+| `channel` | `str` | yes | The outcome channel as sent; correction for a server-created artifact-final receipt. |
 | `created_at` | `str` | yes | When the outcome was accepted. |
 | `episode` | `OutcomeReceiptRecordEpisode` | yes | The episode association of an applied teaching outcome. |
 | `expires_at` | `str` | yes | The receipt’s next deadline: while `pending`, when it expires; while its episode association is `pending`, when that becomes `not_recorded`; once settled, when the receipt itself is deleted (30 days). |
 | `id` | `str` | yes | The receipt id (`ocr_…`). |
-| `kind` | `str` | yes | The outcome kind as sent. |
+| `kind` | `str` | yes | The outcome kind as sent; artifact_final for a durable reference to the original consented final. It is applied when the correctable failure trace lands; no separate outcome event is created. |
 | `object` | `str` | yes | Known values: ``outcome_receipt``. |
 | `outcome_event_id` | `str \| None` | yes | The recorded outcome event (`oev_…`) once applied. |
 | `outcome_status` | `str \| None` | yes | Whether applying recorded the event for the first time (`accepted`) or found it (`duplicate`).  Known values: ``accepted``, ``duplicate``. |
-| `reason` | `str \| None` | yes | A stable machine reason when not applied: `request_not_found`, `idempotency_conflict`, `apply_failed`, or the validation reason. |
+| `reason` | `str \| None` | yes | A stable machine reason when not applied: `request_not_found`, `idempotency_conflict`, `apply_failed`, `end_user_erased` (status `erased`), or the validation reason. |
 | `request_id` | `str` | yes | The request the outcome names. |
 | `source_event_id` | `str` | yes | Your idempotency discriminator, or a server-minted one when none was sent (then a retry is a new outcome). |
-| `status` | `str` | yes | `pending` — the request has not been recorded yet; `applied` — the outcome is recorded; `rejected` — it failed validation once the request was known (see `reason`); `failed` — recording kept hitting an internal error; `expired` — no request with this id appeared in your workspace within 15 minutes (`reason: request_not_found`).  Known values: ``pending``, ``applied``, ``rejected``, ``failed``, ``expired``. |
+| `status` | `str` | yes | `pending` — the request has not been recorded yet; `applied` — the outcome is recorded; `rejected` — it failed validation once the request was known (see `reason`); `failed` — recording kept hitting an internal error; `expired` — no request with this id appeared in your workspace within 15 minutes (`reason: request_not_found`); `erased` — the end user of the request was erased (`reason: end_user_erased`): the outcome input is gone, and the receipt is deleted at its retention deadline.  Known values: ``pending``, ``applied``, ``rejected``, ``failed``, ``expired``, ``erased``. |
 | `updated_at` | `str` | yes |  |
 
 ### OutcomeReceiptRecordEpisode
@@ -5161,7 +5907,8 @@ The episode association of an applied teaching outcome.
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `status` | `str` | yes | `associated` — the episode holding this request carries a verdict; `pending` — a teaching outcome waiting for its episode to be recorded; `not_recorded` — the persisted request was held out and recording was intentionally suppressed, no episode held the request within 15 minutes (episode memory or recording off, no consent), or several episodes hold this request id and none can be shown to be its own; `not_applicable` — the outcome does not teach (a proxy, behavioral or mechanical signal) or was not applied.  Known values: ``associated``, ``pending``, ``not_recorded``, ``not_applicable``. |
+| `reason` | `str \| None` | yes | Why the episode is `not_recorded`, by name; null otherwise. `memory_off`: the call type records no episodes; `record_off`, `consent_off`, `retention_not_full`: recording, the corrections consent or full retention is off; `held_out`: the standing holdout withheld the request; `no_call_type`, `no_episode`: the request named no call type, or carried no task to record; `stream_cancelled`, `stream_error`, `stream_incomplete`: a streamed answer that the client cancelled, that failed, or that ended without a finish (a stream records only its complete answer); `erased_in_flight`: reserved, answered only under an experimental setting that is off by default; `answered_from_memory`: the gateway answered from verified memory, with no model call; `request_failed`: the request failed; `route_not_recorded`: a route that records no episodes (embeddings, the native routes, a preflight); `association_window_passed`: no episode held the request within 15 minutes; `end_user_erased`: the end user of the request was erased before its episode was recorded; `ambiguous_partition`, `ambiguous_request`: only for an episode recorded before request ids were always the gateway’s own — the episodes holding the id belong to different end users (or one without an identity sits beside a known one), or several episodes of one end user hold it; none takes the verdict.  Known values: ``memory_off``, ``no_call_type``, ``record_off``, ``consent_off``, ``retention_not_full``, ``held_out``, ``no_episode``, ``stream_cancelled``, ``stream_error``, ``stream_incomplete``, ``erased_in_flight``, ``answered_from_memory``, ``request_failed``, ``route_not_recorded``, ``association_window_passed``, ``ambiguous_partition``, ``ambiguous_request``, ``end_user_erased``. |
+| `status` | `str` | yes | `associated` — the episode holding this request carries a verdict; `pending` — a teaching outcome waiting for its episode to be recorded; `not_recorded` — no episode holds this request and none will: at once when the request itself says so (`reason`: memory off on its call type, recording or consent off, retention not `full`, held out, a stream that was cancelled, failed or ended early), otherwise when no episode held the request within 15 minutes (`reason: association_window_passed`), or when several episodes hold this request id and none can be shown to be its own; `not_applicable` — the outcome does not teach (a proxy, behavioral or mechanical signal) or was not applied.  Known values: ``associated``, ``pending``, ``not_recorded``, ``not_applicable``. |
 | `trace_id` | `str \| None` | yes | The episode (`ept_…`) the outcome was associated with, once associated. |
 | `verdict` | `str \| None` | yes | What the outcome did to the episode: `recorded` — it is the episode verdict; `kept_earlier` — the episode already had a verdict (the first verdict wins); `revised` — it superseded the verdict (`supersedes_event_id`) before any learned version used the episode, so the verdict was replaced; `revised_after_incorporation` — the superseded verdict was already used by a learned version: the revision is recorded and counted, the episode is not silently unlearned.  Known values: ``recorded``, ``kept_earlier``, ``revised``, ``revised_after_incorporation``. |
 
@@ -5565,6 +6312,29 @@ The per-event results (202 only after the durable insert).
 | `data` | `list[OutcomeResult]` | yes |  |
 | `object` | `str` | yes | Known values: ``list``. |
 
+### RequestOutcomeInputParams
+
+*request shape (TypedDict)*
+
+A single outcome event to record (the server assigns provenance + learning_use), with an optional reviewer detail.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `alternative_id` | `str` | no | A computable-comparison alternative id. |
+| `artifact_version` | `int` | no | The pinned artifact version (defaults to the artifact’s current version). |
+| `channel` | `Required[Literal['mechanical', 'correction', 'behavioral', 'resolution', 'computable', 'proxy']]` | no | The outcome channel (closed vocabulary). |
+| `claim_id` | `str` | no | Target a specific claim by id (else the artifact). |
+| `claim_key` | `str` | no | Target a claim by its customer key — the key’s ACTIVE claim (else the artifact). |
+| `confidence` | `float` | no | An optional confidence ∈ (0,1). |
+| `detail` | `str` | no | Why the answer was edited or rejected, in the reviewer’s words (1–500 characters). Only with `channel: correction` and `kind` `edited` or `rejected` (else 400 `detail_not_allowed`), and only with corrections consent (else 400 `detail_needs_corrections_consent`). Stored sealed like a corrected final and read only by the lesson writer; a retried outcome keeps the first detail. |
+| `evidence_hash` | `str` | no | A content hash of supporting evidence (never a body). |
+| `kind` | `Required[str]` | no | The channel `kind` (a closed vocabulary per channel). |
+| `observed_at` | `str` | no | The effective time (ISO-8601; must be ≥ the artifact occurred_at). Defaults to now. |
+| `source_event_id` | `str` | no | The caller idempotency discriminator (ULID at enqueue). Defaults to a server ULID. |
+| `supersedes_event_id` | `str` | no | The event this one supersedes. |
+| `tool_error_class` | `Literal['model', 'infra', 'unclassified']` | no | For mechanical:tool_error — refines learning_use (only model-class teaches). |
+| `value` | `dict[str, float \| bool \| str \| list[float] \| DiffStatsParams \| None]` | no | The typed metadata payload (numbers, tokens, `diff_stats` on a correction) — never a body. |
+
 ### RequestOutcomeResult
 
 *response model*
@@ -5731,7 +6501,7 @@ The optional, consented final the reviewer approved.
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `diff_stats` | `DiffStatsParams` | no | CLIENT-computed diff stats (the no-consent path). |
+| `diff_stats` | `DiffStatsParams` | no | CLIENT-computed diff stats (the no-consent path): numbers and the final hash only. |
 | `draft` | `str` | no | The draft the reviewer edited — used ONLY to compute server-side diff stats. |
 | `hash` | `str` | no | The final content hash (never a body). |
 | `text` | `str` | no | The approved final body — stored ONLY under corrections_consent. |
@@ -5916,6 +6686,33 @@ Autopilot guardrail config (the cost budget + enabled surfaces). Omitted ⇒ the
 | `max_cost_per_success_micro_usd` | `int \| None` | no | Autopilot cost budget: the max cost per successful task (integer µUSD). Null (or omitted) ⇒ NO budget registered, which fails autopilot closed. |
 | `surfaces` | `list[Literal['knowledge_injection', 'model_routing', 'hosted_prompt']]` | no | The surfaces enabled for autopilot. Only knowledge_injection is wired today; model_routing and hosted_prompt are accepted but refuse auto-adopt until wired. |
 
+### SelfServeEpisodeMemoryParams
+
+*request shape (TypedDict)*
+
+Enable episode memory yourself (precedent-only) under an end-user scope. Name `memory_scope` to declare one (the owner, signed in). Omit it only to keep a scope already recorded: the one the call type was last declared under, or the `shared` recorded for a call type enabled before scopes existed. On a call type with no scope recorded an omitted scope is refused (`memory_scope_required`), as are `null` and an empty string.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `as_of` | `str \| None` | no | Serve only episodes verified at or before this instant (ISO) — a frozen memory version; null = live. |
+| `dedupe` | `bool` | no | Serve at most one of near-identical precedents (default false). |
+| `framing` | `Literal['reuse', 'adapt']` | no | How served precedents are framed: `reuse` (default) invites reusing their calls; `adapt` presents them as evidence of how the tools behave, not values to copy. |
+| `importance_boost` | `float` | no | Weight corrected misses in ranking: a corrected miss’s similarity is multiplied by `1 + importance_boost` (0..100; default 0, no boost). The min_similarity floor applies to the raw similarity, before the boost. |
+| `index_actions` | `bool` | no | Index a candidate on its task text plus identifier tokens from its verified answer (SQL tables/columns/operators and literal shapes — never literal values; otherwise the action tokens), so retrieval can match on schema-linked terms. The query side stays the request’s task text (default false). |
+| `k` | `int` | no | Precedents served per episode (1..5; default 3). |
+| `learned_read_timeout_ms` | `int` | no | The shared learned-memory read deadline in milliseconds (25..2000, default 250). A ceiling, not a delay: a read completed in 3 ms costs 3 ms. Bounds latency before the first token. Skips carry refusal fell_back on the receipt; GET learning reports the last 24 hours of completed hourly buckets. The default is 250 ms; lower it if your first-token latency matters more than memory. |
+| `lessons` | `EpisodeMemoryEnableParamsLessons` | no | The learned-playbook block (absent ⇒ lessons off, byte-identical). |
+| `max_chars_per_episode` | `int` | no | Characters of actions shown per precedent (500..8000; default 3500). |
+| `memory_scope` | `Literal['shared', 'partitioned']` | no | `shared`: A verified answer from any request of this call type can be shown to the model while it answers any other request of this call type, including another end user's. Validated identifiers such as emails and phone numbers are redacted; names are redacted only where a heuristic recognises them, and not inside the answer. Other details of the request are not redacted. `partitioned`: A verified answer is shown only to later requests that carry the same end-user key. Expect little or no improvement unless the same end user sends similar requests repeatedly. Requests with no key are never shown a precedent. The end-user key is the request body’s `ur.memory_partition`, else the `X-UR-Memory-Partition` header, else the OpenAI `user` field; it is stored only as a digest. A key that is sent but over 1,024 characters means no key. Learned lessons are distilled from every end user’s episodes, so a `partitioned` call type refuses them (400 `lessons_not_partitioned`). |
+| `min_similarity` | `float` | no | Serve only precedents at least this similar to the task (0..1; default 0, no floor). |
+| `observation_chars` | `int` | no | Characters of each kept action’s observation shown under it (0 = actions only; default 0). |
+| `prefer_shorter` | `bool` | no | Among near-equally similar precedents, serve the shortest verified solutions first (default false). |
+| `record` | `bool` | no | Record this call type’s episodes so outcomes can verify them (default true); false = serve only. |
+| `retrieval_key` | `Literal['first_user_message', 'content_lines']` | no | What precedents are ranked on: the whole first user message (default) or its content lines — without lines carrying a personal identifier or a timestamp. |
+| `serve_corrections` | `bool` | no | Also serve CORRECTED misses — a fail episode whose corrected answer the customer supplied through `/final`; the corrected answer is served, never the failed attempt (default false). |
+| `show_mistake` | `bool` | no | When a corrected miss is served, also show the failed attempt beside the corrected answer under plain labels, within the per-episode budget (the corrected answer is never shed first; default false). |
+| `source_call_type_id` | `str \| None` | no | The call type whose verified episodes are served (same workspace); null = this call type. |
+
 ### UrBlock
 
 *response model*
@@ -5930,6 +6727,8 @@ ultrarouter response extension block.
 | `call_type` | `str \| None` | yes | Resolved call type, or null when none was resolved. |
 | `compression` | `UrBlockCompression` | yes | Compression summary — the applied compression safety tier + honest savings provenance. |
 | `cost_usd` | `float` | yes | Total request cost in USD. |
+| `learned_injection` | `UrBlockLearnedInjection \| None` | no | The same learned serving stamp as GET generation lever.injection. served states whether memory was used; refusal names a skip, including fell_back with read_timed_out and budget_ms for a read deadline. No request or answer text. |
+| `learning_serving` | `UrBlockLearningServing \| None` | no | Eligible learned requests only. Assignment is immutable; holdouts perform no read and are not skips. A shared read ceiling, never a delay. Also stored as routing_decision.learning_serving on GET generation. |
 | `model_served` | `str` | yes | The model actually served. |
 | `provider` | `str` | yes | The provider that served it. |
 | `request_id` | `str` | yes | Correlation id (`req_…`). |
@@ -5963,6 +6762,43 @@ Compression summary — the applied compression safety tier + honest savings pro
 | `source` | `str \| None` | no | Provenance of the applied tier (unqualified-legacy = no shadow evidence yet).  Known values: ``off``, ``qualified``, ``unqualified-legacy``. |
 | `tokens_saved` | `int \| None` | no |  |
 | `verify` | `str \| None` | no |  |
+
+### UrBlockLearnedInjection
+
+*response model*
+
+The same learned serving stamp as GET generation lever.injection. served states whether memory was used; refusal names a skip, including fell_back with read_timed_out and budget_ms for a read deadline. No request or answer text.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `budget_ms` | `float \| None` | no |  |
+| `fell_back` | `bool \| None` | no |  |
+| `item_ids` | `list[str] \| None` | no |  |
+| `read_timed_out` | `bool \| None` | no |  |
+| `refusal` | `str \| None` | no |  |
+| `retrieval_ms` | `float \| None` | no |  |
+| `served` | `bool` | yes |  |
+| `source` | `str \| None` | no |  |
+
+### UrBlockLearningServing
+
+*response model*
+
+Eligible learned requests only. Assignment is immutable; holdouts perform no read and are not skips. A shared read ceiling, never a delay. Also stored as routing_decision.learning_serving on GET generation.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `assigned` | `str` | yes | Known values: ``treatment``, ``standing_holdout``, ``lever_holdout``. |
+| `budget_ms` | `float` | yes |  |
+| `eligible` | `bool` | yes | Known values: ``True``. |
+| `items_served` | `int` | yes |  |
+| `lesson_version` | `int \| None` | yes |  |
+| `lesson_version_id` | `str \| None` | yes |  |
+| `lessons_served` | `int` | yes |  |
+| `precedents_served` | `int` | yes |  |
+| `retrieval_ms` | `float` | yes |  |
+| `served` | `bool` | yes |  |
+| `skip_reason` | `str \| None` | yes |  |
 
 ### UrBlockRouting
 
@@ -6009,10 +6845,11 @@ ultrarouter per-request controls.
 | `context_modules` | `list[ContextModuleRefParam]` | no | The ordered `profile.contextModules[]` this call opts into — the `learned_context` lever surface. Each entry pins a module id AND its exact version (a retrieval-backed version IS its recipe hash), so a pack change or a ranker refit can never be served under an old pin. The gateway rebuilds the pack from the pinned recipe, refuses fail-closed on any mismatch, and SKIPS injection entirely for a holdout request. |
 | `manifest` | `ManifestWireParam` | no | Declared context manifest (`toWire(manifest)`); the gateway witnesses it (verifies every hash against the received bytes before any transform) and drives compression eligibility from the declared kinds. |
 | `max_cost_usd` | `float` | no |  |
+| `memory_partition` | `str` | no | The END-USER key episode memory partitions on. Under a call type scoped `partitioned`, a verified answer is shown only to later requests with the same key, and a request with no key is shown none. It also keeps two end users who each send a key and the same opening from sharing one episode (unless the call type’s memory is a `lab` setting, one ultrarouter staff enabled, which is always `shared`). First match wins: this field, then the `X-UR-Memory-Partition` header, then the OpenAI `user` field; a header or `user` value over 1,024 characters means no key at all. Stored only as a digest (`epp1_…`, pseudonymisation: a guessable value can be recovered by anyone who can read the stored digests). Chat completions only; ignored on other routes. |
 | `prompt_vars` | `dict[str, str \| float \| bool]` | no | The values for the ACTIVE hosted prompt’s `{{name}}` variables, when the gateway applies a hosted prompt for this call type (`gateway_apply`). A missing REQUIRED variable is a named `prompt_variables_missing` refusal (never a silent blank). Ignored when no hosted prompt is applied. |
 | `segments` | `list[SegmentHintParam]` | no | SDK segment-part labels to refine compression segmentation. |
 | `tags` | `dict[str, str]` | no |  |
-| `timeout_ms` | `int` | no |  |
+| `timeout_ms` | `int` | no | The deadline bounds the wait for an answer, not the bookkeeping after one arrives. Whole-request deadline from arrival, including memory retrieval, in milliseconds: default 300000, clamped 1000..600000. Wins over X-UR-Timeout-Ms and configured defaults. Fallback attempts retain their existing per-attempt caps. |
 | `trace_id` | `str` | no |  |
 
 ### UsageExposureRow
@@ -6237,7 +7074,7 @@ The result of enabling verified memory.
 | `object` | `str` | yes | Known values: ``verified_memory_enable``. |
 | `pool` | `VerifiedMemoryEnableResultPool \| None` | yes | The verified pool an enable attempt built (counts only). |
 | `previous_lever_version` | `str \| None` | yes | The lever version this setting replaced (null when memory was off). |
-| `reason` | `str \| None` | yes | Why the enable was refused (null when enabled). A refusal writes no config version.  Known values: ``not_label_contract``, ``capture_unavailable``, ``pool_empty``, ``calibration_below_target``, ``snapshot_budget_exceeded``, ``setting_unreadable``. |
+| `reason` | `str \| None` | yes | Why the enable was refused (null when enabled). A refusal writes no config version.  Known values: ``not_label_contract``, ``capture_unavailable``, ``pool_empty``, ``calibration_below_target``, ``snapshot_budget_exceeded``, ``setting_unreadable``, ``source_erased``. |
 | `setting` | `VerifiedMemoryStatusSetting \| None` | yes | The frozen verified-memory setting on a call-type config version. |
 
 ### VerifiedMemoryEnableResultCalibration

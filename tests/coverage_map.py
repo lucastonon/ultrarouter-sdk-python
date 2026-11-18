@@ -58,6 +58,7 @@ COVERAGE: dict[str, str] = {
     # Company knowledge (content export is session-only, not an API-key method)
     "listCompanyKnowledge": 'client.knowledge.list(q="capacity", limit=10)',
     "readCompanyKnowledge": 'client.knowledge.get("lesson:epb_example:L1")',
+    "askCompanyKnowledge": 'client.knowledge.ask(question="How do I reset a password?", kind="lesson")',
     # Call types
     "listCallTypes": "client.call_types.list()",
     "createCallType": (
@@ -92,6 +93,22 @@ COVERAGE: dict[str, str] = {
         "serve_corrections=True, index_actions=True)"
     ),
     "disableEpisodeMemory": 'client.call_types.episode_memory.disable("support-reply")',
+    "listEpisodeEvictions": 'client.call_types.episode_memory.evictions("support-reply", limit=10)',
+    "evictEpisodeMemory": (
+        'client.call_types.episode_memory.evict("support-reply", '
+        'selector={"precedent_ids": ["ept_example"]}, reason="bad_precedent", dry_run=True)'
+    ),
+    "importEpisodeMemory": (
+        'client.call_types.episode_memory.import_pairs("support-reply", pairs=[{"job_id": "job_1", '
+        '"messages": [{"role": "user", "content": "Where is my order?"}], '
+        '"answer": "It ships tomorrow.", "approved_at": "2026-01-15T12:00:00Z"}])'
+    ),
+    "listEpisodePrecedents": (
+        'client.call_types.episode_memory.precedents("support-reply", limit=10, flagged=False)'
+    ),
+    "getEpisodePrecedent": (
+        'client.call_types.episode_memory.precedent("support-reply", "ept_example")'
+    ),
     "enableVerifiedMemory": (
         'client.call_types.verified_memory.enable("support-reply", target_precision=0.95)'
     ),
@@ -155,6 +172,8 @@ COVERAGE: dict[str, str] = {
     "disableLearning": 'client.learning.disable("support-reply")',
     "rollbackLearning": 'client.learning.rollback("support-reply", version_id="epb_1")',
     "listLearningVersions": 'client.learning.versions("support-reply")',
+    "updateLearningReadLimit": 'client.learning.set_read_limit("support-reply", 400)',
+    "getLearningCost": 'client.learning.cost("support-reply", window="30d")',
     "getLearningVersion": 'client.learning.version("support-reply", "epb_3")',
     "promoteLearningVersion": 'client.learning.promote("support-reply", "epb_3")',
     "rejectLearningVersion": 'client.learning.reject("support-reply", "epb_3")',

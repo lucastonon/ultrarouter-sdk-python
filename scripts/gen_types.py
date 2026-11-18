@@ -118,6 +118,8 @@ COMPONENT_NAMES: dict[str, str] = {
     "MoatNextResponse": "MoatNext",
     "ConfirmationStatusResponse": "ConfirmationStatus",
     "LearningControlResponse": "LearningControl",
+    "CompanyKnowledgeAskRequest": "CompanyKnowledgeAskParams",
+    "CompanyKnowledgeAskResponse": "CompanyKnowledgeAnswer",
     "LearningToolDocumentationResponse": "LearningToolDocumentation",
     "PutLearningToolDocumentationRequest": "PutLearningToolDocumentationParams",
     "EnableLearningRequest": "LearningEnableParams",
@@ -168,6 +170,12 @@ RESPONSE_NAMES: dict[str, str] = {
     "getEpisodeMemory": "EpisodeMemoryStatus",
     "enableEpisodeMemory": "EpisodeMemoryEnableResult",
     "disableEpisodeMemory": "EpisodeMemoryDisableResult",
+    "listEpisodeEvictions": "EpisodeEvictionList",
+    "evictEpisodeMemory": "EpisodeEvictionResult",
+    "importEpisodeMemory": "EpisodeMemoryImportResult",
+    "listEpisodePrecedents": "EpisodePrecedentList",
+    "getEpisodePrecedent": "EpisodePrecedent",
+    "getLearningCost": "LearningCost",
 }
 
 #: Names for inline (non-component) request bodies, keyed by operationId.
@@ -190,6 +198,9 @@ PARAMS_NAMES: dict[str, str] = {
     "recordFlywheelExperimentExecutionOutcome": "ExperimentOutcomeParams",
     "rollbackLearning": "LearningRollbackParams",
     "enableEpisodeMemory": "EpisodeMemoryEnableParams",
+    "evictEpisodeMemory": "EpisodeEvictParams",
+    "importEpisodeMemory": "EpisodeMemoryImportParams",
+    "updateLearningReadLimit": "LearningReadLimitParams",
 }
 
 #: Renames for automatically-derived nested class names (auto name -> public name).
@@ -202,6 +213,9 @@ NESTED_NAMES: dict[str, str] = {
     # chat
     "ChatCompletionCreateParamsMessage": "ChatMessageParam",
     "ChatMessageParamContentItem": "ChatContentPartParam",
+    # The episode-memory import's message content part has the same shape as a chat content part and
+    # is met first, so it carries the public chat name (its cache_control then maps just below).
+    "EpisodeMemoryImportParamsPairMessageContentItem": "ChatContentPartParam",
     "ChatContentPartParamCacheControl": "CacheControlParam",
     "ChatCompletionCreateParamsProvider": "ProviderPreferencesParam",
     "ChatCompletionCreateParamsReasoning": "ReasoningParam",
@@ -237,6 +251,14 @@ NESTED_NAMES: dict[str, str] = {
     # artifacts / outcomes
     "ArtifactFinalParamsDiffStats": "DiffStatsParams",
     "DiffStatsParamsLengths": "DiffLengthsParams",
+    # The final's episode-correction receipt is the outcome receipt record (the same shape, met
+    # first), so it carries the record's public name; its `episode` follows as
+    # OutcomeReceiptRecordEpisode.
+    "ArtifactFinalEpisodeCorrectionReceipt": "OutcomeReceiptRecord",
+    # episode memory: the operations log, the import and the precedents
+    "EpisodeEvictionListItem": "EpisodeEviction",
+    "EpisodeMemoryImportResultResult": "EpisodeMemoryImportPairResult",
+    "EpisodeMemoryImportResultCounts": "EpisodeMemoryImportCounts",
     # bench
     "BenchRunAllowance": "BenchAllowance",
     "BenchRunDisposition": "BenchDisposition",

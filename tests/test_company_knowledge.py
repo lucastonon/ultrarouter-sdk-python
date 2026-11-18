@@ -10,7 +10,7 @@ import httpx
 import pytest
 
 from ultrarouter import AsyncUltraRouter, InvalidRequestError, UltraRouter, UltraRouterError
-from ultrarouter.types import CompanyKnowledgeDetail, CompanyKnowledgeList
+from ultrarouter.types import CompanyKnowledgeAnswer, CompanyKnowledgeDetail, CompanyKnowledgeList
 
 PAGE = json.loads((Path(__file__).parent / "fixtures" / "company-knowledge.json").read_text())
 
@@ -138,3 +138,73 @@ async def test_refusals_have_no_retry_or_alternate_route(status: int) -> None:
         assert caught.value.status == status
     assert len(calls) == 1
     assert calls[0].url.raw_path == b"/v1/knowledge/fact%3Akf_missing"
+
+
+def _ask_transport(statuses: list[int]) -> tuple[httpx.MockTransport, list[httpx.Request]]:
+    """Answer the ask route with each status in turn (a 503 first, then the answer)."""
+    calls: list[httpx.Request] = []
+
+    def handle(request: httpx.Request) -> httpx.Response:
+        calls.append(request)
+        status = statuses[min(len(calls) - 1, len(statuses) - 1)]
+        if status != 200:
+            return httpx.Response(
+                status,
+                json={
+                    "error": {
+                        "code": "provider_unavailable",
+                        "message": "provider down",
+                        "request_id": "req_1",
+                        "retryable": True,
+                    }
+                },
+            )
+        return httpx.Response(
+            200,
+            json={
+                "status": "answered",
+                "answer": "Use the reset link.",
+                "citations": [],
+                "considered": 3,
+                "request_id": "req_int_01JZ0000000000000000000000",
+                "truncated": False,
+            },
+        )
+
+    return httpx.MockTransport(handle), calls
+
+
+def test_ask_posts_the_question_and_is_sent_once_by_default() -> None:
+    mock, calls = _ask_transport([503, 503, 200])
+    with UltraRouter(
+        api_key="ur_sk_test_example",
+        base_url="https://gateway.example.com",
+        http_client=httpx.Client(transport=mock),
+        _sleep=lambda _: None,
+    ) as client:
+        # An ask is not idempotent (a retry is a new charge): a retryable 503 is not retried.
+        with pytest.raises(UltraRouterError):
+            client.knowledge.ask(question="How do I reset a password?", kind="lesson")
+        assert len(calls) == 1
+        assert json.loads(calls[0].content) == {
+            "question": "How do I reset a password?",
+            "kind": "lesson",
+        }
+        # The caller can opt into retries.
+        answer = client.knowledge.ask(question="Again?", options={"max_retries": 1})
+    assert isinstance(answer, CompanyKnowledgeAnswer)
+    assert answer.request_id == "req_int_01JZ0000000000000000000000"
+    assert len(calls) == 3
+    assert calls[0].url.path == "/v1/knowledge/ask"
+
+
+async def test_async_ask_is_sent_once_by_default() -> None:
+    mock, calls = _ask_transport([503, 200])
+    async with AsyncUltraRouter(
+        api_key="ur_sk_test_example",
+        base_url="https://gateway.example.com",
+        http_client=httpx.AsyncClient(transport=mock),
+    ) as client:
+        with pytest.raises(UltraRouterError):
+            await client.knowledge.ask(question="How do I reset a password?")
+    assert len(calls) == 1

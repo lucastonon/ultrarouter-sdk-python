@@ -797,7 +797,9 @@ Turn verified memory off (the kill switch).
 Learning (`client.learning`) is the supported way to turn lessons on; this is the lower-level
 setting it writes. `get` reads it with a content-addressed preview of what it would serve;
 `disable` is the kill switch; `self_serve` is the customer's own activation of precedent
-memory; `enable` is a lab-authorised lever (a 403 without that grant).
+memory; `enable` is a lab-authorised lever (a 403 without that grant). `precedents` and
+`precedent` read what memory holds and how it was used; `evict` removes (or erases) what a
+selector matches and `evictions` lists those operations; `import_pairs` adds approved pairs.
 
 #### client.call_types.episode_memory.get
 
@@ -859,6 +861,86 @@ client.call_types.episode_memory.disable(
 ```
 
 Turn episode memory off (the kill switch; `changed` is `False` when already off).
+
+#### client.call_types.episode_memory.evictions
+
+```python
+client.call_types.episode_memory.evictions(
+    call_type: str,
+    *,
+    limit: int | None = None,
+    cursor: str | None = None,
+    options: RequestOptions | None = None,
+) -> EpisodeEvictionList
+```
+
+List the episode-memory operations log, newest first (evictions and erasures).
+
+Each entry records the selector's field names and a keyed digest of it, the reason code
+and the counts, never an end-user key, an id or free text.
+
+#### client.call_types.episode_memory.evict
+
+```python
+client.call_types.episode_memory.evict(
+    call_type: str,
+    *,
+    options: RequestOptions | None = None,
+    **params: Unpack[EpisodeEvictParams],
+) -> EpisodeEvictionResult
+```
+
+Evict the episode memory a selector matches, or erase it (`erase=True`).
+
+Evicted rows stop being served within 60 seconds and can be restored by the owner; an
+erasure hard-deletes them and cannot be undone. `dry_run=True` counts and writes nothing.
+Needs `memory:manage` (an erasure: a key created by a workspace owner).
+
+#### client.call_types.episode_memory.import_pairs
+
+```python
+client.call_types.episode_memory.import_pairs(
+    call_type: str,
+    *,
+    options: RequestOptions | None = None,
+    **params: Unpack[EpisodeMemoryImportParams],
+) -> EpisodeMemoryImportResult
+```
+
+Import approved question and answer pairs into the call type's episode memory.
+
+Returns the counts (imported, duplicate, conflict, refused) and one result per pair, in
+request order.
+
+#### client.call_types.episode_memory.precedents
+
+```python
+client.call_types.episode_memory.precedents(
+    call_type: str,
+    *,
+    limit: int | None = None,
+    cursor: str | None = None,
+    sort: str | None = None,
+    state: str | None = None,
+    flagged: bool | None = None,
+    options: RequestOptions | None = None,
+) -> EpisodePrecedentList
+```
+
+List the call type's precedents and how the episodes shown them ended (one page).
+
+#### client.call_types.episode_memory.precedent
+
+```python
+client.call_types.episode_memory.precedent(
+    call_type: str,
+    precedent_id: str,
+    *,
+    options: RequestOptions | None = None,
+) -> EpisodePrecedent
+```
+
+Read one precedent and the episodes it was shown to.
 
 ### client.requests
 
@@ -1985,7 +2067,8 @@ Integration health: event counts, dead letters, backfills and the next repair ac
 
 ### client.knowledge
 
-Browse/search stored lessons and safe fact summaries with config:read or config:write.
+Browse/search stored lessons and safe fact summaries with config:read or config:write,
+and ask the knowledge base a question (also gateway:invoke).
 
 #### client.knowledge.list
 
@@ -2019,6 +2102,25 @@ client.knowledge.get(
 ```
 
 Read a namespaced id from list(); reserved export and malformed ids are refused.
+
+#### client.knowledge.ask
+
+```python
+client.knowledge.ask(
+    *,
+    options: RequestOptions | None = None,
+    **params: Unpack[CompanyKnowledgeAskParams],
+) -> CompanyKnowledgeAnswer
+```
+
+Ask the knowledge base a `question` (`POST /v1/knowledge/ask`) and get an answer
+with its citations.
+
+Optional `kind` (`lesson` or `fact`), `call_type_id`, `max_items` and `model`
+narrow it. No match means no model call and no charge; otherwise one metered completion is
+billed under `request_id` (`req_int_…`), which the learning routes refuse
+(`internal_knowledge_ask`). An ask is not idempotent (a retry is a new question and a
+new charge), so it is sent once: pass `options={"max_retries": n}` to allow retries.
 
 ### client.learning
 
@@ -2215,6 +2317,39 @@ client.learning.evaluations(
 
 Every evaluation, newest first: the frozen rule and its hash, each arm's verified / pass
 / unknown episodes, the interval on the difference, and the decision.
+
+#### client.learning.set_read_limit
+
+```python
+client.learning.set_read_limit(
+    call_type_id: str,
+    learned_read_timeout_ms: int,
+    *,
+    options: RequestOptions | None = None,
+) -> LearningStatus
+```
+
+Change only the learned-memory read deadline (`PATCH .../learning`), 25 to 2,000 ms.
+
+A ceiling, not a delay: a read that completes in 3 ms costs 3 ms. The default is 250 ms;
+lower it when first-token latency matters more than memory. Other settings stay in place.
+Needs an existing memory setting with learning enabled, and `config:write`.
+
+#### client.learning.cost
+
+```python
+client.learning.cost(
+    call_type_id: str,
+    *,
+    window: str | None = None,
+    options: RequestOptions | None = None,
+) -> LearningCost
+```
+
+What episode memory costs the call type over a window (`window="30d"`, 1 to 90 days).
+
+Integer micro-USD: the call type's spend, the estimate of the memory block's cost, and the
+observed difference in cost per request against the standing holdout (display only).
 
 Async differences: on `AsyncUltraRouter`, `client.reviewer.record(...)` and
 `client.reviewer.dead_letters()` stay synchronous (they never touch the network).

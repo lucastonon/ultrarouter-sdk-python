@@ -116,6 +116,9 @@ __all__ = [
     "ChatContentPartParam",
     "ChatMessageParam",
     "ClaimParams",
+    "CompanyKnowledgeAnswer",
+    "CompanyKnowledgeAnswerCitation",
+    "CompanyKnowledgeAskParams",
     "CompanyKnowledgeDetail",
     "CompanyKnowledgeItem",
     "CompanyKnowledgeItemEvidenceItem",
@@ -143,17 +146,44 @@ __all__ = [
     "EmbeddingUsage",
     "EnqueueEvalParams",
     "EnqueueEvalResponse",
+    "EpisodeEvictParams",
+    "EpisodeEvictParamsSelector",
+    "EpisodeEvictParamsSelectorTaughtBetween",
+    "EpisodeEviction",
+    "EpisodeEvictionList",
+    "EpisodeEvictionResult",
+    "EpisodeEvictionResultAlreadyErased",
+    "EpisodeEvictionResultFallback",
+    "EpisodeEvictionResultFallbackCallType",
     "EpisodeMemoryDisableResult",
     "EpisodeMemoryEnableParams",
     "EpisodeMemoryEnableParamsLessons",
     "EpisodeMemoryEnableResult",
+    "EpisodeMemoryImportCounts",
+    "EpisodeMemoryImportPairResult",
+    "EpisodeMemoryImportParams",
+    "EpisodeMemoryImportParamsPair",
+    "EpisodeMemoryImportParamsPairMessage",
+    "EpisodeMemoryImportResult",
     "EpisodeMemoryStatus",
+    "EpisodeMemoryStatusExplanation",
+    "EpisodeMemoryStatusExplanationBlockingItem",
+    "EpisodeMemoryStatusExplanationFit",
+    "EpisodeMemoryStatusExplanationProgress",
+    "EpisodeMemoryStatusExplanationServing",
     "EpisodeMemoryStatusMemory",
     "EpisodeMemoryStatusPlaybook",
+    "EpisodeMemoryStatusScope",
+    "EpisodeMemoryStatusScreen",
+    "EpisodeMemoryStatusScreenByReason",
     "EpisodeMemoryStatusSetting",
     "EpisodeMemoryStatusSettingLessons",
     "EpisodeMemoryStatusSettingLessonsRecipe",
     "EpisodeMemoryStatusTraces",
+    "EpisodePrecedent",
+    "EpisodePrecedentList",
+    "EpisodePrecedentListItem",
+    "EpisodePrecedentServedInItem",
     "EvalRun",
     "EvalRunCandidate",
     "EvalRunJudge",
@@ -237,6 +267,8 @@ __all__ = [
     "Import",
     "ImportCreateParams",
     "ImportCreateParamsReasonVocabulary",
+    "ImportCreateParamsRecord",
+    "ImportCreateParamsRecordCall",
     "ImportEnvelope",
     "ImportList",
     "ImportParseError",
@@ -251,6 +283,15 @@ __all__ = [
     "KeyInfoUsage",
     "LearnerRecipeParams",
     "LearningControl",
+    "LearningCost",
+    "LearningCostCache",
+    "LearningCostMemoryOverhead",
+    "LearningCostMemoryOverheadObservedDifference",
+    "LearningCostMemoryOverheadObservedDifferenceInterval",
+    "LearningCostRepairLoop",
+    "LearningCostRepairLoopArm",
+    "LearningCostRepairLoopArmFirstPass",
+    "LearningCostRepairLoopCoverage",
     "LearningEnableParams",
     "LearningEvaluation",
     "LearningEvaluationArm",
@@ -258,6 +299,9 @@ __all__ = [
     "LearningEvaluationDecidedBy",
     "LearningEvaluationDifference",
     "LearningEvaluationList",
+    "LearningEvaluationObserved",
+    "LearningEvaluationObservedArms",
+    "LearningEvaluationObservedArmsCandidate",
     "LearningEvaluationRule",
     "LearningPlan",
     "LearningPlanCallTypeBinding",
@@ -268,15 +312,19 @@ __all__ = [
     "LearningPlanProposal",
     "LearningPromotionParams",
     "LearningPromotionPolicy",
+    "LearningReadLimitParams",
     "LearningRollbackParams",
     "LearningStatus",
     "LearningStatusBudget",
     "LearningStatusEvidence",
+    "LearningStatusMemoryRead",
     "LearningStatusOutcomeReceipts",
     "LearningStatusRecipe",
     "LearningStatusReflection",
+    "LearningStatusReflectionLastAttemptAdmission",
     "LearningStatusReflectionNext",
     "LearningStatusReflectionProvider",
+    "LearningStatusServingStopped",
     "LearningStatusUsage",
     "LearningToolDocumentation",
     "LearningToolDocumentationTool",
@@ -370,6 +418,7 @@ __all__ = [
     "ReasoningParam",
     "RecordOutcomesParams",
     "RecordOutcomesResponse",
+    "RequestOutcomeInputParams",
     "RequestOutcomeResult",
     "ResponseFormatJsonObjectParam",
     "ResponseFormatJsonSchemaParam",
@@ -395,9 +444,12 @@ __all__ = [
     "ReviewerTestResult",
     "SegmentHintParam",
     "SelfImproveGuardrailsParams",
+    "SelfServeEpisodeMemoryParams",
     "UrBlock",
     "UrBlockBench",
     "UrBlockCompression",
+    "UrBlockLearnedInjection",
+    "UrBlockLearningServing",
     "UrBlockRouting",
     "UrBlockVerifiedMemory",
     "UrParams",
@@ -730,7 +782,8 @@ class ArtifactFinalParams(TypedDict, total=False):
     """
 
     diff_stats: DiffStatsParams
-    """CLIENT-computed diff stats (the no-consent path; the SDK `diffStats` helper)."""
+    """CLIENT-computed diff stats (the no-consent path; the SDK `diffStats` helper): numbers and the final hash only.
+    """
 
     draft: str
     """The draft body — used ONLY to compute server-side diff_stats under consent."""
@@ -743,13 +796,14 @@ class ArtifactFinalParams(TypedDict, total=False):
 
 
 class DiffStatsParams(TypedDict, total=False):
-    """CLIENT-computed diff stats (the no-consent path; the SDK `diffStats` helper)."""
+    """CLIENT-computed diff stats (the no-consent path; the SDK `diffStats` helper): numbers and the final hash only."""
 
     changed_spans: int
 
     edit_ratio: float
 
     final_hash: str
+    """A content hash (hex, optionally prefixed `sha256:`) — never a body."""
 
     lengths: DiffLengthsParams
 
@@ -799,14 +853,114 @@ class ArtifactFinalEpisodeCorrection(BaseModel):
     corrected_at: str | None
     """When the stored correction is effective (ISO), or null."""
 
-    status: str
-    """Whether this correction reached episode memory: `applied` (stored, eligible to serve on the next request) | `unchanged` (the same correction was already stored) | `not_serving` (the call type is not opted into serve_corrections) | `consent_off` | `no_correction_text` | `no_episode` (no failed episode holds this artifact’s request).
+    pending_seconds: int | None = None
+    """With `pending`: how long the gateway keeps the correction waiting for its episode (900)."""
 
-    Known values: ``applied``, ``unchanged``, ``not_serving``, ``consent_off``, ``no_correction_text``, ``no_episode``.
+    reason: str | None = None
+    """A permanent no_episode retains the request recording reason, such as route_not_recorded or record_off.
+    """
+
+    receipt: OutcomeReceiptRecord | None = None
+    """Poll this durable receipt: pending until its trace and failure verdict land, then applied; expires after 15 minutes. References the existing consented final only.
+    """
+
+    status: str
+    """Whether this correction reached episode memory: `applied` (stored, eligible to serve on the next request) | `unchanged` (the same correction was already stored) | `not_serving` (the call type is not opted into serve_corrections) | `consent_off` | `no_correction_text` | `no_episode` (no failed episode holds this artifact’s request) | `pending` (no failed episode holds it YET — the recorder writes it after the response and its verdict lands with the outcome — so the gateway keeps the correction for up to `pending_seconds` and applies it when the episode lands; the response does not wait, and the status route’s `traces.corrected` shows it applied).
+
+    Known values: ``applied``, ``unchanged``, ``not_serving``, ``consent_off``, ``no_correction_text``, ``no_episode``, ``pending``.
     """
 
     trace_id: str | None
     """The episode trace the correction bound to, or null."""
+
+
+class OutcomeReceiptRecord(BaseModel):
+    """Poll this durable receipt: pending until its trace and failure verdict land, then applied; expires after 15 minutes. References the existing consented final only."""
+
+    applied_at: str | None
+    """When the outcome was recorded."""
+
+    artifact_id: str | None
+    """The artifact the outcome landed on, once applied."""
+
+    attempts: int
+    """Recording attempts that hit an internal error (bounded; then `failed`)."""
+
+    channel: str
+    """The outcome channel as sent; correction for a server-created artifact-final receipt."""
+
+    created_at: str
+    """When the outcome was accepted."""
+
+    episode: OutcomeReceiptRecordEpisode
+    """The episode association of an applied teaching outcome."""
+
+    expires_at: str
+    """The receipt’s next deadline: while `pending`, when it expires; while its episode association is `pending`, when that becomes `not_recorded`; once settled, when the receipt itself is deleted (30 days).
+    """
+
+    id: str
+    """The receipt id (`ocr_…`)."""
+
+    kind: str
+    """The outcome kind as sent; artifact_final for a durable reference to the original consented final. It is applied when the correctable failure trace lands; no separate outcome event is created.
+    """
+
+    object: str
+    """Known values: ``outcome_receipt``."""
+
+    outcome_event_id: str | None
+    """The recorded outcome event (`oev_…`) once applied."""
+
+    outcome_status: str | None
+    """Whether applying recorded the event for the first time (`accepted`) or found it (`duplicate`).
+
+    Known values: ``accepted``, ``duplicate``.
+    """
+
+    reason: str | None
+    """A stable machine reason when not applied: `request_not_found`, `idempotency_conflict`, `apply_failed`, `end_user_erased` (status `erased`), or the validation reason.
+    """
+
+    request_id: str
+    """The request the outcome names."""
+
+    source_event_id: str
+    """Your idempotency discriminator, or a server-minted one when none was sent (then a retry is a new outcome).
+    """
+
+    status: str
+    """`pending` — the request has not been recorded yet; `applied` — the outcome is recorded; `rejected` — it failed validation once the request was known (see `reason`); `failed` — recording kept hitting an internal error; `expired` — no request with this id appeared in your workspace within 15 minutes (`reason: request_not_found`); `erased` — the end user of the request was erased (`reason: end_user_erased`): the outcome input is gone, and the receipt is deleted at its retention deadline.
+
+    Known values: ``pending``, ``applied``, ``rejected``, ``failed``, ``expired``, ``erased``.
+    """
+
+    updated_at: str
+
+
+class OutcomeReceiptRecordEpisode(BaseModel):
+    """The episode association of an applied teaching outcome."""
+
+    reason: str | None
+    """Why the episode is `not_recorded`, by name; null otherwise. `memory_off`: the call type records no episodes; `record_off`, `consent_off`, `retention_not_full`: recording, the corrections consent or full retention is off; `held_out`: the standing holdout withheld the request; `no_call_type`, `no_episode`: the request named no call type, or carried no task to record; `stream_cancelled`, `stream_error`, `stream_incomplete`: a streamed answer that the client cancelled, that failed, or that ended without a finish (a stream records only its complete answer); `erased_in_flight`: reserved, answered only under an experimental setting that is off by default; `answered_from_memory`: the gateway answered from verified memory, with no model call; `request_failed`: the request failed; `route_not_recorded`: a route that records no episodes (embeddings, the native routes, a preflight); `association_window_passed`: no episode held the request within 15 minutes; `end_user_erased`: the end user of the request was erased before its episode was recorded; `ambiguous_partition`, `ambiguous_request`: only for an episode recorded before request ids were always the gateway’s own — the episodes holding the id belong to different end users (or one without an identity sits beside a known one), or several episodes of one end user hold it; none takes the verdict.
+
+    Known values: ``memory_off``, ``no_call_type``, ``record_off``, ``consent_off``, ``retention_not_full``, ``held_out``, ``no_episode``, ``stream_cancelled``, ``stream_error``, ``stream_incomplete``, ``erased_in_flight``, ``answered_from_memory``, ``request_failed``, ``route_not_recorded``, ``association_window_passed``, ``ambiguous_partition``, ``ambiguous_request``, ``end_user_erased``.
+    """
+
+    status: str
+    """`associated` — the episode holding this request carries a verdict; `pending` — a teaching outcome waiting for its episode to be recorded; `not_recorded` — no episode holds this request and none will: at once when the request itself says so (`reason`: memory off on its call type, recording or consent off, retention not `full`, held out, a stream that was cancelled, failed or ended early), otherwise when no episode held the request within 15 minutes (`reason: association_window_passed`), or when several episodes hold this request id and none can be shown to be its own; `not_applicable` — the outcome does not teach (a proxy, behavioral or mechanical signal) or was not applied.
+
+    Known values: ``associated``, ``pending``, ``not_recorded``, ``not_applicable``.
+    """
+
+    trace_id: str | None
+    """The episode (`ept_…`) the outcome was associated with, once associated."""
+
+    verdict: str | None
+    """What the outcome did to the episode: `recorded` — it is the episode verdict; `kept_earlier` — the episode already had a verdict (the first verdict wins); `revised` — it superseded the verdict (`supersedes_event_id`) before any learned version used the episode, so the verdict was replaced; `revised_after_incorporation` — the superseded verdict was already used by a learned version: the revision is recorded and counted, the episode is not silently unlearned.
+
+    Known values: ``recorded``, ``kept_earlier``, ``revised``, ``revised_after_incorporation``.
+    """
 
 
 class RecordOutcomesParams(TypedDict, total=False):
@@ -857,8 +1011,8 @@ class OutcomeParams(TypedDict, total=False):
     tool_error_class: Literal["model", "infra", "unclassified"]
     """For mechanical:tool_error — refines learning_use (only model-class teaches)."""
 
-    value: dict[str, Any]
-    """The typed numeric/diff-stats payload — never a body."""
+    value: dict[str, float | bool | str | list[float] | DiffStatsParams | None]
+    """The typed metadata payload (numbers, tokens, `diff_stats` on a correction) — never a body."""
 
 
 class RecordOutcomesResponse(BaseModel):
@@ -1522,7 +1676,6 @@ class BenchOutcomeParams(TypedDict, total=False):
     """The binary ground-truth verdict for the whole trace."""
 
     trace: Required[str]
-    """The task/trace id the outcome grades (the stats cluster id)."""
 
 
 class BenchOutcomes(BaseModel):
@@ -2019,7 +2172,6 @@ class BenchExpectationParams(TypedDict, total=False):
     """The assertion kind (json_schema/exact_field/regex_match/citation_substring)."""
 
     request_id: str
-    """Narrow the assertion to a specific captured request id."""
 
 
 class BenchExpectations(BaseModel):
@@ -2507,12 +2659,19 @@ class SelfImproveGuardrailsParams(TypedDict, total=False):
 class EpisodeMemoryStatus(BaseModel):
     """A call type’s episode-memory status."""
 
+    awaiting_approval: int | None = None
+    """Count of versions awaiting approval, visible only to workspace owners and admins."""
+
     call_type_id: str
 
     config_version: int | None
 
     enabled: bool
     """Whether the active config version carries a readable EXPLICIT setting (false for the explicit-off marker, an unreadable value, or no setting).
+    """
+
+    explanation: EpisodeMemoryStatusExplanation | None
+    """Why memory is, or is not, helping this call type yet — the stage, the blocking codes with their action text, progress and the fit. The same object the learning status returns. Null while memory is not active for the call type (no setting, switched off, or not permitted for the workspace).
     """
 
     lab_authorised: bool
@@ -2525,7 +2684,15 @@ class EpisodeMemoryStatus(BaseModel):
     """Known values: ``episode_memory``."""
 
     playbook: EpisodeMemoryStatusPlaybook
-    """The latest learned playbook of the source call type (version null when none)."""
+    """The playbook version this call type serves (version null when none): never a held, candidate or evaluating version.
+    """
+
+    scope: EpisodeMemoryStatusScope
+    """The end-user scope this call type serves under, and where it came from."""
+
+    screen: EpisodeMemoryStatusScreen
+    """The stored-injection screen (flag-only): every verified or corrected trace is screened and a flagged trace still serves. Blocking is not available. A neutralised block (self-serve, the default path) fences and marks stored structure either way; a model may still follow text it reads inside the fence.
+    """
 
     setting: EpisodeMemoryStatusSetting | None
     """The frozen episode-memory setting on a call-type config version."""
@@ -2538,6 +2705,102 @@ class EpisodeMemoryStatus(BaseModel):
 
     traces: EpisodeMemoryStatusTraces
     """The call type’s episode-trace accounting (counts only)."""
+
+
+class EpisodeMemoryStatusExplanation(BaseModel):
+    """Why memory is, or is not, helping this call type yet — the stage, the blocking codes with their action text, progress and the fit. The same object the learning status returns. Null while memory is not active for the call type (no setting, switched off, or not permitted for the workspace)."""
+
+    blocking: list[EpisodeMemoryStatusExplanationBlockingItem]
+    """What stands between the call type and memory that helps it."""
+
+    fit: EpisodeMemoryStatusExplanationFit
+
+    progress: EpisodeMemoryStatusExplanationProgress
+
+    serving: EpisodeMemoryStatusExplanationServing
+
+    stage: str
+    """`recording` (nothing recorded yet), `waiting_for_verdicts` (recorded, none verified), `building` (verified, not served yet), `serving`, `stalled` (a blocking condition held for 7 days or 200 requests), `paused` (reserved), `not_a_fit`.
+
+    Known values: ``recording``, ``waiting_for_verdicts``, ``building``, ``serving``, ``stalled``, ``paused``, ``not_a_fit``.
+    """
+
+
+class EpisodeMemoryStatusExplanationBlockingItem(BaseModel):
+    """Response shape ``EpisodeMemoryStatusExplanationBlockingItem``."""
+
+    action: str
+    """Fixed text: what the condition means and what to change."""
+
+    code: str
+    """A closed code, most important first. `paused_auto`, `prompt_changed` and `quarantine` are reserved and not emitted yet.
+
+    Known values: ``recording_off``, ``no_traffic``, ``partition_required``, ``verdicts_unmatched``, ``no_verdicts``, ``only_failures``, ``retrieval_degraded``, ``screen_flags``, ``scope_notice``, ``cache_conflict``, ``low_repeat``, ``paused_auto``, ``prompt_changed``, ``quarantine``.
+    """
+
+    detail: dict[str, float | str | None]
+    """The numbers behind the code (shares, counts); never text from a request."""
+
+
+class EpisodeMemoryStatusExplanationFit(BaseModel):
+    """Response shape ``EpisodeMemoryStatusExplanationFit``."""
+
+    reasons: list[str]
+    """Known values: ``too_few_requests``, ``unstable``, ``no_spec_detected``, ``low_repeat``."""
+
+    repeat_rate: float | None
+    """The median similarity of a recent request to its nearest other recent request (null below 20). Shown as a number: its threshold is not set yet.
+    """
+
+    repeat_sample: int
+    """How many recent requests the repeat rate was computed over."""
+
+    source: str
+    """`census` (the platform fit census), `heuristic` (the repeat rate), `unknown`.
+
+    Known values: ``census``, ``heuristic``, ``unknown``.
+    """
+
+    verdict: str | None
+    """Null until a census or a set threshold decides it.
+
+    Known values: ``fit``, ``not_a_fit``.
+    """
+
+    wording: str | None
+    """The not-a-fit explanation, scoped to its reason."""
+
+
+class EpisodeMemoryStatusExplanationProgress(BaseModel):
+    """Response shape ``EpisodeMemoryStatusExplanationProgress``."""
+
+    eta_requests: int | None
+    """Requests until memory serves: not estimated yet (always null)."""
+
+    needed: int
+    """Verified passes or corrections memory needs before it can serve anything."""
+
+    precedents_servable: int
+    """Verified precedents the memory would serve now."""
+
+    served_last_7d: int
+    """Requests served a block in the last 7 days (from the hourly rollup)."""
+
+    verified: int
+    """Verified episodes (passes and failures)."""
+
+
+class EpisodeMemoryStatusExplanationServing(BaseModel):
+    """Response shape ``EpisodeMemoryStatusExplanationServing``."""
+
+    active: bool
+    """Memory serves for this call type now."""
+
+    recording: bool
+    """New episodes are recorded: record on, corrections consent on, retention full."""
+
+    serves_precedents: bool
+    """It serves precedents (not lessons only)."""
 
 
 class EpisodeMemoryStatusMemory(BaseModel):
@@ -2557,7 +2820,7 @@ class EpisodeMemoryStatusMemory(BaseModel):
 
 
 class EpisodeMemoryStatusPlaybook(BaseModel):
-    """The latest learned playbook of the source call type (version null when none)."""
+    """The playbook version this call type serves (version null when none): never a held, candidate or evaluating version."""
 
     active_lessons: int
     """The active-lesson count of the latest version."""
@@ -2576,6 +2839,77 @@ class EpisodeMemoryStatusPlaybook(BaseModel):
 
     version_id: str | None
     """The latest version row id (`epb_…`), or null."""
+
+
+class EpisodeMemoryStatusScope(BaseModel):
+    """The end-user scope this call type serves under, and where it came from."""
+
+    notice: bool
+    """True while the scope was recorded rather than declared (a one-time notice until the owner declares one).
+    """
+
+    scope: str | None
+    """The end-user scope it serves under; null ⇒ nothing serves (memory off, or no default scope).
+
+    Known values: ``shared``, ``partitioned``.
+    """
+
+    source: str | None
+    """`declared` by the owner; `recorded` as `shared` for a self-serve setting with no declared scope (one enabled before scopes existed, or a lessons-only learner); `lab` (always `shared`); or the workspace’s default-path scope.
+
+    Known values: ``declared``, ``recorded``, ``lab``, ``workspace_default``.
+    """
+
+
+class EpisodeMemoryStatusScreen(BaseModel):
+    """The stored-injection screen (flag-only): every verified or corrected trace is screened and a flagged trace still serves. Blocking is not available. A neutralised block (self-serve, the default path) fences and marks stored structure either way; a model may still follow text it reads inside the fence."""
+
+    by_reason: EpisodeMemoryStatusScreenByReason
+    """Flagged traces of this call type per reason; a trace with two reasons counts under both. Only the closed codes are counted: a code a later screen version adds is not, so `flagged` can exceed the sum.
+    """
+
+    flagged: int
+    """Traces OF THIS CALL TYPE the screen flagged (its own traces, even when it serves a source call type). Reviewer and shadow-replay traffic is not separated yet.
+    """
+
+    flagged_in_memory: int
+    """Of the precedents the setting (or `?as_of`) would serve now, how many are flagged. These are drawn from the SOURCE call type when the setting names one, so this can be non-zero while `flagged` is 0.
+    """
+
+    screened: int
+    """Traces of this call type that carry a screen result. Traces verified before the screen shipped get one from the hourly rescreen pass.
+    """
+
+    version: str
+    """The screen version the writers record today (`eps1`); a rule change moves it."""
+
+
+class EpisodeMemoryStatusScreenByReason(BaseModel):
+    """Flagged traces of this call type per reason; a trace with two reasons counts under both. Only the closed codes are counted: a code a later screen version adds is not, so `flagged` can exceed the sum."""
+
+    bidi_override: int
+    """Flagged for a bidirectional override character."""
+
+    chat_template_marker: int
+    """Flagged for a chat-template role marker."""
+
+    encoded_payload: int
+    """Flagged for an encoded blob that decodes to an instruction."""
+
+    future_instruction: int
+    """Flagged for an instruction about future requests."""
+
+    homoglyph_obfuscation: int
+    """Flagged for look-alike letters in an instruction word."""
+
+    imperative_override: int
+    """Flagged for an order to ignore or replace instructions."""
+
+    reviewer_addressed: int
+    """Flagged for a phrase addressed to a reviewer or grader."""
+
+    zero_width_obfuscation: int
+    """Flagged for zero-width characters inside words."""
 
 
 class EpisodeMemoryStatusSetting(BaseModel):
@@ -2601,10 +2935,20 @@ class EpisodeMemoryStatusSetting(BaseModel):
 
     k: int
 
+    learned_read_timeout_ms: int | None = None
+    """The shared learned-memory read deadline in milliseconds (25..2000, default 250). A ceiling, not a delay: a read completed in 3 ms costs 3 ms. Bounds latency before the first token. Skips carry refusal fell_back on the receipt; GET learning reports the last 24 hours of completed hourly buckets. The default is 250 ms; lower it if your first-token latency matters more than memory.
+    """
+
     lessons: EpisodeMemoryStatusSettingLessons | None = None
     """Present only when the learned-playbook mode is not `off`."""
 
     max_chars_per_episode: int
+
+    memory_scope: str | None = None
+    """The end-user scope the owner declared on the self-serve enable. Absent on a `lab` setting (one ultrarouter staff enabled; always `shared`) and on a self-serve setting from before scopes existed (recorded as `shared`; see the status `scope`).
+
+    Known values: ``shared``, ``partitioned``.
+    """
 
     min_similarity: float | None = None
     """Present only when set (not 0)."""
@@ -2661,10 +3005,10 @@ class EpisodeMemoryStatusSettingLessonsRecipe(BaseModel):
     """Known values: ``bundled``, ``atomic``."""
 
     observations: str
-    """Known values: ``legacy``, ``elo2``."""
+    """Known values: ``legacy``, ``elo2``, ``corrections_v1``, ``repair_chains_v1``."""
 
     validator: str
-    """Known values: ``elv1``, ``elv2``."""
+    """Known values: ``elv1``, ``elv2``, ``elv3``."""
 
 
 class EpisodeMemoryStatusTraces(BaseModel):
@@ -2676,6 +3020,10 @@ class EpisodeMemoryStatusTraces(BaseModel):
 
     fail: int
 
+    imported: int
+    """Approved pairs the customer imported (`POST …/episode-memory/imports`). No request happened for them, so they carry no verdict: counted here and in `total`, never in `pass`, `fail`, `corrected` or `unverified`.
+    """
+
     latest_verified_at: str | None
     """The newest verification instant (ISO) of a servable pass, or null."""
 
@@ -2686,7 +3034,7 @@ class EpisodeMemoryStatusTraces(BaseModel):
     total: int
 
     unverified: int
-    """Episodes still recording (no verdict yet)."""
+    """Episodes still recording (no verdict yet). An imported pair is never one."""
 
 
 class EpisodeMemoryDisableResult(BaseModel):
@@ -2730,6 +3078,10 @@ class EpisodeMemoryEnableParams(TypedDict, total=False):
 
     k: int
     """Precedents served per episode (1..5; default 3)."""
+
+    learned_read_timeout_ms: int
+    """The shared learned-memory read deadline in milliseconds (25..2000, default 250). A ceiling, not a delay: a read completed in 3 ms costs 3 ms. Bounds latency before the first token. Skips carry refusal fell_back on the receipt; GET learning reports the last 24 hours of completed hourly buckets. The default is 250 ms; lower it if your first-token latency matters more than memory.
+    """
 
     lessons: EpisodeMemoryEnableParamsLessons
     """The learned-playbook block (absent ⇒ lessons off, byte-identical)."""
@@ -2795,12 +3147,12 @@ class LearnerRecipeParams(TypedDict, total=False):
     """Lesson generation: `bundled` (legacy, the default) or `atomic` (one complete rule per item with conditions, exceptions and required tools; never clipped).
     """
 
-    observations: Literal["legacy", "elo2"]
-    """Observation selection: `legacy` (the default) or `elo2` (error→correction transitions, passed-case results and labelled user turns at the same total budget, with measured omissions).
+    observations: Literal["legacy", "elo2", "corrections_v1", "repair_chains_v1"]
+    """Observation selection: `legacy` (the default), `elo2` (error→correction transitions, passed-case results and labelled user turns at the same total budget, with measured omissions), `corrections_v1` (the corrections end users declared) or `repair_chains_v1` (correction cases the gateway inferred from your application’s own repair loop: the line as first written, what your check or reviewer said was wrong with it, the line after the repair; built and admitted like `corrections_v1`, never from held-out traffic, and served to treated traffic only, as a candidate).
     """
 
-    validator: Literal["elv1", "elv2"]
-    """Lesson admission: `elv1` (legacy literal rule, the default) or `elv2` (provenance-aware: evidence support + value handling, documented constants scoped to their tool).
+    validator: Literal["elv1", "elv2", "elv3"]
+    """Lesson admission: `elv1` (legacy literal rule, the default), `elv2` (provenance-aware: evidence support + value handling, documented constants scoped to their tool) or `elv3` (a value counts as task-local only when it can identify and fewer than max(3, 25%) of the batch end users hold it; such a value becomes a typed placeholder, and a lesson with no rule left is refused; bundled generation only).
     """
 
 
@@ -2823,6 +3175,633 @@ class EpisodeMemoryEnableResult(BaseModel):
 
     setting: EpisodeMemoryStatusSetting
     """The frozen episode-memory setting on a call-type config version."""
+
+
+class EpisodeEvictionList(BaseModel):
+    """The operations log, newest first."""
+
+    data: list[EpisodeEviction]
+
+    next_cursor: str | None
+
+    object: str
+    """Known values: ``list``."""
+
+
+class EpisodeEviction(BaseModel):
+    """Response shape ``EpisodeEviction``."""
+
+    actor_id: str | None
+
+    actor_type: str
+    """Known values: ``user``, ``api_key``, ``system``."""
+
+    counts: dict[str, int]
+    """Integer counts only."""
+
+    created_at: str
+
+    fence_at: str | None
+    """Reserved: null, unless an experimental operator setting that is off by default is on. Do not rely on it.
+    """
+
+    id: str
+
+    operation: str
+    """Known values: ``evict``, ``erase``, ``restore``."""
+
+    reason: str
+    """A closed reason code."""
+
+    restores_id: str | None
+    """For a restore, the eviction it reversed."""
+
+    selector_digest: str | None
+
+    selector_fields: list[str]
+    """The selector field names used, never their values."""
+
+
+class EpisodeEvictParams(TypedDict, total=False):
+    """Evict a call type’s episode memory by selector, or erase it."""
+
+    dry_run: bool
+    """Count only and write nothing (an erasure dry run reports exactly what it would remove)."""
+
+    erase: bool
+    """Hard-delete the matched episodes of this call type and the stores listed in `erased` for them, instead of moving them out of memory. Not restorable. Owner only: an owner session, or an api key with `memory:manage` whose creator is an owner of the workspace when the erasure runs (403 `permission`, message `memory_manage_owner_only: …`, otherwise).
+    """
+
+    reason: Required[
+        Literal[
+            "bad_precedent", "bad_teacher", "provenance", "erasure_request", "incident", "other"
+        ]
+    ]
+    """Why, as a closed code (stored in the append-only log)."""
+
+    selector: Required[EpisodeEvictParamsSelector]
+    """Which rows: every field set is ANDed; at least one is required."""
+
+
+class EpisodeEvictParamsSelector(TypedDict, total=False):
+    """Which rows: every field set is ANDed; at least one is required."""
+
+    config_id: str
+    """The `config_id` of the outcome event that verified the rows: matches passes and corrections alike.
+    """
+
+    correction_source: Literal["declared", "inferred", "imported"]
+    """Where the stored correction came from: `declared` (the customer’s `/final`), `inferred` (the reviewer), `imported` (an approved pair the customer imported).
+    """
+
+    guard_identity: str
+    """Resolved through the reviewer receipts, which do not exist yet: matches nothing today."""
+
+    judge_identity: str
+    """Resolved through the reviewer receipts, which do not exist yet: matches nothing today."""
+
+    outcome_event_rule_version: str
+    """The rule version of the verifying outcome event."""
+
+    outcome_source: Literal["declared", "inferred", "gateway", "imported"]
+    """The source of the verifying outcome event."""
+
+    partition: str
+    """An end user’s key, as the requests sent it (`ur.memory_partition`, the header or `user`). Surrounding whitespace is ignored and the key is compared in Unicode NFC, as when requests are recorded (a key sent in the header is read as the UTF-8 bytes the client sent); at most 1,024 characters once trimmed and in NFC. It is digested on arrival and matched against the stored digest; the raw value is never stored or logged.
+    """
+
+    precedent_ids: list[str]
+    """Precedent (episode trace) ids, from the precedent list or a lever stamp; at most 1,000."""
+
+    producer: str
+    """The producer of the verifying outcome event."""
+
+    rubric_hash: str
+    """Resolved through the reviewer receipts, which do not exist yet: matches nothing today."""
+
+    taught_between: EpisodeEvictParamsSelectorTaughtBetween
+    """When the rows entered memory: the later of their verdict and their correction."""
+
+
+EpisodeEvictParamsSelectorTaughtBetween = TypedDict(
+    "EpisodeEvictParamsSelectorTaughtBetween",
+    {
+        "from": str | None,
+        "to": str | None,
+    },
+    total=False,
+)
+EpisodeEvictParamsSelectorTaughtBetween.__doc__ = (
+    """When the rows entered memory: the later of their verdict and their correction."""
+)
+
+
+class EpisodeEvictionResult(BaseModel):
+    """The result of an eviction or an erasure."""
+
+    already_erased: EpisodeEvictionResultAlreadyErased | None
+    """Per store, for an erasure: rows it reached that an earlier erasure had already erased. Only the stores that keep a marker of an erasure can tell (`outcome_receipts`, `outcome_values`, `bench_dataset_items`, `artifact_final_bodies`); every other store deletes its rows and reports 0 here. A store with 0 here and in `erased` matched nothing. A refused erasure is an error, never a count. Null for an eviction.
+    """
+
+    call_type_id: str
+
+    dry_run: bool
+
+    effective_within_seconds: int
+    """The bound on when no request is served an evicted or erased row: 60 (the pinned cache TTL).
+    """
+
+    erased: EpisodeEvictionResultAlreadyErased | None
+    """Per store, for an erasure (for its dry run, what it would remove); null for an eviction."""
+
+    evicted: int
+    """Rows moved out of memory (0 for an erasure or a dry run)."""
+
+    fallback: EpisodeEvictionResultFallback | None
+    """For an erasure (and its dry run, what it would do): where each affected call type’s active lesson pointer went. Null for an eviction.
+    """
+
+    fence_at: str | None
+    """Reserved: null, unless an experimental operator setting that is off by default is on. Do not rely on it. A request still in flight when an erasure commits can leave its text behind until the retention period ends: erase after the end user’s requests have finished, or run the erasure again afterwards.
+    """
+
+    id: str | None
+    """The log entry (`epe_…`); null for a dry run."""
+
+    matched: int
+    """Rows the selector matched (for an eviction, rows not already evicted)."""
+
+    object: str
+    """Known values: ``episode_memory_eviction``."""
+
+    operation: str
+    """Known values: ``evict``, ``erase``."""
+
+    reason: str
+    """Known values: ``bad_precedent``, ``bad_teacher``, ``provenance``, ``erasure_request``, ``incident``, ``other``.
+    """
+
+    restorable: bool
+    """Whether `…/evictions/{eviction_id}/restore` can return the rows."""
+
+    selector_digest: str | None
+    """The keyed digest the log stores instead of the selector; null for a dry run."""
+
+    selector_fields: list[str]
+    """Known values: ``precedent_ids``, ``config_id``, ``outcome_source``, ``correction_source``, ``producer``, ``outcome_event_rule_version``, ``partition``, ``taught_between``, ``judge_identity``, ``guard_identity``, ``rubric_hash``.
+    """
+
+    unresolved_fields: list[str]
+    """Selector fields that match nothing yet (they resolve through reviewer receipts).
+
+    Known values: ``precedent_ids``, ``config_id``, ``outcome_source``, ``correction_source``, ``producer``, ``outcome_event_rule_version``, ``partition``, ``taught_between``, ``judge_identity``, ``guard_identity``, ``rubric_hash``.
+    """
+
+
+class EpisodeEvictionResultAlreadyErased(BaseModel):
+    """Per store, for an erasure: rows it reached that an earlier erasure had already erased. Only the stores that keep a marker of an erasure can tell (`outcome_receipts`, `outcome_values`, `bench_dataset_items`, `artifact_final_bodies`); every other store deletes its rows and reports 0 here. A store with 0 here and in `erased` matched nothing. A refused erasure is an error, never a count. Null for an eviction."""
+
+    adaptive_study_payloads: int
+    """Stored adaptive study reports that named a request, capture or precedent the erasure reached, removed.
+    """
+
+    analyzer_drafts: int
+    """Analyzer drafts whose sample window held a capture the erasure reached, and the rubrics compiled from them: their drafted text removed.
+    """
+
+    artifact_final_bodies: int
+    """Final versions a stored correction was copied from, their body removed (the version keeps its hash).
+    """
+
+    bench_captures: int
+    """Benchmark captures of those requests (their full bodies)."""
+
+    bench_dataset_items: int
+    """Frozen benchmark items folded from a capture the erasure reached: their text and contract removed, the item kept as an empty marker; the dataset and the evaluation runs over it become partial.
+    """
+
+    bench_evidence: int
+    """Benchmark outcome labels and assertions on a request the erasure reached, and public share previews built from an item it reached, removed.
+    """
+
+    cee_blobs: int
+    """Encrypted bodies (captures, correction sources, receipt bodies) no other record still references.
+    """
+
+    cee_envelopes: int
+    """Capture envelopes of those requests."""
+
+    cee_outbox: int
+    """Captured bodies of those requests still queued for the capture drain."""
+
+    claims: int
+    """Claim statements and free-form situation facets on an artifact the erasure reached, removed (the claim and the artifact stay).
+    """
+
+    correction_receipt_bodies: int
+    """Verified correction bodies submitted for those requests, removed (the receipt keeps its hash).
+    """
+
+    episode_playbook_attempts: int
+    """Lesson distillations still in progress over an erased trace, stopped before they could publish.
+    """
+
+    episode_playbooks: int
+    """Learned-lesson versions retired because a cohort held an erased trace (and every later version).
+    """
+
+    episode_precedent_stats: int
+    """Attribution rows of the erased precedents."""
+
+    episode_traces: int
+    """Episode traces, each with its answer index text and task digest."""
+
+    evaluation_outputs: int
+    """Evaluation outputs, output vectors, judge rationales and spot-check notes made from those golden items, removed.
+    """
+
+    golden_items: int
+    """Evaluation golden items copied from a request, verified correction or capture the erasure reached: their input and reference are removed and the item is retired.
+    """
+
+    idempotency_keys: int
+    """Stored responses of those requests kept for an `Idempotency-Key` replay (24 hours); a retry with the key runs the request again.
+    """
+
+    import_execution_calls: int
+    """Imported workflow calls recorded against a request the erasure reached, their bodies removed.
+    """
+
+    import_records: int
+    """Imported records and executions on an artifact the erasure reached, their bodies removed."""
+
+    knowledge_facts: int
+    """Knowledge facts whose content came from a final or a verified correction the erasure reached: retired (no longer read or served) and their text removed. A fact other end users also supported is retired whole and re-derived from what remains on the next learning pass.
+    """
+
+    oracle_jobs: int
+    """Verification jobs on a request the erasure reached, their payload removed."""
+
+    outcome_details: int
+    """Outcome details (a reason you sent with an edited or rejected outcome) for those requests, their text and its fingerprints removed (the detail keeps its length).
+    """
+
+    outcome_receipts: int
+    """Outcome reports received for those requests, kept as a marker with `status: erased` and their input removed.
+    """
+
+    outcome_values: int
+    """Outcome values and final diff statistics on what the erasure reached: the whole value removed (the event keeps its kind, its time and a keyed hash of the removed value; nothing that learns or counts reads it).
+    """
+
+    request_feedback: int
+    """Feedback left on those requests, with its comment."""
+
+    request_payloads: int
+    """Stored request and response bodies of every request of the traces."""
+
+    review_notes: int
+    """Reviewer notes on an artifact the erasure reached, whatever outcome they accompany, their text removed (the note keeps its hash and length).
+    """
+
+    template_samples: int
+    """Masked prompt samples, and the vectors made from them, of every template group a reached request belonged to: the whole group is cleared (other requests of those groups lose their samples too; new traffic samples again).
+    """
+
+    workflow_repair_chains: int
+    """Repair-chain rows derived from those requests, in any call type; a lesson version or a pending distillation whose cohort holds one is retired with them (counted above).
+    """
+
+    workflow_step_links: int
+    """Workflow step rows derived from those requests (ids, roles and counts the product found in your traffic), in any call type.
+    """
+
+
+class EpisodeEvictionResultFallback(BaseModel):
+    """For an erasure (and its dry run, what it would do): where each affected call type’s active lesson pointer went. Null for an eviction."""
+
+    activated: int
+    """Call types whose active lesson version was erased and which now serve an earlier version."""
+
+    call_types: list[EpisodeEvictionResultFallbackCallType]
+    """One entry per call type with learning controls whose ACTIVE version the erasure removed, by call type id. A call type without learning controls is not listed: it serves its latest remaining version.
+    """
+
+    cleared: int
+    """Call types whose active lesson version was erased with no version to fall back to: they serve no lessons until an owner promotes a version.
+    """
+
+
+class EpisodeEvictionResultFallbackCallType(BaseModel):
+    """Response shape ``EpisodeEvictionResultFallbackCallType``."""
+
+    call_type_id: str
+
+    outcome: str
+    """Known values: ``activated``, ``cleared``."""
+
+    version: int | None
+    """Its version number; null when cleared."""
+
+    version_id: str | None
+    """The version now active (`activated`); null when the pointer was cleared."""
+
+
+class EpisodeMemoryImportParams(TypedDict, total=False):
+    """Approved pairs to import into the call type’s episode memory."""
+
+    config_id: str
+    """Optional: a label of the configuration that produced the answers. Stored on each pair, so an erasure by `config_id` reaches it.
+    """
+
+    pairs: Required[list[EpisodeMemoryImportParamsPair]]
+    """1 to 100 approved pairs."""
+
+
+class EpisodeMemoryImportParamsPair(TypedDict, total=False):
+    """One approved pair."""
+
+    answer: Required[str]
+    """The approved answer, exactly as the customer’s people approved it."""
+
+    approved_at: Required[str]
+    """When the answer was approved (ISO-8601). At most 5 minutes in the future, and not older than the workspace’s retention window.
+    """
+
+    end_user: str
+    """The end user the pair belongs to: required when the call type’s scope is `partitioned` (the pair is then shown only to that end user’s requests). Normalised and stored as a digest, exactly as a request’s `ur.memory_partition` is.
+    """
+
+    job_id: Required[str]
+    """The customer’s own job id. Importing the same job id again is idempotent: the same content is a `duplicate`, other content a `conflict` (nothing is changed; erase the stored pair first to replace it).
+    """
+
+    messages: Required[list[EpisodeMemoryImportParamsPairMessage]]
+    """The task as the application sent it (its chat messages). As for a recorded episode, the task is the first user message, so a later request with a similar first user message is matched against it.
+    """
+
+
+class EpisodeMemoryImportParamsPairMessage(TypedDict, total=False):
+    """Request shape ``EpisodeMemoryImportParamsPairMessage``."""
+
+    content: Required[str | list[ChatContentPartParam]]
+    """The message text, or its content parts, as the application sent it."""
+
+    role: Required[str]
+    """`system`, `user`, `assistant`, … as the application sent it."""
+
+
+class ChatContentPartParam(TypedDict, total=False):
+    """One OpenAI-shaped message content part; may carry a `cache_control` breakpoint."""
+
+    cache_control: CacheControlParam
+    """Mark this content part as a prompt-cache breakpoint. Translated to Anthropic `cache_control` on the block; stripped + ignored (structured log) for non-Anthropic providers.
+    """
+
+    text: str
+    """The text of a text part."""
+
+    type: str
+    """The content part type ("text" | "image_url" | …)."""
+
+
+class CacheControlParam(TypedDict, total=False):
+    """Mark this content part as a prompt-cache breakpoint. Translated to Anthropic `cache_control` on the block; stripped + ignored (structured log) for non-Anthropic providers."""
+
+    ttl: str
+    """Cache lifetime hint, e.g. "5m" (default) or "1h"."""
+
+    type: Required[Literal["ephemeral"]]
+    """The only supported cache type."""
+
+
+class EpisodeMemoryImportResult(BaseModel):
+    """What the import stored."""
+
+    call_type_id: str
+
+    counts: EpisodeMemoryImportCounts
+
+    object: str
+    """Known values: ``episode_memory_import``."""
+
+    results: list[EpisodeMemoryImportPairResult]
+
+    scope: str
+    """The declared scope the pairs were stored under.
+
+    Known values: ``shared``, ``partitioned``.
+    """
+
+    workspace_imported: int
+    """The workspace’s imported pairs after this call (at most 10,000 at once)."""
+
+
+class EpisodeMemoryImportCounts(BaseModel):
+    """Response shape ``EpisodeMemoryImportCounts``."""
+
+    conflict: int
+
+    duplicate: int
+
+    imported: int
+
+    refused: int
+
+
+class EpisodeMemoryImportPairResult(BaseModel):
+    """One pair’s result, in request order."""
+
+    imported_at: str | None
+    """The import instant: the pair ranks at it, so an `as_of` pin at or after it sees it. Null unless imported or duplicate.
+    """
+
+    job_id: str
+
+    precedent_id: str | None
+    """The stored pair (an episode trace id, `ept_…`): what the precedent reads, the request read’s `item_ids` and an erasure by `precedent_ids` name. Null when refused.
+    """
+
+    reason: str | None
+    """Why it was refused.
+
+    Known values: ``job_id_invalid``, ``job_id_repeated``, ``no_task``, ``no_answer``, ``end_user_required``, ``end_user_invalid``, ``approved_at_invalid``, ``approved_in_future``, ``approved_past_retention``.
+    """
+
+    screen_flagged: bool | None
+    """The flag-only injection screen flagged the stored text (it is still served, as any flagged row is).
+    """
+
+    status: str
+    """`imported` now; `duplicate` (already stored with the same content: nothing written); `conflict` (stored with other content: nothing written); `refused` (see `reason`).
+
+    Known values: ``imported``, ``duplicate``, ``conflict``, ``refused``.
+    """
+
+
+class EpisodePrecedentList(BaseModel):
+    """Response shape ``EpisodePrecedentList``."""
+
+    data: list[EpisodePrecedentListItem]
+
+    next_cursor: str | None
+    """Pass as `cursor` for the next page; null on the last."""
+
+    object: str
+    """Known values: ``list``."""
+
+
+class EpisodePrecedentListItem(BaseModel):
+    """A served precedent. The outcomes of the episodes it was shown to are an association, not an effect: they do not say the precedent caused them. Never its task text or answer."""
+
+    call_type_id: str
+
+    config_id: str | None
+
+    corrected_at: str | None
+
+    correction_source: str | None
+    """Where the served answer came from when it is not a verified pass: `declared` (the customer’s `/final`), `inferred` (the reviewer) or `imported` (an approved pair the customer imported: no request happened, so `outcome` is null).
+    """
+
+    first_served_at: str | None
+
+    id: str
+    """The precedent (an episode trace id, `ept_…`)."""
+
+    last_served_at: str | None
+
+    mean_rank: float | None
+    """Its mean 0-based rank when shown."""
+
+    outcome: str | None
+    """Known values: ``pass``, ``fail``."""
+
+    outcome_source: str | None
+
+    partitioned: bool
+    """Recorded under an end-user key (the key itself is never returned)."""
+
+    pool_kind: str
+    """`pass` or `correction`."""
+
+    screen_flagged: bool | None
+    """The injection screen flagged it (null: not screened)."""
+
+    screen_reasons: list[str]
+    """Closed reason codes, never text."""
+
+    served_episodes: int
+    """Later episodes shown this precedent."""
+
+    served_fail: int
+    """Of those, episodes reported failed."""
+
+    served_pass: int
+    """Of those, episodes reported passed."""
+
+    served_unknown: int
+    """Of those, episodes with no outcome yet."""
+
+    serving_state: str
+    """`active`, `quarantined`, `recording` or `evicted`."""
+
+    verified_at: str | None
+
+
+class EpisodePrecedent(BaseModel):
+    """Response shape ``EpisodePrecedent``."""
+
+    object: str
+    """Known values: ``episode_precedent``."""
+
+    precedent: EpisodePrecedentListItem
+    """A served precedent. The outcomes of the episodes it was shown to are an association, not an effect: they do not say the precedent caused them. Never its task text or answer.
+    """
+
+    served_in: list[EpisodePrecedentServedInItem]
+    """Up to 50 newest episodes shown this precedent, with their request ids. Ids only."""
+
+
+class EpisodePrecedentServedInItem(BaseModel):
+    """Response shape ``EpisodePrecedentServedInItem``."""
+
+    episode_id: str
+
+    outcome: str | None
+    """Known values: ``pass``, ``fail``."""
+
+    request_ids: list[str]
+    """Up to 10 request ids of the episode."""
+
+
+class SelfServeEpisodeMemoryParams(TypedDict, total=False):
+    """Enable episode memory yourself (precedent-only) under an end-user scope. Name `memory_scope` to declare one (the owner, signed in). Omit it only to keep a scope already recorded: the one the call type was last declared under, or the `shared` recorded for a call type enabled before scopes existed. On a call type with no scope recorded an omitted scope is refused (`memory_scope_required`), as are `null` and an empty string."""
+
+    as_of: str | None
+    """Serve only episodes verified at or before this instant (ISO) — a frozen memory version; null = live.
+    """
+
+    dedupe: bool
+    """Serve at most one of near-identical precedents (default false)."""
+
+    framing: Literal["reuse", "adapt"]
+    """How served precedents are framed: `reuse` (default) invites reusing their calls; `adapt` presents them as evidence of how the tools behave, not values to copy.
+    """
+
+    importance_boost: float
+    """Weight corrected misses in ranking: a corrected miss’s similarity is multiplied by `1 + importance_boost` (0..100; default 0, no boost). The min_similarity floor applies to the raw similarity, before the boost.
+    """
+
+    index_actions: bool
+    """Index a candidate on its task text plus identifier tokens from its verified answer (SQL tables/columns/operators and literal shapes — never literal values; otherwise the action tokens), so retrieval can match on schema-linked terms. The query side stays the request’s task text (default false).
+    """
+
+    k: int
+    """Precedents served per episode (1..5; default 3)."""
+
+    learned_read_timeout_ms: int
+    """The shared learned-memory read deadline in milliseconds (25..2000, default 250). A ceiling, not a delay: a read completed in 3 ms costs 3 ms. Bounds latency before the first token. Skips carry refusal fell_back on the receipt; GET learning reports the last 24 hours of completed hourly buckets. The default is 250 ms; lower it if your first-token latency matters more than memory.
+    """
+
+    lessons: EpisodeMemoryEnableParamsLessons
+    """The learned-playbook block (absent ⇒ lessons off, byte-identical)."""
+
+    max_chars_per_episode: int
+    """Characters of actions shown per precedent (500..8000; default 3500)."""
+
+    memory_scope: Literal["shared", "partitioned"]
+    """`shared`: A verified answer from any request of this call type can be shown to the model while it answers any other request of this call type, including another end user's. Validated identifiers such as emails and phone numbers are redacted; names are redacted only where a heuristic recognises them, and not inside the answer. Other details of the request are not redacted. `partitioned`: A verified answer is shown only to later requests that carry the same end-user key. Expect little or no improvement unless the same end user sends similar requests repeatedly. Requests with no key are never shown a precedent. The end-user key is the request body’s `ur.memory_partition`, else the `X-UR-Memory-Partition` header, else the OpenAI `user` field; it is stored only as a digest. A key that is sent but over 1,024 characters means no key. Learned lessons are distilled from every end user’s episodes, so a `partitioned` call type refuses them (400 `lessons_not_partitioned`).
+    """
+
+    min_similarity: float
+    """Serve only precedents at least this similar to the task (0..1; default 0, no floor)."""
+
+    observation_chars: int
+    """Characters of each kept action’s observation shown under it (0 = actions only; default 0)."""
+
+    prefer_shorter: bool
+    """Among near-equally similar precedents, serve the shortest verified solutions first (default false).
+    """
+
+    record: bool
+    """Record this call type’s episodes so outcomes can verify them (default true); false = serve only.
+    """
+
+    retrieval_key: Literal["first_user_message", "content_lines"]
+    """What precedents are ranked on: the whole first user message (default) or its content lines — without lines carrying a personal identifier or a timestamp.
+    """
+
+    serve_corrections: bool
+    """Also serve CORRECTED misses — a fail episode whose corrected answer the customer supplied through `/final`; the corrected answer is served, never the failed attempt (default false).
+    """
+
+    show_mistake: bool
+    """When a corrected miss is served, also show the failed attempt beside the corrected answer under plain labels, within the per-episode budget (the corrected answer is never shed first; default false).
+    """
+
+    source_call_type_id: str | None
+    """The call type whose verified episodes are served (same workspace); null = this call type."""
 
 
 class EvalRunList(BaseModel):
@@ -3182,6 +4161,12 @@ class LearningStatus(BaseModel):
 
     config_version: int | None
 
+    correction_lesson_sharing: str | None = None
+    """Approval is the default for lessons written from end users corrections.
+
+    Known values: ``approval``, ``automatic``.
+    """
+
     enabled: bool
     """Lessons are switched on for the call type."""
 
@@ -3191,6 +4176,10 @@ class LearningStatus(BaseModel):
     evidence: LearningStatusEvidence
     """Evidence arrived vs verified vs incorporated vs pending."""
 
+    explanation: EpisodeMemoryStatusExplanation | None
+    """The episode-memory explanation (the same object `GET …/episode-memory` returns); null while episode memory is not active for the call type.
+    """
+
     governed: bool
     """Uses a configured promotion policy. In evaluate mode, candidates receive a randomized share of eligible episodes before any active-version change.
     """
@@ -3199,6 +4188,10 @@ class LearningStatus(BaseModel):
     """The newest evaluation (any decision)."""
 
     latest_candidate: LearningVersionRef | None
+
+    memory_read: LearningStatusMemoryRead | None = None
+    """Last 24 hours of completed hourly serving rollups; through is the bucket boundary, hourly refresh. The denominator eligible counts eligible TREATMENT requests only; holdout is separate and never counted as skips. Counts include served requests and skips specifically due to the read deadline. The current limit is 250 ms unless configured.
+    """
 
     object: str
     """Known values: ``learning``."""
@@ -3224,10 +4217,14 @@ class LearningStatus(BaseModel):
     self_serve: bool
     """Enabled through this API (not a staff-granted study)."""
 
-    state: str
-    """`collecting` (enabled, waiting for evidence), `learning` (a reflection is due or an evaluation runs), `paused`, `disabled` (the kill switch), `unavailable` (consent, provider or repeated failures), `quota_exhausted` / `budget_exhausted` (refused for resources — retried with backoff), `off`.
+    serving_stopped: LearningStatusServingStopped | None
+    """Set while the call type serves NO lessons because an erasure cleared its active version (precedents still serve). It clears when a version is activated again: promote one with `POST /v1/call-types/{id}/learning/versions/{version_id}/promote`. Null otherwise.
+    """
 
-    Known values: ``off``, ``collecting``, ``learning``, ``paused``, ``disabled``, ``unavailable``, ``quota_exhausted``, ``budget_exhausted``.
+    state: str
+    """`collecting` (enabled, waiting for evidence), `learning` (a reflection is due or an evaluation runs), `paused`, `disabled` (the kill switch), `unavailable` (consent, provider or repeated failures), `quota_exhausted` / `budget_exhausted` (refused for resources — retried with backoff), `off`. With lessons off and precedent memory serving, the state is the memory stage’s: `serving`, `stalled`, `not_a_fit` or `collecting` (never `off`). New values may be added: a client must accept a state it does not know and treat it as `collecting`.
+
+    Known values: ``off``, ``collecting``, ``learning``, ``paused``, ``disabled``, ``unavailable``, ``quota_exhausted``, ``budget_exhausted``, ``serving``, ``stalled``, ``not_a_fit``.
     """
 
     usage: LearningStatusUsage
@@ -3247,9 +4244,9 @@ class LearningVersionRef(BaseModel):
     id: str
 
     state: str
-    """`candidate` (published, waiting), `evaluating`, `active` (served outside an evaluation), `retired` (replaced), `rejected` (lost / stopped / rejected by an owner), `superseded` (a newer candidate, or identical to the active version).
+    """`held_for_approval` (stored for owner/admin review, never served until approved), `candidate` (published, waiting), `evaluating`, `active` (served outside an evaluation), `retired` (replaced), `rejected` (lost / stopped / rejected by an owner), `superseded` (a newer candidate, or identical to the active version).
 
-    Known values: ``candidate``, ``evaluating``, ``active``, ``retired``, ``rejected``, ``superseded``.
+    Known values: ``held_for_approval``, ``candidate``, ``evaluating``, ``active``, ``retired``, ``rejected``, ``superseded``.
     """
 
     version: int
@@ -3286,9 +4283,9 @@ class LearningEvaluation(BaseModel):
     decided_by: LearningEvaluationDecidedBy | None
 
     decision: str
-    """Every decision except `promoted` keeps the incumbent.
+    """Every decision except `promoted` keeps the incumbent. Under `rpl2` (an inferred version) nothing promotes: `recommended` means your own loop credibly improved under the candidate, and you may promote it; `rejected` is a roll-back (a metric credibly worse) and `inconclusive` means not confirmed (the last look or the deadline passed without a recommendation; `decision_reason` names what could not be said). Each stops serving the candidate. `rpl1` (retired) promoted by itself; a running `rpl1` evaluation is stopped (`stopped_budget`, `rule_retired`).
 
-    Known values: ``running``, ``promoted``, ``retained``, ``inconclusive``, ``rejected``, ``stopped_budget``, ``stopped_manual``.
+    Known values: ``running``, ``promoted``, ``recommended``, ``retained``, ``inconclusive``, ``rejected``, ``stopped_budget``, ``stopped_manual``.
     """
 
     decision_reason: str
@@ -3305,6 +4302,15 @@ class LearningEvaluation(BaseModel):
 
     object: str
     """Known values: ``learning_evaluation``."""
+
+    observed: LearningEvaluationObserved | None
+    """`gateway_repair_loop` only: the observed numbers at the current look; null otherwise."""
+
+    outcome_source: str
+    """What one observation is: `verified_teaching_episode`, an episode with a teaching outcome your application declared; `gateway_repair_loop`, a job of your repair loop as the gateway observed it (an inferred version’s live confirmation: first pass clean among checked jobs, repairs per job).
+
+    Known values: ``verified_teaching_episode``, ``gateway_repair_loop``.
+    """
 
     rule: LearningEvaluationRule | None
     """The decision rule frozen when the evaluation started. lpr2 selects episodes before inspecting their outcomes, freezes one cohort, and makes one decision only from complete selected outcomes or the fixed deadline.
@@ -3334,17 +4340,19 @@ class LearningEvaluationArm(BaseModel):
     mean_cost_micro_usd: float | None
 
     pass_: int = Field(..., alias="pass")
+    """Passes. Under `rpl1`: jobs whose first pass came back clean from your own check."""
 
     success_rate: float | None
     """Descriptive pass / verified rate. Under lpr2 a promotion decision waits for complete outcomes in the frozen cohort.
     """
 
     unknown: int
-    """Selected episodes without an eligible verified outcome, including reports after the fixed deadline. Under lpr2 they remain in the frozen cohort and block promotion; missing outcomes at the fixed deadline leave the incumbent active. Historical lpr1 evaluations excluded and counted unknown outcomes.
+    """Selected episodes without an eligible verified outcome, including reports after the fixed deadline (under `rpl1`: enrolled first writes whose job has not settled). Under lpr2 they remain in the frozen cohort and block promotion; missing outcomes at the fixed deadline leave the incumbent active. Historical lpr1 evaluations excluded and counted unknown outcomes.
     """
 
     verified: int
-    """Episodes with a verified teaching outcome."""
+    """Episodes with a verified teaching outcome. Under `rpl1` (gateway-observed): jobs whose first pass a check read.
+    """
 
 
 class LearningEvaluationDecidedBy(BaseModel):
@@ -3366,23 +4374,125 @@ class LearningEvaluationDifference(BaseModel):
     upper: float
 
 
+class LearningEvaluationObserved(BaseModel):
+    """`gateway_repair_loop` only: the observed numbers at the current look; null otherwise."""
+
+    arms: LearningEvaluationObservedArms
+
+    cannot_say: str | None = None
+    """`rpl2`: what kept the look from a recommendation (`cannot_say_incomplete_outcomes`, `cannot_say_mixed_exposure`, `cannot_say_too_few_end_users`, `cannot_say_too_few_checked_jobs`, `cannot_say_no_variance`), or null.
+    """
+
+    look: int | None
+    """The look the numbers are from; null before the first."""
+
+    looks: int
+
+    repairs_per_job: LearningEvaluationDifference | None
+    """candidate − incumbent repairs per job (negative = fewer), one-sided bounds at `alpha_per_test`.
+    """
+
+    tokens_per_job: LearningEvaluationDifference | None
+    """candidate − incumbent tokens per job, same level (reported, never decisive)."""
+
+
+class LearningEvaluationObservedArms(BaseModel):
+    """Response shape ``LearningEvaluationObservedArms``."""
+
+    candidate: LearningEvaluationObservedArmsCandidate
+
+    incumbent: LearningEvaluationObservedArmsCandidate
+
+
+class LearningEvaluationObservedArmsCandidate(BaseModel):
+    """Response shape ``LearningEvaluationObservedArmsCandidate``."""
+
+    checked: int
+    """Jobs whose first pass one of your checks read."""
+
+    clean: int
+
+    effective_end_users: float | None = None
+    """`rpl2`: Kish’s effective number of end users over the complete jobs."""
+
+    flagged: int
+
+    incomplete_jobs: int | None = None
+    """`rpl2`: settled jobs whose outcome evidence is not whole (no check seen, a member past retention, a frozen trace erased, a membership not recorded): kept, never favourable.
+    """
+
+    jobs: int
+    """Enrolled first writes counted at this look."""
+
+    mixed_arm_jobs: int
+    """Jobs with a step served in the other arm: kept with their first write’s arm (intention to treat).
+    """
+
+    no_check_seen: int
+
+    not_first_write: int
+    """Enrolled requests the linker found to be a check or a repair, not a first write (not counted as jobs).
+    """
+
+    repairs: int
+
+    repairs_per_job: float | None
+
+    tokens: int
+
+    tokens_per_job: float | None
+
+    under_another_key_jobs: int
+    """Jobs with a step under another grouping key than their first write."""
+
+    unknown_identity_jobs: int | None = None
+    """`rpl2`: complete jobs that carried no end-user identity (one unit together)."""
+
+    unresolved: int
+    """Of them, jobs that have not settled yet."""
+
+
 class LearningEvaluationRule(BaseModel):
     """The decision rule frozen when the evaluation started. lpr2 selects episodes before inspecting their outcomes, freezes one cohort, and makes one decision only from complete selected outcomes or the fixed deadline."""
 
     alpha_one_sided: float
 
+    alpha_per_test: float | None = None
+    """`rpl1` only: the one-sided level of each metric at each look (alpha / (looks × 2))."""
+
     candidate_share: float
 
+    incomplete_or_mixed: str | None = None
+    """`rpl2`: `cannot_say` — a look holding a job that crossed arms or whose outcome evidence is incomplete cannot recommend.
+    """
+
     interval: str
-    """`newcombe_hybrid_score`."""
+    """`newcombe_hybrid_score`; `rpl1` (retired): `newcombe_hybrid_score+cluster_robust_normal`; `rpl2`: `cluster_robust_normal_by_end_user` (both metrics, end users as the units).
+    """
+
+    looks: list[int] | None = None
+    """`rpl1` only: the planned looks, as jobs per arm (the minimum, doubling, the maximum last). Each look is taken on the first jobs enrolled in each arm once all of them have settled.
+    """
 
     max_duration_hours: int
+
+    max_mixed_share: float | None = None
+    """`rpl1` frozen from L3c: a look may promote only while mixed-arm jobs are at most this share of each arm.
+    """
 
     max_verified_per_arm: int
 
     min_effect_pp: float
 
+    min_end_users_per_arm: int | None = None
+    """`rpl2`: the effective number of end users (Kish) each arm needs before a look may recommend (20).
+    """
+
     min_verified_per_arm: int
+
+    mixed_arm_eligibility: str | None = None
+    """`rpl1` frozen from L3c: `unmixed_only_v1` — a job with a step served in the other arm is counted but never decides. Absent on an older rule (every job decides, intention to treat).
+    """
 
     noninferiority_margin_pp: float
 
@@ -3392,12 +4502,20 @@ class LearningEvaluationRule(BaseModel):
     Known values: ``success``, ``cost_noninferior``.
     """
 
+    on_improvement: str | None = None
+    """`rpl2`: `recommend` — a favourable look recommends the candidate to you; only you promote it.
+    """
+
     outcome_source: str
-    """`verified_teaching_episode`."""
+    """`verified_teaching_episode` (outcomes your application declared); `gateway_repair_loop` (`rpl1`, `rpl2`: jobs of your repair loop as the gateway observed them).
+    """
 
     rule_version: str
     """lpr2 freezes enrollment before waiting for outcomes; lpr1 identifies historical verified-only rules.
     """
+
+    unit: str | None = None
+    """`rpl2`: `end_user` — the interval’s unit; every job without an identity is one unit."""
 
 
 class LearningStatusEvidence(BaseModel):
@@ -3428,6 +4546,32 @@ class LearningStatusEvidence(BaseModel):
     verified_fail: int
 
     verified_pass: int
+
+
+class LearningStatusMemoryRead(BaseModel):
+    """Last 24 hours of completed hourly serving rollups; through is the bucket boundary, hourly refresh. The denominator eligible counts eligible TREATMENT requests only; holdout is separate and never counted as skips. Counts include served requests and skips specifically due to the read deadline. The current limit is 250 ms unless configured."""
+
+    eligible: int
+
+    holdout: int | None = None
+
+    limit_ms: int
+
+    served: int
+
+    since: str
+    """ISO 8601 instant."""
+
+    skipped: int | None = None
+
+    skipped_time_limit: int
+
+    through: str
+    """ISO 8601 instant."""
+
+    unclassified_fell_back: int | None = None
+    """Older hourly buckets may count fallbacks without distinguishing timeouts from read errors. These are reported here, never guessed to be time-limit skips.
+    """
 
 
 class LearningStatusOutcomeReceipts(BaseModel):
@@ -3503,24 +4647,37 @@ class LearningStatusRecipe(BaseModel):
     """All three are the legacy values (the original learner)."""
 
     observations: str
-    """Known values: ``legacy``, ``elo2``."""
+    """Known values: ``legacy``, ``elo2``, ``corrections_v1``, ``repair_chains_v1``."""
 
     validator: str
-    """Known values: ``elv1``, ``elv2``."""
+    """Known values: ``elv1``, ``elv2``, ``elv3``."""
 
 
 class LearningStatusReflection(BaseModel):
     """Response shape ``LearningStatusReflection``."""
 
+    last_attempt_admission: LearningStatusReflectionLastAttemptAdmission | None = None
+    """LESSON1: what the last attempt did with its proposed lessons — a `published` attempt can keep none (null when it published no version or the version records no counts).
+    """
+
     last_attempt_at: str | None
     """ISO 8601 instant."""
 
+    last_attempt_model_calls: int | None = None
+
+    last_attempt_published: bool | None = None
+
     last_attempt_reason: str | None
+
+    last_attempt_spend_micro_usd: int | None = None
 
     last_attempt_status: str | None
 
     last_published_at: str | None
     """ISO 8601 instant."""
+
+    message: str | None = None
+    """Plain explanation of the last lesson job refusal and its remedy."""
 
     model: str | None
 
@@ -3528,6 +4685,27 @@ class LearningStatusReflection(BaseModel):
     """Whether the next server reflection scan will reflect, and why (not)."""
 
     provider: LearningStatusReflectionProvider
+
+
+class LearningStatusReflectionLastAttemptAdmission(BaseModel):
+    """LESSON1: what the last attempt did with its proposed lessons — a `published` attempt can keep none (null when it published no version or the version records no counts)."""
+
+    kept: int
+    """Lessons the admission kept."""
+
+    parameterized: int | None
+    """`elv3`: kept lessons whose task-local values became typed placeholders (`<string_1>`); null for other validators.
+    """
+
+    proposed: int
+    """Lessons the reflection proposed."""
+
+    refused: int
+    """Lessons the admission refused."""
+
+    refused_by_reason: dict[str, int]
+    """Refusals by reason code: `no_anchor` (cites no case of the batch), `task_local_literal` (`elv1`: a value of a job of the batch), `parameterized_no_rule` (`elv3`: no rule left once the values of one job or end user are replaced), `verbatim_source` (copies six or more words of a source), `insufficient_cases` (cites fewer than two cases), `insufficient_partitions` (draws on fewer than two end users), and the `elv2` reasons.
+    """
 
 
 class LearningStatusReflectionNext(BaseModel):
@@ -3560,6 +4738,19 @@ class LearningStatusReflectionProvider(BaseModel):
     """
 
 
+class LearningStatusServingStopped(BaseModel):
+    """Set while the call type serves NO lessons because an erasure cleared its active version (precedents still serve). It clears when a version is activated again: promote one with `POST /v1/call-types/{id}/learning/versions/{version_id}/promote`. Null otherwise."""
+
+    at: str
+    """When the erasure cleared the active version."""
+
+    reason: str
+    """`erasure_cleared`: an erasure retired the active version and no earlier version could be activated in its place.
+
+    Known values: ``erasure_cleared``.
+    """
+
+
 class LearningStatusUsage(BaseModel):
     """Subscription / token usage, recorded separately from cash."""
 
@@ -3572,6 +4763,172 @@ class LearningStatusUsage(BaseModel):
     output_tokens: int
 
     reflections: int
+
+
+class LearningReadLimitParams(TypedDict, total=False):
+    """Change only the learned read limit on an existing memory setting. 25..2000 ms; config:write or owner/admin session. Audited before/after and visible within the versioned-config 5 s window."""
+
+    learned_read_timeout_ms: Required[int]
+    """The default is 250 ms; lower it if your first-token latency matters more than memory. This is a ceiling, not a delay: a read completed in 3 ms costs 3 ms.
+    """
+
+
+class LearningCost(BaseModel):
+    """What episode memory costs this call type: an estimate and an observed difference. Display only."""
+
+    cache: LearningCostCache
+
+    call_type_id: str
+
+    call_type_spend_micro_usd: int
+    """What the call type’s requests cost in the window, both arms, over the hours that held a memory stamp.
+    """
+
+    loop: int | None
+    """Reviewer-loop spend in micro-USD: null until the platform review exists."""
+
+    memory_overhead: LearningCostMemoryOverhead
+
+    object: str
+    """Known values: ``learning_cost``."""
+
+    repair_loop: LearningCostRepairLoop
+    """The repair loop the gateway found in this call type’s traffic (the `flywheel.link` worker), per exposure arm of each job’s first write — the treated-against-holdout numbers, DESCRIPTIVE only: the live confirmation of an inferred version compares candidate against incumbent inside its own evaluation (`rpl2`), not these. Counts from link rows only (ids, roles, token counts).
+    """
+
+    window_days: int
+
+
+class LearningCostCache(BaseModel):
+    """Response shape ``LearningCostCache``."""
+
+    rate_holdout: float | None
+    """The same for the standing holdout."""
+
+    rate_treated: float | None
+    """Cached input tokens ÷ input tokens, treated."""
+
+
+class LearningCostMemoryOverhead(BaseModel):
+    """Response shape ``LearningCostMemoryOverhead``."""
+
+    block_tokens: int
+    """Their block tokens, summed."""
+
+    estimate_micro_usd: int
+    """The ESTIMATE: each served block’s tokens at its request’s own input price, summed."""
+
+    injected: int
+    """Requests served a block in the window."""
+
+    observed_difference: LearningCostMemoryOverheadObservedDifference | None
+    """The observed difference in cost per request between requests outside the standing holdout and the holdout, with a two-sample cluster-bootstrap interval over hourly buckets. Display only: no budget rule reads it. It includes cache effects and output length; the estimate does not. Requests with no arm count as outside the holdout, which pulls the difference toward zero. Null without both arms.
+    """
+
+
+class LearningCostMemoryOverheadObservedDifference(BaseModel):
+    """The observed difference in cost per request between requests outside the standing holdout and the holdout, with a two-sample cluster-bootstrap interval over hourly buckets. Display only: no budget rule reads it. It includes cache effects and output length; the estimate does not. Requests with no arm count as outside the holdout, which pulls the difference toward zero. Null without both arms."""
+
+    buckets: int
+    """Hourly buckets the interval resamples."""
+
+    holdout_requests: int
+    """Requests in the standing holdout."""
+
+    interval: LearningCostMemoryOverheadObservedDifferenceInterval
+
+    per_request_micro_usd: int
+    """Treated minus held-out cost per request (can be negative): the difference of the hourly buckets’ mean cost per request, each hour weighted equally, so it is the interval’s own point.
+    """
+
+    treated_requests: int
+    """Requests outside the standing holdout, including requests with no arm (before memory served).
+    """
+
+
+class LearningCostMemoryOverheadObservedDifferenceInterval(BaseModel):
+    """Response shape ``LearningCostMemoryOverheadObservedDifferenceInterval``."""
+
+    high: int
+
+    low: int
+
+
+class LearningCostRepairLoop(BaseModel):
+    """The repair loop the gateway found in this call type’s traffic (the `flywheel.link` worker), per exposure arm of each job’s first write — the treated-against-holdout numbers, DESCRIPTIVE only: the live confirmation of an inferred version compares candidate against incumbent inside its own evaluation (`rpl2`), not these. Counts from link rows only (ids, roles, token counts)."""
+
+    arms: list[LearningCostRepairLoopArm]
+    """One entry per arm of the first write."""
+
+    coverage: LearningCostRepairLoopCoverage
+    """How much of the window the numbers cover."""
+
+    jobs_without_first_write: int
+    """Jobs whose first write has no stored link row (expired or never read): left out."""
+
+
+class LearningCostRepairLoopArm(BaseModel):
+    """Response shape ``LearningCostRepairLoopArm``."""
+
+    arm: str
+    """The exposure arm of each job’s FIRST WRITE (`treated`, `holdout`, `lever_holdout`, `pre_lever`, or `unstamped`). Arms are never pooled.
+    """
+
+    first_pass: LearningCostRepairLoopArmFirstPass
+    """The first pass of each job, one of three values."""
+
+    first_pass_clean_share: float | None
+    """clean ÷ (clean + flagged); null when no first draft was checked."""
+
+    jobs: int
+    """Jobs whose first write is of this call type, in the window."""
+
+    jobs_with_repairs_under_another_key: int
+    """Jobs with a repair whose grouping key differs from the first write’s (a check usually opens its own conversation).
+    """
+
+    jobs_with_steps_in_another_arm: int
+    """Jobs with a step served under another arm than the first write."""
+
+    jobs_with_steps_under_another_key: int
+    """Jobs with a step whose grouping key differs from the first write’s (the job keeps the first write’s arm).
+    """
+
+    repairs_per_job: float | None
+
+    tokens_per_job: float | None
+    """Input plus output tokens of every call of a job, as its requests recorded them."""
+
+
+class LearningCostRepairLoopArmFirstPass(BaseModel):
+    """The first pass of each job, one of three values."""
+
+    clean: int
+    """A check read the first draft, none flagged it, and no repair revised it."""
+
+    flagged: int
+    """A repair revised the first draft, or a check of it flagged a line."""
+
+    no_check_seen: int
+    """No check and no repair of the first draft was seen. Never counted as clean."""
+
+
+class LearningCostRepairLoopCoverage(BaseModel):
+    """How much of the window the numbers cover."""
+
+    complete: bool
+    """False when the read bound left the window’s newest jobs unread or a job is incomplete: the numbers above are of the whole jobs read only.
+    """
+
+    jobs: int
+    """Jobs in the window whose first write is of this call type (unexpired rows)."""
+
+    jobs_incomplete: int
+    """Jobs whose live link rows are fewer than the job’s recorded membership (a member past retention) or whose membership was never recorded: left out, never read as a smaller job.
+    """
+
+    jobs_read: int
+    """Jobs read whole (a job is never read in part)."""
 
 
 class LearningControl(BaseModel):
@@ -3602,18 +4959,22 @@ class LearningControl(BaseModel):
 class LearningEnableParams(TypedDict, total=False):
     """Enable learning for a call type (owner/admin session or a `config:write` key)."""
 
+    learned_read_timeout_ms: int
+    """The shared learned-memory read deadline in milliseconds (25..2000, default 250). A ceiling, not a delay: a read completed in 3 ms costs 3 ms. Bounds latency before the first token. Skips carry refusal fell_back on the receipt; GET learning reports the last 24 hours of completed hourly buckets. The default is 250 ms; lower it if your first-token latency matters more than memory.
+    """
+
     lessons_k: int
     """Lessons served per episode (1..20; default 8)."""
 
     lessons_mode: Literal["only", "with_precedents"]
-    """`only` (default): serve the learned lessons; `with_precedents`: lessons first, then similar verified past episodes.
+    """`only`: serve the learned lessons; `with_precedents`: lessons first, then similar verified past episodes. Omitted: `with_precedents` when the call type already serves precedents (its memory setting is kept — switching lessons on never changes what it records or serves), else `only`. `with_precedents` needs the end-user scope the owner declared on `POST /v1/call-types/{id}/episode-memory/self-serve` (400 `memory_scope_required` without one). The enable keeps that declared scope. Lessons are distilled from every end user’s episodes, so a call type declared `partitioned` refuses the learning enable (400 `lessons_not_partitioned`).
     """
 
     promotion: LearningPromotionParams
     """Promotion-policy changes, merged over the current policy (or the defaults)."""
 
     recipe: LearnerRecipeParams
-    """The learner recipe the reflection runs — its validator, lesson generation and observation selection, each optional (an absent field is the legacy value). Stored on the call type’s episode-memory setting, the ONE place the recipe lives. Omitted: the call type keeps its current recipe (the legacy learner when it has none).
+    """The learner recipe the reflection runs — its validator, lesson generation and observation selection, each optional (an absent field is the legacy value). Stored on the call type’s episode-memory setting, the ONE place the recipe lives. Omitted: an existing learner keeps its stored recipe; a newly enabled learner uses elv3/bundled/corrections_v1 (corrections read by the learner; task-local values parameterized by kind and spread). A pre-existing legacy learner keeps legacy when it has no explicit recipe.
     """
 
     reflection_model: Required[str]
@@ -3771,6 +5132,10 @@ class LearningVersion(BaseModel):
 
     active_lessons: int
 
+    admission: LearningStatusReflectionLastAttemptAdmission | None = None
+    """LESSON1: lessons proposed, kept and refused by reason when this version was written (null for a legacy version).
+    """
+
     cohort: LearningVersionCohort
     """The verified episodes the version was learned from."""
 
@@ -3786,6 +5151,12 @@ class LearningVersion(BaseModel):
     id: str
     """The immutable version id (`epb_…`)."""
 
+    lesson_source: str
+    """Where the lessons came from: `declared` (the outcomes and corrections your application reported) or `inferred` (repairs the gateway found in your own repair loop, `repair_chains_v1`). An inferred version is never active for everyone until its live confirmation, on outcomes the gateway observed, promotes it: approving it makes it a candidate.
+
+    Known values: ``declared``, ``inferred``.
+    """
+
     object: str
     """Known values: ``learning_version``."""
 
@@ -3796,9 +5167,9 @@ class LearningVersion(BaseModel):
     reflection_model: str | None
 
     state: str
-    """`candidate` (published, waiting), `evaluating`, `active` (served outside an evaluation), `retired` (replaced), `rejected` (lost / stopped / rejected by an owner), `superseded` (a newer candidate, or identical to the active version).
+    """`held_for_approval` (stored for owner/admin review, never served until approved), `candidate` (published, waiting), `evaluating`, `active` (served outside an evaluation), `retired` (replaced), `rejected` (lost / stopped / rejected by an owner), `superseded` (a newer candidate, or identical to the active version).
 
-    Known values: ``candidate``, ``evaluating``, ``active``, ``retired``, ``rejected``, ``superseded``.
+    Known values: ``held_for_approval``, ``candidate``, ``evaluating``, ``active``, ``retired``, ``rejected``, ``superseded``.
     """
 
     state_reason: str | None
@@ -3813,6 +5184,8 @@ class LearningVersion(BaseModel):
 class LearningVersionCohort(BaseModel):
     """The verified episodes the version was learned from."""
 
+    end_users: int | None = None
+
     fail: int
 
     pass_: int = Field(..., alias="pass")
@@ -3824,6 +5197,10 @@ class LearningVersionDetail(BaseModel):
     """One version’s lessons and provenance summary."""
 
     active_lessons: int
+
+    admission: LearningStatusReflectionLastAttemptAdmission | None = None
+    """LESSON1: lessons proposed, kept and refused by reason when this version was written (null for a legacy version).
+    """
 
     cohort: LearningVersionCohort
     """The verified episodes the version was learned from."""
@@ -3845,6 +5222,12 @@ class LearningVersionDetail(BaseModel):
 
     known_functions: int
 
+    lesson_source: str
+    """Where the lessons came from: `declared` (the outcomes and corrections your application reported) or `inferred` (repairs the gateway found in your own repair loop, `repair_chains_v1`). An inferred version is never active for everyone until its live confirmation, on outcomes the gateway observed, promotes it: approving it makes it a candidate.
+
+    Known values: ``declared``, ``inferred``.
+    """
+
     lessons: list[LearningVersionDetailLesson]
     """The version’s active lessons, in served-ranking order input."""
 
@@ -3860,9 +5243,9 @@ class LearningVersionDetail(BaseModel):
     retired_lessons: int
 
     state: str
-    """`candidate` (published, waiting), `evaluating`, `active` (served outside an evaluation), `retired` (replaced), `rejected` (lost / stopped / rejected by an owner), `superseded` (a newer candidate, or identical to the active version).
+    """`held_for_approval` (stored for owner/admin review, never served until approved), `candidate` (published, waiting), `evaluating`, `active` (served outside an evaluation), `retired` (replaced), `rejected` (lost / stopped / rejected by an owner), `superseded` (a newer candidate, or identical to the active version).
 
-    Known values: ``candidate``, ``evaluating``, ``active``, ``retired``, ``rejected``, ``superseded``.
+    Known values: ``held_for_approval``, ``candidate``, ``evaluating``, ``active``, ``retired``, ``rejected``, ``superseded``.
     """
 
     state_reason: str | None
@@ -3919,9 +5302,9 @@ class LearningVersionDetailTransition(BaseModel):
     reason: str
 
     state: str
-    """`candidate` (published, waiting), `evaluating`, `active` (served outside an evaluation), `retired` (replaced), `rejected` (lost / stopped / rejected by an owner), `superseded` (a newer candidate, or identical to the active version).
+    """`held_for_approval` (stored for owner/admin review, never served until approved), `candidate` (published, waiting), `evaluating`, `active` (served outside an evaluation), `retired` (replaced), `rejected` (lost / stopped / rejected by an owner), `superseded` (a newer candidate, or identical to the active version).
 
-    Known values: ``candidate``, ``evaluating``, ``active``, ``retired``, ``rejected``, ``superseded``.
+    Known values: ``held_for_approval``, ``candidate``, ``evaluating``, ``active``, ``retired``, ``rejected``, ``superseded``.
     """
 
 
@@ -4318,7 +5701,7 @@ class VerifiedMemoryEnableResult(BaseModel):
     reason: str | None
     """Why the enable was refused (null when enabled). A refusal writes no config version.
 
-    Known values: ``not_label_contract``, ``capture_unavailable``, ``pool_empty``, ``calibration_below_target``, ``snapshot_budget_exceeded``, ``setting_unreadable``.
+    Known values: ``not_label_contract``, ``capture_unavailable``, ``pool_empty``, ``calibration_below_target``, ``snapshot_budget_exceeded``, ``setting_unreadable``, ``source_erased``.
     """
 
     setting: VerifiedMemoryStatusSetting | None
@@ -4503,30 +5886,6 @@ class ChatMessageParam(TypedDict, total=False):
     tool_calls: list[Any]
 
 
-class ChatContentPartParam(TypedDict, total=False):
-    """One OpenAI-shaped message content part; may carry a `cache_control` breakpoint."""
-
-    cache_control: CacheControlParam
-    """Mark this content part as a prompt-cache breakpoint. Translated to Anthropic `cache_control` on the block; stripped + ignored (structured log) for non-Anthropic providers.
-    """
-
-    text: str
-    """The text of a text part."""
-
-    type: str
-    """The content part type ("text" | "image_url" | …)."""
-
-
-class CacheControlParam(TypedDict, total=False):
-    """Mark this content part as a prompt-cache breakpoint. Translated to Anthropic `cache_control` on the block; stripped + ignored (structured log) for non-Anthropic providers."""
-
-    ttl: str
-    """Cache lifetime hint, e.g. "5m" (default) or "1h"."""
-
-    type: Required[Literal["ephemeral"]]
-    """The only supported cache type."""
-
-
 class ProviderPreferencesParam(TypedDict, total=False):
     """OpenRouter-parity provider preferences."""
 
@@ -4598,6 +5957,10 @@ class UrParams(TypedDict, total=False):
 
     max_cost_usd: float
 
+    memory_partition: str
+    """The END-USER key episode memory partitions on. Under a call type scoped `partitioned`, a verified answer is shown only to later requests with the same key, and a request with no key is shown none. It also keeps two end users who each send a key and the same opening from sharing one episode (unless the call type’s memory is a `lab` setting, one ultrarouter staff enabled, which is always `shared`). First match wins: this field, then the `X-UR-Memory-Partition` header, then the OpenAI `user` field; a header or `user` value over 1,024 characters means no key at all. Stored only as a digest (`epp1_…`, pseudonymisation: a guessable value can be recovered by anyone who can read the stored digests). Chat completions only; ignored on other routes.
+    """
+
     prompt_vars: dict[str, str | float | bool]
     """The values for the ACTIVE hosted prompt’s `{{name}}` variables, when the gateway applies a hosted prompt for this call type (`gateway_apply`). A missing REQUIRED variable is a named `prompt_variables_missing` refusal (never a silent blank). Ignored when no hosted prompt is applied.
     """
@@ -4608,6 +5971,8 @@ class UrParams(TypedDict, total=False):
     tags: dict[str, str]
 
     timeout_ms: int
+    """The deadline bounds the wait for an answer, not the bookkeeping after one arrives. Whole-request deadline from arrival, including memory retrieval, in milliseconds: default 300000, clamped 1000..600000. Wins over X-UR-Timeout-Ms and configured defaults. Fallback attempts retain their existing per-attempt caps.
+    """
 
     trace_id: str
 
@@ -4787,6 +6152,14 @@ class UrBlock(BaseModel):
     cost_usd: float
     """Total request cost in USD."""
 
+    learned_injection: UrBlockLearnedInjection | None = None
+    """The same learned serving stamp as GET generation lever.injection. served states whether memory was used; refusal names a skip, including fell_back with read_timed_out and budget_ms for a read deadline. No request or answer text.
+    """
+
+    learning_serving: UrBlockLearningServing | None = None
+    """Eligible learned requests only. Assignment is immutable; holdouts perform no read and are not skips. A shared read ceiling, never a delay. Also stored as routing_decision.learning_serving on GET generation.
+    """
+
     model_served: str
     """The model actually served."""
 
@@ -4853,6 +6226,54 @@ class UrBlockCompression(BaseModel):
     tokens_saved: int | None = None
 
     verify: str | None = None
+
+
+class UrBlockLearnedInjection(BaseModel):
+    """The same learned serving stamp as GET generation lever.injection. served states whether memory was used; refusal names a skip, including fell_back with read_timed_out and budget_ms for a read deadline. No request or answer text."""
+
+    budget_ms: float | None = None
+
+    fell_back: bool | None = None
+
+    item_ids: list[str] | None = None
+
+    read_timed_out: bool | None = None
+
+    refusal: str | None = None
+
+    retrieval_ms: float | None = None
+
+    served: bool
+
+    source: str | None = None
+
+
+class UrBlockLearningServing(BaseModel):
+    """Eligible learned requests only. Assignment is immutable; holdouts perform no read and are not skips. A shared read ceiling, never a delay. Also stored as routing_decision.learning_serving on GET generation."""
+
+    assigned: str
+    """Known values: ``treatment``, ``standing_holdout``, ``lever_holdout``."""
+
+    budget_ms: float
+
+    eligible: bool
+    """Known values: ``True``."""
+
+    items_served: int
+
+    lesson_version: int | None
+
+    lesson_version_id: str | None
+
+    lessons_served: int
+
+    precedents_served: int
+
+    retrieval_ms: float
+
+    served: bool
+
+    skip_reason: str | None
 
 
 class UrBlockRouting(BaseModel):
@@ -7150,7 +8571,7 @@ class ReviewerFinalParams(TypedDict, total=False):
     """The optional, consented final the reviewer approved."""
 
     diff_stats: DiffStatsParams
-    """CLIENT-computed diff stats (the no-consent path)."""
+    """CLIENT-computed diff stats (the no-consent path): numbers and the final hash only."""
 
     draft: str
     """The draft the reviewer edited — used ONLY to compute server-side diff stats."""
@@ -7811,6 +9232,10 @@ class GenerationStats(BaseModel):
     call_type: str | None
     """Resolved call type (`ct_…`), or null."""
 
+    client_request_id: str | None
+    """The alias the client sent as `X-UR-Request-Id` for this request, or null. An alias is never a request id: memory routes do not accept it.
+    """
+
     compression: dict[str, Any]
     """Compression summary — the applied compression safety tier + savings provenance."""
 
@@ -7831,7 +9256,7 @@ class GenerationStats(BaseModel):
     """The immutable pre-dispatch exposure stamp (read-back; never a decision input)."""
 
     id: str
-    """The `req_…` id these stats describe."""
+    """The `req_…` id these stats describe (always the gateway’s)."""
 
     lever: GenerationStatsLever
     """The learned-context lever stamp for this request."""
@@ -7899,7 +9324,7 @@ class GenerationStatsLever(BaseModel):
     """The measurement epoch the injection was bound to."""
 
     injection: dict[str, Any] | None
-    """The serve-time retrieval provenance (`module_id`, `item_ids[]`, `served_rank[]`, `propensity[]`) when injected, or the NAMED refusal that withheld the lever (`holdout`, `candidate_unknown`, `pack_hash_mismatch`, …). Propensity is computable only at serve time and is never backfilled. Ids and numbers only — never a body.
+    """The serve-time retrieval provenance (`module_id`, `item_ids[]`, `served_rank[]`, `propensity[]`) when injected, or the NAMED refusal that withheld the lever (an episode-memory injection, `source: episode_memory`, also carries `item_sources[]`, aligned with `item_ids` and read now: `pass`, `correction`, `inferred_correction`, `imported` — an approved pair the customer imported — or null once the example is no longer stored; and `item_similarities[]`, the ranking score each example was selected at, aligned with `item_ids`, 4 places, the same on every step of an episode) (`holdout`, `candidate_unknown`, `pack_hash_mismatch`, …). Propensity is computable only at serve time and is never backfilled. Ids and numbers only — never a body.
     """
 
     lever_id: str | None
@@ -8163,7 +9588,7 @@ class ImportCreateParams(TypedDict, total=False):
     """workflow_execution_jsonl only: the typed hold-reason codes this batch’s executions may use (`{ id, codes[] }`). Registered ONCE at the batch creation (insert-only; a resume inherits it). An execution whose terminal names an unregistered code is refused `reason_code_unregistered`. Required for a workflow import (409 `workflow_requires_reason_vocabulary` otherwise).
     """
 
-    records: list[Any]
+    records: list[ImportCreateParamsRecord | dict[str, Any] | str | float | bool | list[Any] | None]
     """The uploaded records (array form). Intact-trace records may carry request/response bodies — the ONLY import field that does; stored ONLY under corrections_consent, redacted on ingest. A workflow_execution_jsonl record groups the EXISTING gateway request rows its `calls` name into one artifact with one terminal outcome.
     """
 
@@ -8174,6 +9599,20 @@ class ImportCreateParamsReasonVocabulary(TypedDict, total=False):
     codes: Required[list[str]]
 
     id: Required[str]
+
+
+class ImportCreateParamsRecord(TypedDict, total=False):
+    """Request shape ``ImportCreateParamsRecord``."""
+
+    calls: list[ImportCreateParamsRecordCall]
+
+    orphan_calls: list[ImportCreateParamsRecordCall]
+
+
+class ImportCreateParamsRecordCall(TypedDict, total=False):
+    """Request shape ``ImportCreateParamsRecordCall``."""
+
+    request_id: str
 
 
 class ImportEnvelope(BaseModel):
@@ -8529,6 +9968,54 @@ class CompanyKnowledgeItemMetaScopeItem(BaseModel):
     tool: str
 
 
+class CompanyKnowledgeAskParams(TypedDict, total=False):
+    """Request shape ``CompanyKnowledgeAskParams``."""
+
+    call_type_id: str
+
+    kind: Literal["lesson", "fact"]
+
+    max_items: int
+
+    model: str
+
+    question: Required[str]
+
+
+class CompanyKnowledgeAnswer(BaseModel):
+    """Response shape ``CompanyKnowledgeAnswer``."""
+
+    answer: str | None
+
+    citations: list[CompanyKnowledgeAnswerCitation]
+
+    considered: int
+
+    request_id: str | None
+    """The billed receipt id (req_int_ followed by a ULID) when a completion was made; null only for no_matching_knowledge, when no model call or charge was made.
+    """
+
+    status: str
+    """Known values: ``answered``, ``no_matching_knowledge``, ``not_supported_by_knowledge``."""
+
+    truncated: bool
+    """The 1,000-current-item ranking bound cut the candidate set."""
+
+
+class CompanyKnowledgeAnswerCitation(BaseModel):
+    """Response shape ``CompanyKnowledgeAnswerCitation``."""
+
+    call_type_id: str | None
+
+    id: str
+
+    kind: str
+    """Known values: ``lesson``, ``fact``."""
+
+    version_id: str | None
+    """Immutable lesson version used by this execution; null for facts."""
+
+
 class CompanyKnowledgeDetail(BaseModel):
     """Response shape ``CompanyKnowledgeDetail``."""
 
@@ -8677,88 +10164,6 @@ class ModelOffer(BaseModel):
     """Static throughput rank (lower = faster)."""
 
 
-class OutcomeReceiptRecord(BaseModel):
-    """A durable receipt for one reported outcome."""
-
-    applied_at: str | None
-    """When the outcome was recorded."""
-
-    artifact_id: str | None
-    """The artifact the outcome landed on, once applied."""
-
-    attempts: int
-    """Recording attempts that hit an internal error (bounded; then `failed`)."""
-
-    channel: str
-    """The outcome channel as sent."""
-
-    created_at: str
-    """When the outcome was accepted."""
-
-    episode: OutcomeReceiptRecordEpisode
-    """The episode association of an applied teaching outcome."""
-
-    expires_at: str
-    """The receipt’s next deadline: while `pending`, when it expires; while its episode association is `pending`, when that becomes `not_recorded`; once settled, when the receipt itself is deleted (30 days).
-    """
-
-    id: str
-    """The receipt id (`ocr_…`)."""
-
-    kind: str
-    """The outcome kind as sent."""
-
-    object: str
-    """Known values: ``outcome_receipt``."""
-
-    outcome_event_id: str | None
-    """The recorded outcome event (`oev_…`) once applied."""
-
-    outcome_status: str | None
-    """Whether applying recorded the event for the first time (`accepted`) or found it (`duplicate`).
-
-    Known values: ``accepted``, ``duplicate``.
-    """
-
-    reason: str | None
-    """A stable machine reason when not applied: `request_not_found`, `idempotency_conflict`, `apply_failed`, or the validation reason.
-    """
-
-    request_id: str
-    """The request the outcome names."""
-
-    source_event_id: str
-    """Your idempotency discriminator, or a server-minted one when none was sent (then a retry is a new outcome).
-    """
-
-    status: str
-    """`pending` — the request has not been recorded yet; `applied` — the outcome is recorded; `rejected` — it failed validation once the request was known (see `reason`); `failed` — recording kept hitting an internal error; `expired` — no request with this id appeared in your workspace within 15 minutes (`reason: request_not_found`).
-
-    Known values: ``pending``, ``applied``, ``rejected``, ``failed``, ``expired``.
-    """
-
-    updated_at: str
-
-
-class OutcomeReceiptRecordEpisode(BaseModel):
-    """The episode association of an applied teaching outcome."""
-
-    status: str
-    """`associated` — the episode holding this request carries a verdict; `pending` — a teaching outcome waiting for its episode to be recorded; `not_recorded` — the persisted request was held out and recording was intentionally suppressed, no episode held the request within 15 minutes (episode memory or recording off, no consent), or several episodes hold this request id and none can be shown to be its own; `not_applicable` — the outcome does not teach (a proxy, behavioral or mechanical signal) or was not applied.
-
-    Known values: ``associated``, ``pending``, ``not_recorded``, ``not_applicable``.
-    """
-
-    trace_id: str | None
-    """The episode (`ept_…`) the outcome was associated with, once associated."""
-
-    verdict: str | None
-    """What the outcome did to the episode: `recorded` — it is the episode verdict; `kept_earlier` — the episode already had a verdict (the first verdict wins); `revised` — it superseded the verdict (`supersedes_event_id`) before any learned version used the episode, so the verdict was replaced; `revised_after_incorporation` — the superseded verdict was already used by a learned version: the revision is recorded and counted, the episode is not silently unlearned.
-
-    Known values: ``recorded``, ``kept_earlier``, ``revised``, ``revised_after_incorporation``.
-    """
-
-
 class BatchOutcomesParams(TypedDict, total=False):
     """Record ≤ 1,000 outcome events keyed by target."""
 
@@ -8804,7 +10209,6 @@ class BatchOutcomeParams(TypedDict, total=False):
     """The effective time (ISO-8601; must be ≥ the artifact occurred_at). Defaults to now."""
 
     request_id: str
-    """Target via the request shortcut (one-request artifact)."""
 
     source_event_id: str
     """The caller idempotency discriminator (ULID at enqueue). Defaults to a server ULID."""
@@ -8815,8 +10219,8 @@ class BatchOutcomeParams(TypedDict, total=False):
     tool_error_class: Literal["model", "infra", "unclassified"]
     """For mechanical:tool_error — refines learning_use (only model-class teaches)."""
 
-    value: dict[str, Any]
-    """The typed numeric/diff-stats payload — never a body."""
+    value: dict[str, float | bool | str | list[float] | DiffStatsParams | None]
+    """The typed metadata payload (numbers, tokens, `diff_stats` on a correction) — never a body."""
 
 
 class BatchOutcomesResponse(BaseModel):
@@ -9273,6 +10677,55 @@ class OutcomeReceiptRecordList(BaseModel):
     """Known values: ``list``."""
 
 
+class RequestOutcomeInputParams(TypedDict, total=False):
+    """A single outcome event to record (the server assigns provenance + learning_use), with an optional reviewer detail."""
+
+    alternative_id: str
+    """A computable-comparison alternative id."""
+
+    artifact_version: int
+    """The pinned artifact version (defaults to the artifact’s current version)."""
+
+    channel: Required[
+        Literal["mechanical", "correction", "behavioral", "resolution", "computable", "proxy"]
+    ]
+    """The outcome channel (closed vocabulary)."""
+
+    claim_id: str
+    """Target a specific claim by id (else the artifact)."""
+
+    claim_key: str
+    """Target a claim by its customer key — the key’s ACTIVE claim (else the artifact)."""
+
+    confidence: float
+    """An optional confidence ∈ (0,1)."""
+
+    detail: str
+    """Why the answer was edited or rejected, in the reviewer’s words (1–500 characters). Only with `channel: correction` and `kind` `edited` or `rejected` (else 400 `detail_not_allowed`), and only with corrections consent (else 400 `detail_needs_corrections_consent`). Stored sealed like a corrected final and read only by the lesson writer; a retried outcome keeps the first detail.
+    """
+
+    evidence_hash: str
+    """A content hash of supporting evidence (never a body)."""
+
+    kind: Required[str]
+    """The channel `kind` (a closed vocabulary per channel)."""
+
+    observed_at: str
+    """The effective time (ISO-8601; must be ≥ the artifact occurred_at). Defaults to now."""
+
+    source_event_id: str
+    """The caller idempotency discriminator (ULID at enqueue). Defaults to a server ULID."""
+
+    supersedes_event_id: str
+    """The event this one supersedes."""
+
+    tool_error_class: Literal["model", "infra", "unclassified"]
+    """For mechanical:tool_error — refines learning_use (only model-class teaches)."""
+
+    value: dict[str, float | bool | str | list[float] | DiffStatsParams | None]
+    """The typed metadata payload (numbers, tokens, `diff_stats` on a correction) — never a body."""
+
+
 class RequestOutcomeResult(BaseModel):
     """One request-shortcut outcome result with its durable receipt."""
 
@@ -9326,6 +10779,8 @@ for _model in (
     ArtifactEnvelope,
     ArtifactFinal,
     ArtifactFinalEpisodeCorrection,
+    OutcomeReceiptRecord,
+    OutcomeReceiptRecordEpisode,
     RecordOutcomesResponse,
     OutcomeResult,
     AuditReadiness,
@@ -9385,14 +10840,35 @@ for _model in (
     CallType,
     CallTypeConfigVersion,
     EpisodeMemoryStatus,
+    EpisodeMemoryStatusExplanation,
+    EpisodeMemoryStatusExplanationBlockingItem,
+    EpisodeMemoryStatusExplanationFit,
+    EpisodeMemoryStatusExplanationProgress,
+    EpisodeMemoryStatusExplanationServing,
     EpisodeMemoryStatusMemory,
     EpisodeMemoryStatusPlaybook,
+    EpisodeMemoryStatusScope,
+    EpisodeMemoryStatusScreen,
+    EpisodeMemoryStatusScreenByReason,
     EpisodeMemoryStatusSetting,
     EpisodeMemoryStatusSettingLessons,
     EpisodeMemoryStatusSettingLessonsRecipe,
     EpisodeMemoryStatusTraces,
     EpisodeMemoryDisableResult,
     EpisodeMemoryEnableResult,
+    EpisodeEvictionList,
+    EpisodeEviction,
+    EpisodeEvictionResult,
+    EpisodeEvictionResultAlreadyErased,
+    EpisodeEvictionResultFallback,
+    EpisodeEvictionResultFallbackCallType,
+    EpisodeMemoryImportResult,
+    EpisodeMemoryImportCounts,
+    EpisodeMemoryImportPairResult,
+    EpisodePrecedentList,
+    EpisodePrecedentListItem,
+    EpisodePrecedent,
+    EpisodePrecedentServedInItem,
     EvalRunList,
     EvalRun,
     EvalRunCandidate,
@@ -9413,15 +10889,30 @@ for _model in (
     LearningEvaluationArm,
     LearningEvaluationDecidedBy,
     LearningEvaluationDifference,
+    LearningEvaluationObserved,
+    LearningEvaluationObservedArms,
+    LearningEvaluationObservedArmsCandidate,
     LearningEvaluationRule,
     LearningStatusEvidence,
+    LearningStatusMemoryRead,
     LearningStatusOutcomeReceipts,
     LearningPromotionPolicy,
     LearningStatusRecipe,
     LearningStatusReflection,
+    LearningStatusReflectionLastAttemptAdmission,
     LearningStatusReflectionNext,
     LearningStatusReflectionProvider,
+    LearningStatusServingStopped,
     LearningStatusUsage,
+    LearningCost,
+    LearningCostCache,
+    LearningCostMemoryOverhead,
+    LearningCostMemoryOverheadObservedDifference,
+    LearningCostMemoryOverheadObservedDifferenceInterval,
+    LearningCostRepairLoop,
+    LearningCostRepairLoopArm,
+    LearningCostRepairLoopArmFirstPass,
+    LearningCostRepairLoopCoverage,
     LearningControl,
     LearningEvaluationList,
     LearningToolDocumentation,
@@ -9460,6 +10951,8 @@ for _model in (
     UrBlock,
     UrBlockBench,
     UrBlockCompression,
+    UrBlockLearnedInjection,
+    UrBlockLearningServing,
     UrBlockRouting,
     UrBlockVerifiedMemory,
     ChatCompletionUsage,
@@ -9618,6 +11111,8 @@ for _model in (
     CompanyKnowledgeItemMeta,
     CompanyKnowledgeItemMetaAdmission,
     CompanyKnowledgeItemMetaScopeItem,
+    CompanyKnowledgeAnswer,
+    CompanyKnowledgeAnswerCitation,
     CompanyKnowledgeDetail,
     CreateMessageResponse,
     ModelList,
@@ -9625,8 +11120,6 @@ for _model in (
     ModelPricing,
     ModelDetail,
     ModelOffer,
-    OutcomeReceiptRecord,
-    OutcomeReceiptRecordEpisode,
     BatchOutcomesResponse,
     BatchOutcomeResult,
     PendingClaimList,
@@ -9727,10 +11220,40 @@ OPERATIONS: dict[str, tuple[str, str, str | None, str | None]] = {
         "EpisodeMemoryEnableParams",
         "EpisodeMemoryEnableResult",
     ),
+    "listEpisodeEvictions": (
+        "GET",
+        "/v1/call-types/{id}/episode-memory/evictions",
+        None,
+        "EpisodeEvictionList",
+    ),
+    "evictEpisodeMemory": (
+        "POST",
+        "/v1/call-types/{id}/episode-memory/evictions",
+        "EpisodeEvictParams",
+        "EpisodeEvictionResult",
+    ),
+    "importEpisodeMemory": (
+        "POST",
+        "/v1/call-types/{id}/episode-memory/imports",
+        "EpisodeMemoryImportParams",
+        "EpisodeMemoryImportResult",
+    ),
+    "listEpisodePrecedents": (
+        "GET",
+        "/v1/call-types/{id}/episode-memory/precedents",
+        None,
+        "EpisodePrecedentList",
+    ),
+    "getEpisodePrecedent": (
+        "GET",
+        "/v1/call-types/{id}/episode-memory/precedents/{precedent_id}",
+        None,
+        "EpisodePrecedent",
+    ),
     "selfServeEpisodeMemory": (
         "POST",
         "/v1/call-types/{id}/episode-memory/self-serve",
-        "EpisodeMemoryEnableParams",
+        "SelfServeEpisodeMemoryParams",
         "EpisodeMemoryEnableResult",
     ),
     "listCallTypeEvals": ("GET", "/v1/call-types/{id}/evals", None, "EvalRunList"),
@@ -9741,6 +11264,13 @@ OPERATIONS: dict[str, tuple[str, str, str | None, str | None]] = {
         "EnqueueEvalResponse",
     ),
     "getLearningStatus": ("GET", "/v1/call-types/{id}/learning", None, "LearningStatus"),
+    "updateLearningReadLimit": (
+        "PATCH",
+        "/v1/call-types/{id}/learning",
+        "LearningReadLimitParams",
+        "LearningStatus",
+    ),
+    "getLearningCost": ("GET", "/v1/call-types/{id}/learning/cost", None, "LearningCost"),
     "disableLearning": ("POST", "/v1/call-types/{id}/learning/disable", None, "LearningControl"),
     "enableLearning": (
         "POST",
@@ -9983,6 +11513,12 @@ OPERATIONS: dict[str, tuple[str, str, str | None, str | None]] = {
     "listImprovementReads": ("GET", "/v1/improvement-reads", None, "ImprovementReads"),
     "getKey": ("GET", "/v1/key", None, "KeyInfo"),
     "listCompanyKnowledge": ("GET", "/v1/knowledge", None, "CompanyKnowledgeList"),
+    "askCompanyKnowledge": (
+        "POST",
+        "/v1/knowledge/ask",
+        "CompanyKnowledgeAskParams",
+        "CompanyKnowledgeAnswer",
+    ),
     "readCompanyKnowledge": ("GET", "/v1/knowledge/{id}", None, "CompanyKnowledgeDetail"),
     "createMessage": ("POST", "/v1/messages", "CreateMessageParams", "CreateMessageResponse"),
     "listModels": ("GET", "/v1/models", None, "ModelList"),
@@ -10011,7 +11547,7 @@ OPERATIONS: dict[str, tuple[str, str, str | None, str | None]] = {
     "recordRequestOutcome": (
         "POST",
         "/v1/requests/{id}/outcomes",
-        "OutcomeParams",
+        "RequestOutcomeInputParams",
         "RequestOutcomeResult",
     ),
     "createResponse": ("POST", "/v1/responses", "CreateMessageParams", "CreateMessageResponse"),

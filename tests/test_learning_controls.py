@@ -36,6 +36,7 @@ from ultrarouter import UltraRouter as Client
 from ultrarouter._errors import error_from_response, learning_error, parse_learning_refusal
 from ultrarouter.types import (
     LearningControl,
+    LearningCost,
     LearningEvaluationList,
     LearningStatus,
     LearningVersionDetail,
@@ -411,3 +412,34 @@ def test_unknown_status_fields_are_kept(mock_gateway: MockGateway) -> None:
     assert status.state == "learning" and status.model_extra == {}
     extra = LearningStatus.model_validate({**status.to_dict(), "future_field": 1})
     assert extra.model_extra == {"future_field": 1}
+
+
+def test_the_read_limit_and_the_cost_read(mock_gateway: MockGateway) -> None:
+    with Client(api_key=TEST_KEY, base_url=mock_gateway.url) as client:
+        learning = client.learning
+        with pytest.raises(LearningNotEnabledError):
+            learning.set_read_limit("read-limit", 400)
+        learning.enable("read-limit", reflection_model=MODEL)
+        status = learning.set_read_limit("read-limit", 400)
+        assert isinstance(status, LearningStatus)
+        if status.memory_read is not None:
+            assert status.memory_read.limit_ms == 400
+        with pytest.raises(InvalidRequestError):
+            learning.set_read_limit("read-limit", 10)
+        cost = learning.cost("read-limit", window="30d")
+        assert isinstance(cost, LearningCost) and cost.call_type_id == "read-limit"
+    calls = _calls(mock_gateway)
+    patches = [c for c in calls if c[0] == "PATCH"]
+    assert patches[-1][1] == "/v1/call-types/read-limit/learning"
+    assert patches[-1][2] == {"learned_read_timeout_ms": 10}
+    gets = [r for r in mock_gateway.requests if r["path"].endswith("/learning/cost")]
+    assert gets[-1]["query"] == {"window": "30d"}
+
+
+async def test_the_read_limit_and_the_cost_read_async(mock_gateway: MockGateway) -> None:
+    async with AsyncUltraRouter(api_key=TEST_KEY, base_url=mock_gateway.url) as client:
+        await client.learning.enable("read-limit-async", reflection_model=MODEL)
+        status = await client.learning.set_read_limit("read-limit-async", 600)
+        assert isinstance(status, LearningStatus)
+        cost = await client.learning.cost("read-limit-async")
+        assert isinstance(cost, LearningCost)

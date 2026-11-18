@@ -2,7 +2,7 @@
 
 # API coverage
 
-Every endpoint in `openapi/openapi.yaml` that accepts an API key (103 operations):
+Every endpoint in `openapi/openapi.yaml` that accepts an API key (111 operations):
 the SDK method that calls it, sync and async, and the tests that call it against the mock
 gateway and validate the request body against the specification
 (`tests/test_api_coverage.py`).
@@ -33,10 +33,17 @@ gateway and validate the request body against the specification
 | `GET /v1/call-types/{id}/episode-memory` | `getEpisodeMemory` | `client.call_types.episode_memory.get(...)` | `await client.call_types.episode_memory.get(...)` | `test_operation_sync[getEpisodeMemory]`, `test_operation_async[getEpisodeMemory]` |
 | `POST /v1/call-types/{id}/episode-memory/disable` | `disableEpisodeMemory` | `client.call_types.episode_memory.disable(...)` | `await client.call_types.episode_memory.disable(...)` | `test_operation_sync[disableEpisodeMemory]`, `test_operation_async[disableEpisodeMemory]` |
 | `POST /v1/call-types/{id}/episode-memory/enable` | `enableEpisodeMemory` | `client.call_types.episode_memory.enable(...)` | `await client.call_types.episode_memory.enable(...)` | `test_operation_sync[enableEpisodeMemory]`, `test_operation_async[enableEpisodeMemory]` |
+| `GET /v1/call-types/{id}/episode-memory/evictions` | `listEpisodeEvictions` | `client.call_types.episode_memory.evictions(...)` | `await client.call_types.episode_memory.evictions(...)` | `test_operation_sync[listEpisodeEvictions]`, `test_operation_async[listEpisodeEvictions]` |
+| `POST /v1/call-types/{id}/episode-memory/evictions` | `evictEpisodeMemory` | `client.call_types.episode_memory.evict(...)` | `await client.call_types.episode_memory.evict(...)` | `test_operation_sync[evictEpisodeMemory]`, `test_operation_async[evictEpisodeMemory]` |
+| `POST /v1/call-types/{id}/episode-memory/imports` | `importEpisodeMemory` | `client.call_types.episode_memory.import_pairs(...)` | `await client.call_types.episode_memory.import_pairs(...)` | `test_operation_sync[importEpisodeMemory]`, `test_operation_async[importEpisodeMemory]` |
+| `GET /v1/call-types/{id}/episode-memory/precedents` | `listEpisodePrecedents` | `client.call_types.episode_memory.precedents(...)` | `await client.call_types.episode_memory.precedents(...)` | `test_operation_sync[listEpisodePrecedents]`, `test_operation_async[listEpisodePrecedents]` |
+| `GET /v1/call-types/{id}/episode-memory/precedents/{precedent_id}` | `getEpisodePrecedent` | `client.call_types.episode_memory.precedent(...)` | `await client.call_types.episode_memory.precedent(...)` | `test_operation_sync[getEpisodePrecedent]`, `test_operation_async[getEpisodePrecedent]` |
 | `POST /v1/call-types/{id}/episode-memory/self-serve` | `selfServeEpisodeMemory` | `client.call_types.episode_memory.self_serve(...)` | `await client.call_types.episode_memory.self_serve(...)` | `test_operation_sync[selfServeEpisodeMemory]`, `test_operation_async[selfServeEpisodeMemory]` |
 | `GET /v1/call-types/{id}/evals` | `listCallTypeEvals` | `client.call_types.list_evals(...)` | `await client.call_types.list_evals(...)` | `test_operation_sync[listCallTypeEvals]`, `test_operation_async[listCallTypeEvals]` |
 | `POST /v1/call-types/{id}/evals` | `enqueueCallTypeEval` | `client.call_types.enqueue_eval(...)` | `await client.call_types.enqueue_eval(...)` | `test_operation_sync[enqueueCallTypeEval]`, `test_operation_async[enqueueCallTypeEval]` |
 | `GET /v1/call-types/{id}/learning` | `getLearningStatus` | `client.learning.status(...)` | `await client.learning.status(...)` | `test_operation_sync[getLearningStatus]`, `test_operation_async[getLearningStatus]` |
+| `PATCH /v1/call-types/{id}/learning` | `updateLearningReadLimit` | `client.learning.set_read_limit(...)` | `await client.learning.set_read_limit(...)` | `test_operation_sync[updateLearningReadLimit]`, `test_operation_async[updateLearningReadLimit]` |
+| `GET /v1/call-types/{id}/learning/cost` | `getLearningCost` | `client.learning.cost(...)` | `await client.learning.cost(...)` | `test_operation_sync[getLearningCost]`, `test_operation_async[getLearningCost]` |
 | `POST /v1/call-types/{id}/learning/disable` | `disableLearning` | `client.learning.disable(...)` | `await client.learning.disable(...)` | `test_operation_sync[disableLearning]`, `test_operation_async[disableLearning]` |
 | `POST /v1/call-types/{id}/learning/enable` | `enableLearning` | `client.learning.enable(...)` | `await client.learning.enable(...)` | `test_operation_sync[enableLearning]`, `test_operation_async[enableLearning]` |
 | `GET /v1/call-types/{id}/learning/evaluations` | `listLearningEvaluations` | `client.learning.evaluations(...)` | `await client.learning.evaluations(...)` | `test_operation_sync[listLearningEvaluations]`, `test_operation_async[listLearningEvaluations]` |
@@ -99,6 +106,7 @@ gateway and validate the request body against the specification
 | `GET /v1/improvement-reads` | `listImprovementReads` | `client.improvement_reads.list(...)` | `await client.improvement_reads.list(...)` | `test_operation_sync[listImprovementReads]`, `test_operation_async[listImprovementReads]` |
 | `GET /v1/key` | `getKey` | `client.key.get(...)` | `await client.key.get(...)` | `test_operation_sync[getKey]`, `test_operation_async[getKey]` |
 | `GET /v1/knowledge` | `listCompanyKnowledge` | `client.knowledge.list(...)` | `await client.knowledge.list(...)` | `test_operation_sync[listCompanyKnowledge]`, `test_operation_async[listCompanyKnowledge]` |
+| `POST /v1/knowledge/ask` | `askCompanyKnowledge` | `client.knowledge.ask(...)` | `await client.knowledge.ask(...)` | `test_operation_sync[askCompanyKnowledge]`, `test_operation_async[askCompanyKnowledge]` |
 | `GET /v1/knowledge/{id}` | `readCompanyKnowledge` | `client.knowledge.get(...)` | `await client.knowledge.get(...)` | `test_operation_sync[readCompanyKnowledge]`, `test_operation_async[readCompanyKnowledge]` |
 | `POST /v1/messages` | `createMessage` | `client.request_model(...)` | `await client.request_model(...)` | `test_operation_sync[createMessage]`, `test_operation_async[createMessage]` |
 | `GET /v1/models` | `listModels` | `client.models.list(...)` | `await client.models.list(...)` | `test_operation_sync[listModels]`, `test_operation_async[listModels]` |
@@ -129,6 +137,9 @@ an API-key SDK cannot call them:
 - `POST /v1/bench/runs/{id}/share` (`mintBenchShare`)
 - `DELETE /v1/bench/runs/{id}/share/{shareId}` (`revokeBenchShare`)
 - `GET /v1/bench/runs/{id}/shares` (`listBenchShares`)
+- `POST /v1/call-types/{id}/episode-memory/evictions/{eviction_id}/restore` (`restoreEpisodeEviction`)
+- `PUT /v1/call-types/{id}/learning/correction-sharing` (`setCorrectionLessonSharing`)
+- `POST /v1/call-types/{id}/learning/versions/{version_id}/approve` (`approveCorrectionLessons`)
 - `POST /v1/flywheel/candidates/{runId}/accept` (`acceptCostRefusedCandidate`)
 - `POST /v1/flywheel/confirmations/{ref}/decision` (`decideCandidateConfirmation`)
 - `GET /v1/flywheel/experiments` (`listFlywheelExperiments`)

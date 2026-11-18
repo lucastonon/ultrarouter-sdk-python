@@ -687,6 +687,7 @@ def _refresh(receipt: dict[str, Any]) -> dict[str, Any]:
                 if teaching
                 else None,
                 "verdict": "recorded" if teaching else None,
+                "reason": None,
             },
         )
     elif now >= receipt["_expires"]:
@@ -694,7 +695,12 @@ def _refresh(receipt: dict[str, Any]) -> dict[str, Any]:
             status="expired",
             reason="request_not_found",
             updated_at=_iso(now),
-            episode={"status": "not_applicable", "trace_id": None, "verdict": None},
+            episode={
+                "status": "not_applicable",
+                "trace_id": None,
+                "verdict": None,
+                "reason": None,
+            },
         )
     return receipt
 
@@ -728,7 +734,7 @@ def _request_outcome(request_id: str, body: dict[str, Any]) -> tuple[int, Any]:
             "request_id": request_id,
             "status": "pending",
             "reason": None,
-            "episode": {"status": "pending", "trace_id": None, "verdict": None},
+            "episode": {"status": "pending", "trace_id": None, "verdict": None, "reason": None},
             "channel": body.get("channel"),
             "kind": body.get("kind"),
             "source_event_id": body.get("source_event_id") or STATE.next_id("sev"),
@@ -914,6 +920,9 @@ def _learning_status(call_type: str, state: dict[str, Any]) -> dict[str, Any]:
         available=state["enabled"], reason=None if state["enabled"] else "no_reflection_model"
     )
     status["evidence"].update(recorded=12, verified=9, verified_pass=6, verified_fail=3, unknown=3)
+    if isinstance(status.get("memory_read"), dict):
+        # The learned-memory read deadline (`PATCH …/learning`), 250 ms unless changed.
+        status["memory_read"]["limit_ms"] = state.get("read_limit_ms", 250)
     return status
 
 
@@ -1059,6 +1068,25 @@ def _learning(method: str, call_type: str, rest: str, body: dict[str, Any]) -> t
             )
         if method == "GET" and rest == "":
             return 200, _learning_status(call_type, state)
+        if method == "PATCH" and rest == "":
+            limit = body.get("learned_read_timeout_ms")
+            if not isinstance(limit, int) or isinstance(limit, bool) or not 25 <= limit <= 2000:
+                return _error(
+                    "invalid_request", "learned_read_timeout_ms: an integer from 25 to 2000"
+                )
+            if not state["enabled"]:
+                return _error(
+                    "conflict",
+                    "learning_not_enabled: learning is not enabled for this call type through "
+                    "the learning API — POST …/learning/enable first",
+                )
+            state["read_limit_ms"] = limit
+            return 200, _learning_status(call_type, state)
+        if method == "GET" and rest == "cost":
+            # The cost read has no state here: a schema sample of the operation's answer.
+            cost = _op_sample("getLearningCost")
+            cost["call_type_id"] = call_type
+            return 200, cost
         if method == "POST" and rest == "enable":
             if call_type == "no-consent":
                 return _error(

@@ -13,7 +13,9 @@ that loop:
   ``rollback``, ``promote`` and ``reject``: each returns a
   :class:`~ultrarouter.types.LearningControl` (``changed`` is ``False`` when it was already in
   effect) with the resulting status;
-* :meth:`Learning.versions`, :meth:`Learning.version`, :meth:`Learning.evaluations`.
+* :meth:`Learning.versions`, :meth:`Learning.version`, :meth:`Learning.evaluations`;
+* :meth:`Learning.set_read_limit` (the learned-memory read deadline) and :meth:`Learning.cost`
+  (what episode memory costs the call type).
 
 Reads need the ``config:read`` scope, controls ``config:write``. Refusals raise an actionable
 :class:`~ultrarouter.LearningError` subclass whose ``reason`` names the problem, ``refusal`` the
@@ -33,6 +35,7 @@ from .._types import compact
 from ..types import (
     LearnerRecipeParams,
     LearningControl,
+    LearningCost,
     LearningEvaluationList,
     LearningPromotionParams,
     LearningStatus,
@@ -272,6 +275,48 @@ class Learning(SyncAPIResource):
             LearningEvaluationList,
         )
 
+    def set_read_limit(
+        self,
+        call_type_id: str,
+        learned_read_timeout_ms: int,
+        *,
+        options: RequestOptions | None = None,
+    ) -> LearningStatus:
+        """Change only the learned-memory read deadline (``PATCH .../learning``), 25 to 2,000 ms.
+
+        A ceiling, not a delay: a read that completes in 3 ms costs 3 ms. The default is 250 ms;
+        lower it when first-token latency matters more than memory. Other settings stay in place.
+        Needs an existing memory setting with learning enabled, and ``config:write``.
+        """
+        return self._call(
+            build(
+                "PATCH",
+                _base(call_type_id),
+                body={"learned_read_timeout_ms": learned_read_timeout_ms},
+                options=options,
+            ),
+            LearningStatus,
+        )
+
+    def cost(
+        self,
+        call_type_id: str,
+        *,
+        window: str | None = None,
+        options: RequestOptions | None = None,
+    ) -> LearningCost:
+        """What episode memory costs the call type over a window (``window="30d"``, 1 to 90 days).
+
+        Integer micro-USD: the call type's spend, the estimate of the memory block's cost, and the
+        observed difference in cost per request against the standing holdout (display only).
+        """
+        return self._call(
+            build(
+                "GET", f"{_base(call_type_id)}/cost", query=compact(window=window), options=options
+            ),
+            LearningCost,
+        )
+
 
 class AsyncLearning(AsyncAPIResource):
     """``client.learning`` on :class:`~ultrarouter.AsyncUltraRouter`."""
@@ -432,4 +477,37 @@ class AsyncLearning(AsyncAPIResource):
         return await self._call(
             build("GET", f"{_base(call_type_id)}/evaluations", options=options),
             LearningEvaluationList,
+        )
+
+    async def set_read_limit(
+        self,
+        call_type_id: str,
+        learned_read_timeout_ms: int,
+        *,
+        options: RequestOptions | None = None,
+    ) -> LearningStatus:
+        """The read deadline; async twin of :meth:`Learning.set_read_limit`."""
+        return await self._call(
+            build(
+                "PATCH",
+                _base(call_type_id),
+                body={"learned_read_timeout_ms": learned_read_timeout_ms},
+                options=options,
+            ),
+            LearningStatus,
+        )
+
+    async def cost(
+        self,
+        call_type_id: str,
+        *,
+        window: str | None = None,
+        options: RequestOptions | None = None,
+    ) -> LearningCost:
+        """What episode memory costs; async twin of :meth:`Learning.cost`."""
+        return await self._call(
+            build(
+                "GET", f"{_base(call_type_id)}/cost", query=compact(window=window), options=options
+            ),
+            LearningCost,
         )
