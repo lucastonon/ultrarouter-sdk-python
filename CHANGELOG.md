@@ -6,6 +6,55 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+- New methods for the operations the synced API specification adds, each with an async twin:
+  `client.call_types.episode_memory.evictions(...)` (the operations log), `.evict(...)` (evict,
+  or erase with `erase=True`; `dry_run=True` counts only), `.import_pairs(...)` (approved pairs),
+  `.precedents(...)` and `.precedent(...)`; `client.learning.set_read_limit(call_type_id, ms)`
+  (the learned-memory read deadline, 25 to 2,000 ms) and `client.learning.cost(...)`; and
+  `client.knowledge.ask(question=...)`, which is not idempotent (a retry is a new charge) and is
+  therefore sent once unless `options={"max_retries": n}` allows retries. Correction-lesson sharing,
+  its approval and restoring an eviction are owner-session operations without a method.
+- **The end-user key, `ur.memory_partition`** (generated in `UrParams`, 1 to 1,024 characters). It
+  names the end user a request is for. Under a call type scoped `partitioned`, a verified answer is
+  shown only to later requests with the same key. First match wins: this field, then the
+  `X-UR-Memory-Partition` header, then the OpenAI `user` field. The gateway stores only a digest of
+  it.
+- **Self-serve precedent memory and its end-user scope.** The first enable of episode memory on a
+  call type (`episode_memory.self_serve`) declares its end-user scope (`memory_scope`: `shared` or
+  `partitioned`). Only the workspace owner, signed in, can make it: in the dashboard's agent memory
+  control for the call type, or with the owner's session. An API key cannot. After that first
+  enable, a `config:write` key can re-enable the call type with the scope and the
+  `source_call_type_id` in force (naming the scope or leaving it out), for example to change `k`.
+  The two refusals a key meets: leaving `memory_scope` out on a call type with no scope recorded is
+  `400 invalid_request`, message `memory_scope_required: …`; naming a scope on a first enable, a
+  different scope, or another `source_call_type_id` is `403 permission`, message
+  `scope_declaration_owner_only: …`. An admin's session gets the same 403.
+- **Requests must land first.** An outcome, a final or a reviewer event naming a request that has
+  not been recorded yet answers `503 request_not_landed` (retryable, `Retry-After: 2`); the SDK
+  retries it (`RequestNotLandedError` once retries are spent). After the 15-minute window a request
+  that never landed answers `404 request_not_found`, the same as an id from another workspace. No
+  pending receipt is held for such a request any more. Request ids are plain `req_` + a ULID again;
+  ids issued before stay valid. An outcome receipt can read `status: "erased"`
+  (`reason: "end_user_erased"`): the end user of its request was erased; the episode association's
+  `reason` can be `end_user_erased`. `Idempotency-Key` replays are kept per API key: the same key
+  sent by two API keys is two separate claims. The memory erasure response counts each store it
+  cleared in `erased` and, per store, the rows an earlier erasure had already erased in
+  `already_erased`.
+- Three gateway error codes, each with its class: `request_not_landed` (`RequestNotLandedError`)
+  and `workspace_busy` (`WorkspaceBusyError`), both 503 and retried after `Retry-After`, and
+  `internal_knowledge_ask` (`InternalKnowledgeAskError`, a 403 `PermissionDeniedError`, never
+  retried: a knowledge-ask `req_int_…` id named where a learning request belongs).
+- Generated types follow the synced specification: the learning status adds `explanation`,
+  `serving_stopped`, `correction_lesson_sharing` and `memory_read`; an evaluation adds `observed`
+  and `outcome_source`; a version adds `lesson_source` and can be `held_for_approval`; a receipt's
+  `episode` adds `reason`; `GenerationStats` adds `client_request_id`; the chat `ur` block adds
+  `learned_injection` and `learning_serving`. The new models have public names
+  (`EpisodeEvictionList`, `EpisodeEvictionResult`, `EpisodeMemoryImportResult`,
+  `EpisodePrecedentList`, `EpisodePrecedent`, `LearningCost`, `CompanyKnowledgeAnswer`, ...).
+- The type generator types a reference to a named string (an id) as `str` instead of an empty
+  class, keeps `OutcomeReceiptRecord`, `ChatContentPartParam` and `CacheControlParam` when a new
+  operation repeats their shape, and gives a functional `TypedDict` its docstring.
+
 - `client.call_types.episode_memory.self_serve(...)` (and its async twin) turns precedent episode
   memory on through the customer route `POST /v1/call-types/{id}/episode-memory/self-serve`, with
   the same knobs as `enable` except `lessons`, and no lab grant.
