@@ -92,6 +92,39 @@ def test_nullable_values_generate_their_type() -> None:
     assert typing.get_type_hints(PreflightParams)["messages"] == list[ChatMessageParam]
 
 
+def test_scalar_components_are_inlined_by_the_generator() -> None:
+    import gen_types
+
+    spec: dict[str, Any] = {
+        "components": {
+            "schemas": {
+                "Id": {"type": "string", "description": "An id."},
+                "Level": {"type": "string", "enum": ["low", "high"]},
+                "Thing": {"type": "object", "properties": {"id": {"type": "string"}}},
+            }
+        },
+        "paths": {},
+    }
+    gen = gen_types.Generator(spec)
+    ref = {"$ref": "#/components/schemas/Id"}
+    assert gen.annotation(ref, "params", "P", "id") == ("str", False)
+    assert gen.annotation({**ref, "nullable": True}, "model", "M", "id") == ("str", True)
+    narrowed = {"allOf": [ref, {"type": "string", "maxLength": 9}]}
+    assert gen.annotation(narrowed, "params", "P", "id") == ("str", False)
+    level = {"$ref": "#/components/schemas/Level"}
+    assert gen.annotation(level, "params", "P", "level") == ('Literal["low", "high"]', False)
+    assert gen.annotation(level, "model", "M", "level") == ("str", False)
+    # An object component is still a class, and an allOf that mixes kinds stays Any.
+    thing = {"$ref": "#/components/schemas/Thing"}
+    assert gen.annotation(thing, "model", "M", "thing") == ("Thing", False)
+    mixed = {"allOf": [ref, {"type": "integer"}]}
+    assert gen.annotation(mixed, "params", "P", "id") == ("Any", False)
+    assert "Id" not in gen.classes and "IdParams" not in gen.classes
+    assert gen_types.is_scalar_schema({"type": "integer", "minimum": 0})
+    assert not gen_types.is_scalar_schema({"type": "object", "properties": {}})
+    assert not gen_types.is_scalar_schema({"type": "array", "items": {"type": "string"}})
+
+
 def test_parity_goldens_match_the_typescript_reference() -> None:
     ts_sdk = Path(os.environ.get("ULTRAROUTER_TS_SDK", ROOT.parent / "ultrarouter-sdk-typescript"))
     if shutil.which("node") is None or not (ts_sdk / "dist" / "context.js").exists():

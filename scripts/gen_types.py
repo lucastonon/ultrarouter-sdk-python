@@ -367,6 +367,22 @@ def is_nullable_marker(schema: Any) -> bool:
     return isinstance(schema, dict) and schema.get("nullable") is True and len(schema) == 1
 
 
+SCALAR_TYPES = ("string", "integer", "number", "boolean")
+
+
+def is_scalar_schema(schema: Any) -> bool:
+    """A plain string, integer, number or boolean schema (constraints and an enum allowed).
+
+    A component of this shape (an id, say) is typed as its value wherever it is referenced; only
+    object components become classes.
+    """
+    return (
+        isinstance(schema, dict)
+        and schema.get("type") in SCALAR_TYPES
+        and not any(key in schema for key in ("properties", "$ref", "allOf", "anyOf", "oneOf"))
+    )
+
+
 @dataclass
 class FieldDef:
     name: str  # python attribute name
@@ -623,7 +639,21 @@ class Generator:
             return "Any", False
         nullable = bool(schema.get("nullable"))
         if "$ref" in schema:
-            return self.component(schema["$ref"].split("/")[-1], kind), nullable
+            component = schema["$ref"].split("/")[-1]
+            if is_scalar_schema(self.schemas[component]):
+                # A named scalar (an id string, say) is typed as its value, never as an empty class.
+                ann, ref_null = self.annotation(self.schemas[component], kind, parent, prop)
+                return ann, nullable or ref_null
+            return self.component(component, kind), nullable
+        if "allOf" in schema:
+            # A scalar narrowed by constraints (`allOf: [{$ref: Id}, {type: string, maxLength: …}]`)
+            # is typed as that scalar when every member is a scalar of the same type.
+            members = [m for m in schema["allOf"] if isinstance(m, dict) and m]
+            if members and all(is_scalar_schema(self.deref(m)) for m in members):
+                anns = {self.annotation(m, kind, parent, prop) for m in members}
+                if len({a for a, _ in anns}) == 1:
+                    ann = next(iter(anns))[0]
+                    return ann, nullable or any(n for _, n in anns)
         for key in ("anyOf", "oneOf"):
             if key in schema:
                 if kind == "model":
@@ -800,7 +830,10 @@ class Generator:
                     ann = f"Required[{ann}]"
                 out.append(f'        "{f.wire}": {ann},')
             out.append("    },\n    total=False,\n)")
-            out.extend(self.docstring(self.class_doc(cls), ""))
+            # A functional TypedDict takes no docstring of its own, so its ``__doc__`` is set.
+            doc = self.docstring(self.class_doc(cls), "")
+            doc[0] = f"{cls.name}.__doc__ = {doc[0]}"
+            out.extend(doc)
             return out
         out = [f"class {cls.name}(TypedDict, total=False):"]
         out.extend(self.docstring(self.class_doc(cls), "    "))
