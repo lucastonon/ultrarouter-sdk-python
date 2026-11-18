@@ -2523,6 +2523,7 @@ Base class of every typed response returned by the SDK.
 | `ConflictError` | `APIStatusError` | `conflict` | `conflict` (409): an idempotent write collided with a different payload. |
 | `ContentFilteredError` | `APIStatusError` | `content_filtered` | `content_filtered` (400): the provider refused the content (moderation/safety). |
 | `ContextLengthError` | `APIStatusError` | `context_length` | `context_length` (400): prompt plus requested completion exceed the context window. |
+| `InternalKnowledgeAskError` | `PermissionDeniedError` | `internal_knowledge_ask` | `internal_knowledge_ask` (403): a knowledge-ask request id (`req_int_…`) was named where a learning request belongs (an outcome, a final, an artifact or an import call). |
 | `InternalServerError` | `APIStatusError` | `internal` | `internal` (500): an unexpected gateway failure. |
 | `InvalidRequestError` | `APIStatusError` | `invalid_request` | `invalid_request` (400): malformed body, parameters, or an unsupported option. |
 | `LearningBudgetExhaustedError` | `LearningError` | (any) | `budget_exhausted`: the call type's learning budget is spent. |
@@ -2550,9 +2551,11 @@ Base class of every typed response returned by the SDK.
 | `RateLimitError` | `APIStatusError` | `rate_limited` | `rate_limited` (429): a per-key or per-workspace rate limit was hit (retried). |
 | `ReceiptWaitTimeoutError` | `APITimeoutError` | `timeout` | `outcomes.wait_for_receipt` ran out of time before the receipt reached a final status. |
 | `RequestCancelledError` | `APIStatusError` | `cancelled` | `cancelled` (499): the request was aborted before completion. |
+| `RequestNotLandedError` | `APIStatusError` | `request_not_landed` | `request_not_landed` (503): the request this write names (an outcome, a final, a reviewer event, feedback) has not been recorded yet. |
 | `SpendCapExceededError` | `APIStatusError` | `spend_cap_exceeded` | `spend_cap_exceeded` (402): the hard spend cap for the period was reached. |
 | `SpendGuardUnavailableError` | `APIStatusError` | `atomic_spend_guard_unavailable` | `atomic_spend_guard_unavailable` (503): live paid execution is not available. |
 | `UltraRouterError` | `Exception` | (any) | Base class of every error the SDK raises. |
+| `WorkspaceBusyError` | `APIStatusError` | `workspace_busy` | `workspace_busy` (503): the workspace was held (by an end-user erasure or a long write) longer than this write could wait. |
 
 ## Helpers and constants
 
@@ -2718,7 +2721,7 @@ events can be recovered by hand.
 - `remove(entry_id: str) -> None`
 - `list() -> list[QueuedEntry]`
 
-- `GATEWAY_ERROR_CODES` = `('invalid_request', 'manifest_invalid', 'manifest_mismatch', 'authentication', 'permission', 'not_found', 'model_denied_by_policy', 'model_unpriced', 'capability_unsupported', 'prompt_variables_mis...`
+- `GATEWAY_ERROR_CODES` = `('invalid_request', 'manifest_invalid', 'manifest_mismatch', 'authentication', 'permission', 'internal_knowledge_ask', 'not_found', 'model_denied_by_policy', 'model_unpriced', 'capability_unsupport...`
 - `GATEWAY_ERROR_TAXONOMY` = `{'invalid_request': ErrorTaxonomyEntry(status=400, retryable=False), 'manifest_invalid': ErrorTaxonomyEntry(status=400, retryable=False), 'manifest_mismatch': ErrorTaxonomyEntry(status=400, retryab...`
 - `GenerationStats`: response model; see the [types reference](types-reference.md#generationstats).
 ### is_gateway_error_code

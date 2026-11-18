@@ -46,6 +46,7 @@ __all__ = [
     "ContentFilteredError",
     "ContextLengthError",
     "ErrorTaxonomyEntry",
+    "InternalKnowledgeAskError",
     "InternalServerError",
     "InvalidRequestError",
     "LearningBudgetExhaustedError",
@@ -73,9 +74,11 @@ __all__ = [
     "RateLimitError",
     "ReceiptWaitTimeoutError",
     "RequestCancelledError",
+    "RequestNotLandedError",
     "SpendCapExceededError",
     "SpendGuardUnavailableError",
     "UltraRouterError",
+    "WorkspaceBusyError",
     "error_class_for",
     "error_from_response",
     "is_gateway_error_code",
@@ -103,6 +106,7 @@ GATEWAY_ERROR_TAXONOMY: Mapping[str, ErrorTaxonomyEntry] = {
     "manifest_mismatch": ErrorTaxonomyEntry(400, False),
     "authentication": ErrorTaxonomyEntry(401, False),
     "permission": ErrorTaxonomyEntry(403, False),
+    "internal_knowledge_ask": ErrorTaxonomyEntry(403, False),
     "not_found": ErrorTaxonomyEntry(404, False),
     "model_denied_by_policy": ErrorTaxonomyEntry(403, False),
     "model_unpriced": ErrorTaxonomyEntry(403, False),
@@ -114,6 +118,8 @@ GATEWAY_ERROR_TAXONOMY: Mapping[str, ErrorTaxonomyEntry] = {
     "spend_cap_exceeded": ErrorTaxonomyEntry(402, False),
     "max_cost_exceeded": ErrorTaxonomyEntry(402, False),
     "atomic_spend_guard_unavailable": ErrorTaxonomyEntry(503, False),
+    "request_not_landed": ErrorTaxonomyEntry(503, True),
+    "workspace_busy": ErrorTaxonomyEntry(503, True),
     "provider_unavailable": ErrorTaxonomyEntry(502, True),
     "provider_timeout": ErrorTaxonomyEntry(504, True),
     "content_filtered": ErrorTaxonomyEntry(400, False),
@@ -461,6 +467,38 @@ class OutcomeBacklogFullError(RateLimitError):
     default_code = "outcome_backlog_full"
 
 
+class InternalKnowledgeAskError(PermissionDeniedError):
+    """``internal_knowledge_ask`` (403): a knowledge-ask request id (``req_int_…``) was named
+    where a learning request belongs (an outcome, a final, an artifact or an import call).
+
+    Refused before anything is read or written; never retried. Report outcomes against the
+    ``req_…`` id of a chat or embeddings request instead.
+    """
+
+    default_code = "internal_knowledge_ask"
+
+
+class RequestNotLandedError(APIStatusError):
+    """``request_not_landed`` (503): the request this write names (an outcome, a final, a reviewer
+    event, feedback) has not been recorded yet.
+
+    Nothing was stored. The SDK retries after the ``Retry-After`` hint; a request that never lands
+    answers ``not_found`` once the 15-minute landing window has passed.
+    """
+
+    default_code = "request_not_landed"
+
+
+class WorkspaceBusyError(APIStatusError):
+    """``workspace_busy`` (503): the workspace was held (by an end-user erasure or a long write)
+    longer than this write could wait.
+
+    Nothing was written. The SDK retries after the ``Retry-After`` hint.
+    """
+
+    default_code = "workspace_busy"
+
+
 class ReceiptWaitTimeoutError(APITimeoutError):
     """``outcomes.wait_for_receipt`` ran out of time before the receipt reached a final status.
 
@@ -687,6 +725,9 @@ _CODE_CLASSES: dict[str, type[APIStatusError]] = {
         RequestCancelledError,
         InternalServerError,
         OutcomeBacklogFullError,
+        InternalKnowledgeAskError,
+        RequestNotLandedError,
+        WorkspaceBusyError,
     )
     if cls.default_code is not None
 }

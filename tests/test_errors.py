@@ -14,6 +14,7 @@ from ultrarouter import (
     APITimeoutError,
     AsyncUltraRouter,
     AuthenticationError,
+    InternalKnowledgeAskError,
     InternalServerError,
     InvalidRequestError,
     ModelDeniedByPolicyError,
@@ -22,9 +23,11 @@ from ultrarouter import (
     PermissionDeniedError,
     PromptVariablesMissingError,
     RateLimitError,
+    RequestNotLandedError,
     SpendGuardUnavailableError,
     UltraRouter,
     UltraRouterError,
+    WorkspaceBusyError,
     error_class_for,
     is_gateway_error_code,
     is_retryable_status,
@@ -49,6 +52,9 @@ def test_taxonomy_lists_every_code_with_status_and_retryability() -> None:
     assert GATEWAY_ERROR_TAXONOMY["model_denied_by_policy"] == (403, False)
     assert GATEWAY_ERROR_TAXONOMY["rate_limited"] == (429, True)
     assert GATEWAY_ERROR_TAXONOMY["atomic_spend_guard_unavailable"] == (503, False)
+    assert GATEWAY_ERROR_TAXONOMY["internal_knowledge_ask"] == (403, False)
+    assert GATEWAY_ERROR_TAXONOMY["request_not_landed"] == (503, True)
+    assert GATEWAY_ERROR_TAXONOMY["workspace_busy"] == (503, True)
     for code in GATEWAY_ERROR_CODES:
         assert is_gateway_error_code(code)
     assert not is_gateway_error_code("connection")
@@ -220,6 +226,47 @@ def test_non_retryable_503_is_not_retried(mock_gateway: MockGateway) -> None:
     ):
         client.models.list()
     assert len(mock_gateway.requests) == 1
+
+
+@pytest.mark.parametrize("code", ["request_not_landed", "workspace_busy"])
+def test_a_retryable_503_is_retried_after_its_hint(mock_gateway: MockGateway, code: str) -> None:
+    """The gateway's 503s for a write that came too early (or a held workspace) are retried."""
+    mock_gateway.fail("/v1/models", status=503, code=code, times=1, retry_after=0)
+    sleeps: list[float] = []
+    with UltraRouter(
+        api_key=TEST_KEY, base_url=mock_gateway.url, max_retries=2, _sleep=sleeps.append
+    ) as client:
+        assert client.models.list().data
+    assert len(mock_gateway.requests) == 2
+    assert sleeps == [0.0]
+
+
+@pytest.mark.parametrize(
+    ("code", "cls"),
+    [("request_not_landed", RequestNotLandedError), ("workspace_busy", WorkspaceBusyError)],
+)
+def test_a_retryable_503_raises_its_class_once_retries_are_spent(
+    mock_gateway: MockGateway, code: str, cls: type[APIStatusError]
+) -> None:
+    mock_gateway.fail("/v1/models", status=503, code=code, times=5, retry_after=0)
+    with (
+        UltraRouter(
+            api_key=TEST_KEY, base_url=mock_gateway.url, max_retries=1, _sleep=lambda _: None
+        ) as client,
+        pytest.raises(cls) as info,
+    ):
+        client.models.list()
+    assert info.value.retryable is True
+    assert len(mock_gateway.requests) == 2
+
+
+def test_internal_knowledge_ask_is_a_permission_error_never_retried() -> None:
+    err = error_from_response(
+        403, _envelope("internal_knowledge_ask", message="internal_knowledge_ask: refused")
+    )
+    assert isinstance(err, InternalKnowledgeAskError)
+    assert isinstance(err, PermissionDeniedError)
+    assert err.retryable is False
 
 
 def test_transport_errors_are_typed() -> None:

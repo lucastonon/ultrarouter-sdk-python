@@ -83,6 +83,8 @@ _TAXONOMY = {
     "rate_limited": (429, True),
     "provider_unavailable": (502, True),
     "atomic_spend_guard_unavailable": (503, False),
+    "request_not_landed": (503, True),
+    "workspace_busy": (503, True),
     "internal": (500, False),
 }
 

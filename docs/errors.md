@@ -43,6 +43,7 @@ code falls back to the class for its HTTP status (400, 401, 403, 404, 409, 429, 
 | `ContextLengthError` | `context_length` | 400 | no | shorten the prompt or `max_tokens` |
 | `AuthenticationError` | `authentication` | 401 | no | check the API key |
 | `PermissionDeniedError` | `permission` | 403 | no | the key lacks the scope this endpoint needs |
+| `InternalKnowledgeAskError` | `internal_knowledge_ask` | 403 | no | a knowledge-ask request id (`req_int_…`) was named where a learning request belongs; report against a chat or embeddings `req_…` id |
 | `ModelDeniedByPolicyError` | `model_denied_by_policy` | 403 | no | the workspace model policy forbids this model |
 | `ModelUnpricedError` | `model_unpriced` | 403 | **never** | the model has no price; use a priced model (nothing was called or billed) |
 | `NotFoundError` | `not_found` | 404 | no | unknown model, request, call type or resource |
@@ -54,6 +55,8 @@ code falls back to the class for its HTTP status (400, 401, 403, 404, 409, 429, 
 | `InternalServerError` | `internal` | 500 | per the gateway's `retryable` flag | retry later; report the `request_id` |
 | `ProviderUnavailableError` | `provider_unavailable` | 502 | yes | transient upstream failure; consider `models=[...]` fallbacks |
 | `SpendGuardUnavailableError` | `atomic_spend_guard_unavailable` | 503 | **never** | paid execution is unavailable on this deployment; a retry cannot help |
+| `RequestNotLandedError` | `request_not_landed` | 503 | yes (after `Retry-After`) | the request this write names is not recorded yet; nothing was stored. A request that never lands answers `not_found` after 15 minutes |
+| `WorkspaceBusyError` | `workspace_busy` | 503 | yes (after `Retry-After`) | the workspace was held (an end-user erasure or a long write) longer than the write could wait; nothing was written |
 | `ProviderTimeoutError` | `provider_timeout` | 504 | yes | the provider exceeded its deadline |
 | `APIConnectionError` | `connection` | 0 | yes | network problem reaching the gateway |
 | `APITimeoutError` | `timeout` | 0 | no | the call exceeded its total `timeout` |
