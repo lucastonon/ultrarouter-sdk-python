@@ -1,4 +1,4 @@
-"""Memory items, rules and notes, conversation memory and the retrieval setting.
+"""Memory items, rules and notes, conversation memory, the retrieval setting, and who gives feedback.
 
 The methods under ``client.learning`` send the bodies and queries the spec declares, parse into their
 public models, and ``create_rule`` (not idempotent) is sent once unless the caller allows retries.
@@ -16,6 +16,7 @@ from conftest import TEST_KEY, MockGateway
 from ultrarouter import AsyncUltraRouter, UltraRouter, UltraRouterError
 from ultrarouter.types import (
     ConversationMemory,
+    Feedback,
     LearningStatus,
     MemoryItemsSetting,
     MemoryItemValidation,
@@ -170,3 +171,20 @@ async def test_async_twins_send_the_same_requests(mock_gateway: MockGateway) -> 
     assert _last(mock_gateway, "GET", f"{BASE}/rules")["query"] == {"limit": "5"}
     assert _last(mock_gateway, "POST", f"{BASE}/rules/mit_2/restore")["method"] == "POST"
     assert _last(mock_gateway, "PUT", f"{BASE}/retrieval")["body"] == {"retrieval": None}
+
+
+def test_feedback_says_who_gives_it(mock_gateway: MockGateway) -> None:
+    with UltraRouter(api_key=TEST_KEY, base_url=mock_gateway.url) as client:
+        feedback = client.requests.feedback(
+            "req_123", rating=-1, comment="Wrong store hours.", given_by="end_user", user="u-42"
+        )
+    assert isinstance(feedback, Feedback)
+    # The stored row names the role the claim resolved to and the memory item a comment became.
+    assert {"giver_role", "memory_item_id"} <= feedback.model_fields_set
+    assert feedback.giver_role in {"developer", "tenant_admin", "end_user", None}
+    assert _last(mock_gateway, "POST", "/v1/requests/req_123/feedback")["body"] == {
+        "rating": -1,
+        "comment": "Wrong store hours.",
+        "given_by": "end_user",
+        "user": "u-42",
+    }

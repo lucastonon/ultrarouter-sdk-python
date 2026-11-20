@@ -955,20 +955,27 @@ client.requests.feedback(
     rating: Literal[1, -1],
     tags: Sequence[str] | None = None,
     comment: str | None = None,
+    given_by: Literal['developer', 'tenant_admin', 'end_user'] | None = None,
+    user: str | None = None,
     options: RequestOptions | None = None,
 ) -> Feedback
 ```
 
 Attach thumbs-up (`1`) or thumbs-down (`-1`) feedback to a request.
 
-`POST /v1/requests/{id}/feedback`. Use the id from `response.ur.request_id`.
+`POST /v1/requests/{id}/feedback`. Use the id from `response.ur.request_id`. Sent the
+moment an answer arrives, it may meet a request the gateway has not recorded yet: the
+gateway answers `503 request_not_landed` (nothing stored) and the client retries it after
+`Retry-After`.
 
 **Args**
 
 - `request_id`: The `req_...` id of the request.
 - `rating`: `1` (good) or `-1` (bad).
 - `tags`: Optional free-form tags.
-- `comment`: Optional comment.
+- `comment`: Optional comment. With the workspace's corrections consent, a comment with words of its own also becomes a memory item (the returned `memory_item_id`).
+- `given_by`: Who gives it. `developer` and `tenant_admin` are honoured only from an API key marked server-side; anything else is recorded as `end_user`.
+- `user`: The giver's end-user key, as requests carry it; the gateway stores only a digest. Omitted: an end user's comment is the request's own end user's.
 - `options`: Per-call request options.
 
 ### client.generation
@@ -987,9 +994,11 @@ client.generation.get(
 
 Get tokens, cost, timing, routing decision and outcomes for a request.
 
-`GET /v1/generation?id=...`. The request row is written asynchronously, so a lookup
-immediately after the call can return `NotFoundError`; retry
-briefly in that case.
+`GET /v1/generation?id=...`. The request is recorded just after its answer, so a lookup
+made at once can meet a request the gateway has not recorded yet: it answers
+`503 request_not_landed` and the client retries it after `Retry-After`. An id the
+gateway never issued, or one older than the landing window, is
+`NotFoundError`.
 
 ### client.autopilot
 
@@ -2741,7 +2750,7 @@ Base class of every typed response returned by the SDK.
 | `RateLimitError` | `APIStatusError` | `rate_limited` | `rate_limited` (429): a per-key or per-workspace rate limit was hit (retried). |
 | `ReceiptWaitTimeoutError` | `APITimeoutError` | `timeout` | `outcomes.wait_for_receipt` ran out of time before the receipt reached a final status. |
 | `RequestCancelledError` | `APIStatusError` | `cancelled` | `cancelled` (499): the request was aborted before completion. |
-| `RequestNotLandedError` | `APIStatusError` | `request_not_landed` | `request_not_landed` (503): the request this write names (an outcome, a final, a reviewer event, feedback) has not been recorded yet. |
+| `RequestNotLandedError` | `APIStatusError` | `request_not_landed` | `request_not_landed` (503): the request this call names (an outcome, a final, a reviewer event, feedback, an artifact's `request_ids`, or the generation lookup by id) has not been recorded yet. |
 | `SpendCapExceededError` | `APIStatusError` | `spend_cap_exceeded` | `spend_cap_exceeded` (402): the hard spend cap for the period was reached. |
 | `SpendGuardUnavailableError` | `APIStatusError` | `atomic_spend_guard_unavailable` | `atomic_spend_guard_unavailable` (503): live paid execution is not available. |
 | `UltraRouterError` | `Exception` | (any) | Base class of every error the SDK raises. |

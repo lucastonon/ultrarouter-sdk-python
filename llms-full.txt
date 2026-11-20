@@ -4192,7 +4192,7 @@ code falls back to the class for its HTTP status (400, 401, 403, 404, 409, 429, 
 | `InternalServerError` | `internal` | 500 | per the gateway's `retryable` flag | retry later; report the `request_id` |
 | `ProviderUnavailableError` | `provider_unavailable` | 502 | yes | transient upstream failure; consider `models=[...]` fallbacks |
 | `SpendGuardUnavailableError` | `atomic_spend_guard_unavailable` | 503 | **never** | paid execution is unavailable on this deployment; a retry cannot help |
-| `RequestNotLandedError` | `request_not_landed` | 503 | yes (after `Retry-After`) | the request this write names is not recorded yet; nothing was stored. A request that never lands answers `not_found` after 15 minutes |
+| `RequestNotLandedError` | `request_not_landed` | 503 | yes (after `Retry-After`) | the request this call names (an outcome, a final, a reviewer event, feedback, an artifact's `request_ids`, or the generation lookup by id) is not recorded yet; nothing was stored. A request that never lands answers `not_found` after 15 minutes |
 | `WorkspaceBusyError` | `workspace_busy` | 503 | yes (after `Retry-After`) | the workspace was held (an end-user erasure or a long write) longer than the write could wait; nothing was written |
 | `ProviderTimeoutError` | `provider_timeout` | 504 | yes | the provider exceeded its deadline |
 | `APIConnectionError` | `connection` | 0 | yes | network problem reaching the gateway |

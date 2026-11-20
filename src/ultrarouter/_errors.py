@@ -479,8 +479,9 @@ class InternalKnowledgeAskError(PermissionDeniedError):
 
 
 class RequestNotLandedError(APIStatusError):
-    """``request_not_landed`` (503): the request this write names (an outcome, a final, a reviewer
-    event, feedback) has not been recorded yet.
+    """``request_not_landed`` (503): the request this call names (an outcome, a final, a reviewer
+    event, feedback, an artifact's ``request_ids``, or the generation lookup by id) has not been
+    recorded yet.
 
     Nothing was stored. The SDK retries after the ``Retry-After`` hint; a request that never lands
     answers ``not_found`` once the 15-minute landing window has passed.
