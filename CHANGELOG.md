@@ -6,6 +6,27 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+- New methods for the memory operations the synced API specification adds, each with an async
+  twin, under `client.learning`: `memory_items(...)` / `set_memory_items(...)` (serve a call type
+  from memory items), `rules(...)`, `create_rule(...)`, `retire_rule(...)` and `restore_rule(...)`
+  (rules, notes and feedback comments), `validate_item(...)` (a developer's or tenant admin's
+  validation), `conversation_memory(...)` / `set_conversation_memory(...)` (each end user's own
+  earlier conversations; switching on is the workspace owner's, signed in) and
+  `set_retrieval(...)` (how memory picks examples; `None` goes back to picking by words only).
+  Storing a rule or a note is not idempotent, so `create_rule` is sent once unless
+  `options={"max_retries": n}` allows retries. The workspace's memory tenant setting is an
+  owner-session operation without a method. New public models: `ConversationMemory`,
+  `MemoryItemsSetting`, `MemoryItemValidation`, `MemoryRule`, `MemoryRuleList`, `MemoryRuleChange`,
+  `RetrievalRecipe` and their `...Params`; the `GivenBy` literal names who gives an item.
+- **Feedback right after an answer, and who gives it.** Feedback sent the moment an answer arrives
+  (`client.requests.feedback`), the generation lookup (`client.generation.get`) and an artifact
+  declared with `request_ids` can answer `503 request_not_landed` (retryable, `Retry-After: 2`)
+  while the gateway records the request; nothing is stored on the 503 and the SDK retries it.
+  `client.requests.feedback` gains `given_by` (`developer`, `tenant_admin` or `end_user`; the first
+  two are honoured only from an API key marked server-side) and `user` (the giver's end-user key;
+  the gateway stores only a digest); `Feedback` gains `giver_role` and `memory_item_id` (the memory
+  item a comment became when the workspace granted the corrections consent, or `None`). API keys
+  in key listings carry `serverSide` and `memoryTenantBound`.
 - New methods for the operations the synced API specification adds, each with an async twin:
   `client.call_types.episode_memory.evictions(...)` (the operations log), `.evict(...)` (evict,
   or erase with `erase=True`; `dry_run=True` counts only), `.import_pairs(...)` (approved pairs),
