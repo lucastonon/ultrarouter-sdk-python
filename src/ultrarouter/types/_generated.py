@@ -134,6 +134,8 @@ __all__ = [
     "ConfirmationStatus",
     "ConfirmationStatusAutoAdopt",
     "ContextModuleRefParam",
+    "ConversationMemory",
+    "ConversationMemoryParams",
     "CreateEmbeddingResponse",
     "CreateMessageParams",
     "CreateMessageResponse",
@@ -177,6 +179,7 @@ __all__ = [
     "EpisodeMemoryStatusScreen",
     "EpisodeMemoryStatusScreenByReason",
     "EpisodeMemoryStatusSetting",
+    "EpisodeMemoryStatusSettingItems",
     "EpisodeMemoryStatusSettingLessons",
     "EpisodeMemoryStatusSettingLessonsRecipe",
     "EpisodeMemoryStatusTraces",
@@ -313,10 +316,12 @@ __all__ = [
     "LearningPromotionParams",
     "LearningPromotionPolicy",
     "LearningReadLimitParams",
+    "LearningRetrievalParams",
     "LearningRollbackParams",
     "LearningStatus",
     "LearningStatusBudget",
     "LearningStatusEvidence",
+    "LearningStatusMemoryEncoder",
     "LearningStatusMemoryRead",
     "LearningStatusOutcomeReceipts",
     "LearningStatusRecipe",
@@ -340,6 +345,14 @@ __all__ = [
     "ManifestWireEntryParam",
     "ManifestWireParam",
     "ManifestWireRangeParam",
+    "MemoryItemValidateParams",
+    "MemoryItemValidation",
+    "MemoryItemsParams",
+    "MemoryItemsSetting",
+    "MemoryRule",
+    "MemoryRuleChange",
+    "MemoryRuleCreateParams",
+    "MemoryRuleList",
     "MoatNext",
     "MoatNextExperiment",
     "MoatNextExperimentAdmission",
@@ -423,6 +436,10 @@ __all__ = [
     "ResponseFormatJsonObjectParam",
     "ResponseFormatJsonSchemaParam",
     "ResponseFormatTextParam",
+    "RetrievalRecipe",
+    "RetrievalRecipeFusion",
+    "RetrievalRecipeParams",
+    "RetrievalRecipeParamsFusion",
     "ReviewerBackfillParams",
     "ReviewerBackfillProgress",
     "ReviewerDeadLetter",
@@ -794,6 +811,14 @@ class ArtifactFinalParams(TypedDict, total=False):
     final_hash: str
     """The final content hash (required on the no-consent metadata-only path)."""
 
+    given_by: Literal["developer", "tenant_admin", "end_user"]
+    """Who corrects. `developer` only from a dashboard session or an api key marked `server_side`, `tenant_admin` only from such a key; anything else is an end user. Decides how far the corrected answer may be served under memory items: a tenant admin’s opens to its tenant, an end user’s stays with its giver.
+    """
+
+    user: str
+    """The corrector’s end-user key (stored as a digest). Omitted: the corrected request’s own end user.
+    """
+
 
 class DiffStatsParams(TypedDict, total=False):
     """CLIENT-computed diff stats (the no-consent path; the SDK `diffStats` helper): numbers and the final hash only."""
@@ -944,7 +969,7 @@ class OutcomeReceiptRecordEpisode(BaseModel):
     reason: str | None
     """Why the episode is `not_recorded`, by name; null otherwise. `memory_off`: the call type records no episodes; `record_off`, `consent_off`, `retention_not_full`: recording, the corrections consent or full retention is off; `held_out`: the standing holdout withheld the request; `no_call_type`, `no_episode`: the request named no call type, or carried no task to record; `stream_cancelled`, `stream_error`, `stream_incomplete`: a streamed answer that the client cancelled, that failed, or that ended without a finish (a stream records only its complete answer); `erased_in_flight`: reserved, answered only under an experimental setting that is off by default; `answered_from_memory`: the gateway answered from verified memory, with no model call; `request_failed`: the request failed; `route_not_recorded`: a route that records no episodes (embeddings, the native routes, a preflight); `association_window_passed`: no episode held the request within 15 minutes; `end_user_erased`: the end user of the request was erased before its episode was recorded; `ambiguous_partition`, `ambiguous_request`: only for an episode recorded before request ids were always the gateway’s own — the episodes holding the id belong to different end users (or one without an identity sits beside a known one), or several episodes of one end user hold it; none takes the verdict.
 
-    Known values: ``memory_off``, ``no_call_type``, ``record_off``, ``consent_off``, ``retention_not_full``, ``held_out``, ``no_episode``, ``stream_cancelled``, ``stream_error``, ``stream_incomplete``, ``erased_in_flight``, ``answered_from_memory``, ``request_failed``, ``route_not_recorded``, ``association_window_passed``, ``ambiguous_partition``, ``ambiguous_request``, ``end_user_erased``.
+    Known values: ``memory_off``, ``no_call_type``, ``record_off``, ``consent_off``, ``retention_not_full``, ``held_out``, ``no_episode``, ``stream_cancelled``, ``stream_error``, ``stream_incomplete``, ``erased_in_flight``, ``answered_from_memory``, ``request_failed``, ``route_not_recorded``, ``partition_missing``, ``tenant_missing``, ``association_window_passed``, ``ambiguous_partition``, ``ambiguous_request``, ``end_user_erased``.
     """
 
     status: str
@@ -2933,6 +2958,9 @@ class EpisodeMemoryStatusSetting(BaseModel):
     index_actions: bool | None = None
     """Present only when true."""
 
+    items: EpisodeMemoryStatusSettingItems | None = None
+    """Present only when memory items are on (`PUT /v1/call-types/{id}/learning/items`)."""
+
     k: int
 
     learned_read_timeout_ms: int | None = None
@@ -2960,6 +2988,10 @@ class EpisodeMemoryStatusSetting(BaseModel):
 
     record: bool
 
+    retrieval: RetrievalRecipe | None = None
+    """Present only when retrieval by meaning is on (`PUT /v1/call-types/{id}/learning/retrieval`).
+    """
+
     retrieval_key: str | None = None
     """Present only when not the default `first_user_message`.
 
@@ -2967,7 +2999,8 @@ class EpisodeMemoryStatusSetting(BaseModel):
     """
 
     rule_version: str
-    """`epm1` — the pure rule version a stored setting is parsed under."""
+    """`epm1` — the pure rule version a stored setting is parsed under; `epm2` for a setting with `items` (a build that does not know items reads it as memory off).
+    """
 
     self_serve: bool | None = None
     """Present (true) only when learning was enabled self-serve through `POST /v1/call-types/{id}/learning/enable` — a published version is then a candidate. In evaluate mode it receives a randomized share of eligible episodes before the policy can make it the active version.
@@ -2982,6 +3015,65 @@ class EpisodeMemoryStatusSetting(BaseModel):
     source_call_type_id: str | None
 
 
+class EpisodeMemoryStatusSettingItems(BaseModel):
+    """Present only when memory items are on (`PUT /v1/call-types/{id}/learning/items`)."""
+
+    key: str
+    """Known values: ``conversation``."""
+
+    ranker: RetrievalRecipe
+    """A call type’s retrieval recipe (present only when retrieval by meaning is on)."""
+
+    switched_on_at: str
+
+    validation_first: bool
+
+
+class RetrievalRecipe(BaseModel):
+    """A call type’s retrieval recipe (present only when retrieval by meaning is on)."""
+
+    dense_floor: float
+    """The meaning similarity (cosine) that admits an example."""
+
+    dense_floor_slope: float | None = None
+    """How the meaning threshold moves per doubling of the vectors compared (absent ⇒ fixed)."""
+
+    encoder: str
+    """The static encoder: `sde1:<source revision>:<SHA-256 of the asset>`. Must be the encoder the gateway has loaded.
+    """
+
+    fusion: RetrievalRecipeFusion
+    """Rank-fusion weights of the keyword, meaning and exact-reference arms."""
+
+    lexical: str
+    """The keyword encoder (`lb14uni1`: Unicode words, the recommended one).
+
+    Known values: ``lb13s1lex1``, ``lb14uni1``.
+    """
+
+    lexical_floor: float
+    """The keyword similarity that admits an example."""
+
+    mode: str
+    """Retrieval by meaning AND by words (`lexical` blocks are not served).
+
+    Known values: ``hybrid``.
+    """
+
+    views: bool
+    """Index write-time alternative wordings too (not built yet: keep false)."""
+
+
+class RetrievalRecipeFusion(BaseModel):
+    """Rank-fusion weights of the keyword, meaning and exact-reference arms."""
+
+    dense: float
+
+    lexical: float
+
+    reference: float | None = None
+
+
 class EpisodeMemoryStatusSettingLessons(BaseModel):
     """Present only when the learned-playbook mode is not `off`."""
 
@@ -2994,6 +3086,12 @@ class EpisodeMemoryStatusSettingLessons(BaseModel):
 
     recipe: EpisodeMemoryStatusSettingLessonsRecipe | None = None
     """Present only for a non-legacy learner recipe (absent ⇒ the legacy learner)."""
+
+    selector: str | None = None
+    """Present only when set: how lessons are chosen (absent ⇒ today’s selector).
+
+    Known values: ``els1``, ``els2``.
+    """
 
     version_id: str | None
 
@@ -3437,6 +3535,10 @@ class EpisodeEvictionResultAlreadyErased(BaseModel):
 
     knowledge_facts: int
     """Knowledge facts whose content came from a final or a verified correction the erasure reached: retired (no longer read or served) and their text removed. A fact other end users also supported is retired whole and re-derived from what remains on the next learning pass.
+    """
+
+    memory_items: int
+    """Declared rules and notes the erased end user gave (memory items), in every call type; their validations and their key on corrections they gave go with them.
     """
 
     oracle_jobs: int
@@ -4189,6 +4291,10 @@ class LearningStatus(BaseModel):
 
     latest_candidate: LearningVersionRef | None
 
+    memory_encoder: LearningStatusMemoryEncoder | None = None
+    """The deployment’s memory encoder for retrieval by meaning (present on the gateway’s learning routes).
+    """
+
     memory_read: LearningStatusMemoryRead | None = None
     """Last 24 hours of completed hourly serving rollups; through is the bucket boundary, hourly refresh. The denominator eligible counts eligible TREATMENT requests only; holdout is separate and never counted as skips. Counts include served requests and skips specifically due to the read deadline. The current limit is 250 ms unless configured.
     """
@@ -4213,6 +4319,10 @@ class LearningStatus(BaseModel):
     """
 
     reflection: LearningStatusReflection
+
+    retrieval: RetrievalRecipe | None = None
+    """The call type’s retrieval recipe when retrieval by meaning is on; null when examples are chosen by words only.
+    """
 
     self_serve: bool
     """Enabled through this API (not a staff-granted study)."""
@@ -4548,6 +4658,21 @@ class LearningStatusEvidence(BaseModel):
     verified_pass: int
 
 
+class LearningStatusMemoryEncoder(BaseModel):
+    """The deployment’s memory encoder for retrieval by meaning (present on the gateway’s learning routes)."""
+
+    configured: bool
+    """The deployment names a memory encoder (retrieval by meaning can be served)."""
+
+    encoder: str | None
+    """The configured encoder’s id, as an explicit retrieval block names it; null when the gateway that answered could not load it.
+    """
+
+    reason: str | None = None
+    """Why `encoder` is null: `not_configured`, `sha256_missing`, `unreadable`, `sha256_mismatch` or `invalid`.
+    """
+
+
 class LearningStatusMemoryRead(BaseModel):
     """Last 24 hours of completed hourly serving rollups; through is the bucket boundary, hourly refresh. The denominator eligible counts eligible TREATMENT requests only; holdout is separate and never counted as skips. Counts include served requests and skips specifically due to the read deadline. The current limit is 250 ms unless configured."""
 
@@ -4770,6 +4895,73 @@ class LearningReadLimitParams(TypedDict, total=False):
 
     learned_read_timeout_ms: Required[int]
     """The default is 250 ms; lower it if your first-token latency matters more than memory. This is a ceiling, not a delay: a read completed in 3 ms costs 3 ms.
+    """
+
+
+class ConversationMemory(BaseModel):
+    """A call type’s conversation memory: the switch, what it does, and what it holds (counts only)."""
+
+    call_type_id: str
+
+    ceiling_characters: int
+    """The most the block adds to one request, in characters (about a quarter as many tokens)."""
+
+    changed: bool | None = None
+
+    config_version: int | None = None
+
+    consequence: str
+    """What switching on does, in one paragraph: read it before switching on."""
+
+    consequence_sha256: str
+    """Send it back as `acknowledged_consequence_sha256` to switch on."""
+
+    conversations: int
+    """Live recorded conversations of the call type (counts only)."""
+
+    enabled: bool
+
+    end_users: int
+    """Distinct end-user keys among them."""
+
+    k: int
+    """Earlier conversations served per turn (the value an enable writes when off)."""
+
+    largest_end_user_share: float | None
+    """The largest single key’s share of the conversations (0 to 1; null with none). Near 1 with many conversations: one key is probably shared by many people.
+    """
+
+    min_similarity: float
+
+    object: str
+    """Known values: ``conversation_memory``."""
+
+    retention_days: int
+    """The workspace’s retention window: memory remembers the last N days."""
+
+    user_field_identifies_person: bool
+
+
+class ConversationMemoryParams(TypedDict, total=False):
+    """Switch conversation memory on or off for a call type."""
+
+    acknowledged_consequence_sha256: str
+    """Required to switch on: the sha256 of the consequence sentence for these values (`consequence_sha256` of the GET with the same `k` and `user_field_identifies_person`). Anything else is refused 409 `consequence_not_acknowledged`, with the sentence.
+    """
+
+    enabled: Required[bool]
+    """Remember each end user’s conversations of this kind, for that end user only (true), or stop (false). Switching off stops recording and serving on the next request and deletes nothing.
+    """
+
+    k: int
+    """Earlier conversations served per turn, 1 to 5 (default 5)."""
+
+    min_similarity: float
+    """The keyword picker’s floor: an earlier conversation is served only when its similarity to the latest user turn reaches it (default 0: any shared word).
+    """
+
+    user_field_identifies_person: bool
+    """The OpenAI `user` field names ONE person, so it may key memory too (default false: only `ur.memory_partition` or the `X-UR-Memory-Partition` header key a conversation).
     """
 
 
@@ -5028,12 +5220,234 @@ class LearningEvaluationList(BaseModel):
     """Known values: ``list``."""
 
 
+class MemoryItemsSetting(BaseModel):
+    """A call type’s memory-items switch."""
+
+    call_type_id: str
+
+    changed: bool | None = None
+
+    dense_floor: float | None
+    """Null = floors off."""
+
+    enabled: bool
+
+    key: str | None
+    """What a request is matched on (null when off).
+
+    Known values: ``conversation``.
+    """
+
+    object: str
+    """Known values: ``learning_items``."""
+
+    switched_on_at: str | None
+
+    validation_first: bool
+
+
+class MemoryItemsParams(TypedDict, total=False):
+    """Switch memory items on or off for a call type."""
+
+    dense_floor: float | None
+    """The ranker’s meaning floor: an item is served only when its best cosine reaches it. Null or omitted: off (every ranked item may be served, the measured default). The measured alternative is 0.20.
+    """
+
+    enabled: Required[bool]
+    """Serve this call type from memory items (true) or as before (false). Switching on records the instant: only items stored at or after it are served.
+    """
+
+    validation_first: bool
+    """A tenant admin’s own item waits for a validation before anyone else sees it (default false).
+    """
+
+
+class MemoryItemValidateParams(TypedDict, total=False):
+    """Validate an item: opens it to its own tenant (never further in stop 1)."""
+
+    given_by: Literal["developer", "tenant_admin", "end_user"]
+    """Who gives this. `developer` is honoured only from a dashboard session or an api key marked `server_side`; `tenant_admin` only from an api key marked `server_side`; anything else is recorded as `end_user`, the role whose items stay with their giver. Omitted: a session is a developer, any api key an end user.
+    """
+
+    tenant: str
+    """The validating tenant admin’s tenant, when the setting is `metadata:<key>` (under `api_key` the key’s tenant).
+    """
+
+    user: str
+    """The validating tenant admin’s end-user key (a tenant admin never validates their own item).
+    """
+
+
+class MemoryItemValidation(BaseModel):
+    """A recorded validation."""
+
+    created_at: str
+
+    id: str
+    """`miv_…`."""
+
+    item_id: str
+    """The validated item: a rule or note (`mit_…`) or a corrected trace (`ept_…`)."""
+
+    object: str
+    """Known values: ``memory_item_validation``."""
+
+    role: str
+    """Known values: ``developer``, ``tenant_admin``."""
+
+
+class LearningRetrievalParams(TypedDict, total=False):
+    """Set or clear the retrieval recipe of an existing memory setting; nothing else changes. config:write or owner/admin session. Appends a config version (visible within 5 seconds) and audits the before and after recipe."""
+
+    lessons_selector: Literal["els1", "els2"]
+    """How lessons are chosen. `els2` (by situation, with meaning) is not served yet and is refused by name; `els1` is today’s selector.
+    """
+
+    retrieval: Required[Literal["recommended"] | RetrievalRecipeParams | None]
+    """`recommended`: the measured recipe (`SDE1_RECOMMENDED_RETRIEVAL`) for the deployment’s encoder (it sets a similarity floor to 0). An explicit block: that recipe (its encoder must be the one the deployment configures, `memory_encoder.encoder` in the learning status). `null`: back to retrieval by words only.
+    """
+
+
+class RetrievalRecipeParams(TypedDict, total=False):
+    """A call type’s retrieval recipe (present only when retrieval by meaning is on)."""
+
+    dense_floor: Required[float]
+    """The meaning similarity (cosine) that admits an example."""
+
+    dense_floor_slope: float
+    """How the meaning threshold moves per doubling of the vectors compared (absent ⇒ fixed)."""
+
+    encoder: Required[str]
+    """The static encoder: `sde1:<source revision>:<SHA-256 of the asset>`. Must be the encoder the gateway has loaded.
+    """
+
+    fusion: Required[RetrievalRecipeParamsFusion]
+    """Rank-fusion weights of the keyword, meaning and exact-reference arms."""
+
+    lexical: Required[Literal["lb13s1lex1", "lb14uni1"]]
+    """The keyword encoder (`lb14uni1`: Unicode words, the recommended one)."""
+
+    lexical_floor: Required[float]
+    """The keyword similarity that admits an example."""
+
+    mode: Required[Literal["hybrid"]]
+    """Retrieval by meaning AND by words (`lexical` blocks are not served)."""
+
+    views: Required[bool]
+    """Index write-time alternative wordings too (not built yet: keep false)."""
+
+
+class RetrievalRecipeParamsFusion(TypedDict, total=False):
+    """Rank-fusion weights of the keyword, meaning and exact-reference arms."""
+
+    dense: Required[float]
+
+    lexical: Required[float]
+
+    reference: float
+
+
 class LearningRollbackParams(TypedDict, total=False):
     """Roll the active pointer back to an earlier immutable version."""
 
     version_id: str
     """The EARLIER version to make active (`epb_…`). Omitted: the version that was active immediately before the current one.
     """
+
+
+class MemoryRuleList(BaseModel):
+    """The call type’s rules and notes (and every-kind ones), newest first; a tenant-bound key sees its tenant’s only."""
+
+    data: list[MemoryRule]
+
+    object: str
+    """Known values: ``list``."""
+
+
+class MemoryRule(BaseModel):
+    """One memory item: a declared rule or note, or a comment on an answer."""
+
+    call_type_id: str | None
+    """The kind it serves; null = every kind."""
+
+    created_at: str
+
+    expires_at: str | None
+    """When it is deleted (an end user’s or a tenant admin’s words: the corrections retention window); null = kept.
+    """
+
+    giver_role: str
+    """The role the call’s claim resolved to.
+
+    Known values: ``developer``, ``tenant_admin``, ``end_user``.
+    """
+
+    has_vectors: bool
+    """Its meaning vector was made at write time."""
+
+    id: str
+    """`mit_…`."""
+
+    named_tenant: bool
+    """A developer restricted it to one named tenant."""
+
+    object: str
+    """Known values: ``memory_item``."""
+
+    request_id: str | None
+    """The request a comment is attached to; null for a rule or a note."""
+
+    retired_at: str | None
+
+    sort: str
+    """`rule` or `note` (declared here), or `comment` (a comment sent with the feedback call, attached to its request).
+
+    Known values: ``rule``, ``note``, ``comment``.
+    """
+
+    tenant_scoped: bool
+    """Given in a tenant (its reach stops there unless it is a developer’s own words)."""
+
+    text: str
+    """The giver’s own words."""
+
+    text_sha256: str
+
+
+class MemoryRuleCreateParams(TypedDict, total=False):
+    """Declare a rule or a note."""
+
+    every_kind: bool
+    """Serve it to every kind of call of the workspace (default false: only this call type, the path’s `id`).
+    """
+
+    given_by: Literal["developer", "tenant_admin", "end_user"]
+    """Who gives this. `developer` is honoured only from a dashboard session or an api key marked `server_side`; `tenant_admin` only from an api key marked `server_side`; anything else is recorded as `end_user`, the role whose items stay with their giver. Omitted: a session is a developer, any api key an end user.
+    """
+
+    sort: Literal["rule", "note"]
+    """`rule` (a standing instruction, the default) or `note` (a standing fact)."""
+
+    tenant: str
+    """For a developer: the ONE tenant the item is restricted to (omit to serve every tenant). For a tenant admin or an end user: the tenant they give in, when the setting is `metadata:<key>` (under `api_key` the key’s tenant is used). Stored as a digest.
+    """
+
+    text: Required[str]
+    """The rule or note in the giver’s own words (served verbatim; never rewritten)."""
+
+    user: str
+    """The giver’s end-user key, as the requests carry it (`ur.memory_partition`, `X-UR-Memory-Partition` or `user`); stored only as a digest (`epp1_…`). The giver is always served their own item.
+    """
+
+
+class MemoryRuleChange(BaseModel):
+    """A retired or restored item (a rule, a note or a comment)."""
+
+    changed: bool
+    """False when the item was already in the asked state."""
+
+    item: MemoryRule
+    """One memory item: a declared rule or note, or a comment on an answer."""
 
 
 class LearningToolDocumentation(BaseModel):
@@ -10633,13 +11047,22 @@ class FeedbackCreateParams(TypedDict, total=False):
     """Human feedback on a prior request."""
 
     comment: str
-    """Optional free-text comment."""
+    """Optional free-text comment on the answer. When the workspace has granted the corrections consent, a comment with words of its own also becomes a memory item attached to this request (`memory_item_id`), served only to the requests its giver and tenant allow while the call type serves memory items, and deleted after the corrections retention window.
+    """
+
+    given_by: Literal["developer", "tenant_admin", "end_user"]
+    """Who gives this feedback. `developer` or `tenant_admin` is honoured only from an api key marked `server_side`; anything else is recorded as `end_user`.
+    """
 
     rating: Required[Literal[1] | Literal[-1]]
     """Thumbs up (1) or thumbs down (-1) — the human feedback signal evals consume."""
 
     tags: list[str]
     """Optional free-form tags (e.g. "hallucination", "great")."""
+
+    user: str
+    """The giver’s end-user key, as requests carry it (`ur.memory_partition`, `X-UR-Memory-Partition` or `user`); stored only as a digest. Omitted: an end user’s comment is the request’s own end user’s.
+    """
 
 
 class FeedbackEnvelope(BaseModel):
@@ -10656,7 +11079,17 @@ class Feedback(BaseModel):
 
     created_at: str
 
+    giver_role: str | None
+    """The role `given_by` resolved to (null on feedback stored before it existed).
+
+    Known values: ``developer``, ``tenant_admin``, ``end_user``.
+    """
+
     id: str
+
+    memory_item_id: str | None
+    """The memory item the comment became (`mit_…`): validate, retire or restore it under `/v1/call-types/{id}/learning/`. Null when none was stored (no comment, no corrections consent).
+    """
 
     object: str
     """Known values: ``request_feedback``."""
@@ -10851,6 +11284,9 @@ for _model in (
     EpisodeMemoryStatusScreen,
     EpisodeMemoryStatusScreenByReason,
     EpisodeMemoryStatusSetting,
+    EpisodeMemoryStatusSettingItems,
+    RetrievalRecipe,
+    RetrievalRecipeFusion,
     EpisodeMemoryStatusSettingLessons,
     EpisodeMemoryStatusSettingLessonsRecipe,
     EpisodeMemoryStatusTraces,
@@ -10894,6 +11330,7 @@ for _model in (
     LearningEvaluationObservedArmsCandidate,
     LearningEvaluationRule,
     LearningStatusEvidence,
+    LearningStatusMemoryEncoder,
     LearningStatusMemoryRead,
     LearningStatusOutcomeReceipts,
     LearningPromotionPolicy,
@@ -10904,6 +11341,7 @@ for _model in (
     LearningStatusReflectionProvider,
     LearningStatusServingStopped,
     LearningStatusUsage,
+    ConversationMemory,
     LearningCost,
     LearningCostCache,
     LearningCostMemoryOverhead,
@@ -10915,6 +11353,11 @@ for _model in (
     LearningCostRepairLoopCoverage,
     LearningControl,
     LearningEvaluationList,
+    MemoryItemsSetting,
+    MemoryItemValidation,
+    MemoryRuleList,
+    MemoryRule,
+    MemoryRuleChange,
     LearningToolDocumentation,
     LearningToolDocumentationTool,
     LearningToolDocumentationToolDocumentedItem,
@@ -11270,6 +11713,18 @@ OPERATIONS: dict[str, tuple[str, str, str | None, str | None]] = {
         "LearningReadLimitParams",
         "LearningStatus",
     ),
+    "getConversationMemory": (
+        "GET",
+        "/v1/call-types/{id}/learning/conversation-memory",
+        None,
+        "ConversationMemory",
+    ),
+    "putConversationMemory": (
+        "PUT",
+        "/v1/call-types/{id}/learning/conversation-memory",
+        "ConversationMemoryParams",
+        "ConversationMemory",
+    ),
     "getLearningCost": ("GET", "/v1/call-types/{id}/learning/cost", None, "LearningCost"),
     "disableLearning": ("POST", "/v1/call-types/{id}/learning/disable", None, "LearningControl"),
     "enableLearning": (
@@ -11284,13 +11739,51 @@ OPERATIONS: dict[str, tuple[str, str, str | None, str | None]] = {
         None,
         "LearningEvaluationList",
     ),
+    "getLearningItems": ("GET", "/v1/call-types/{id}/learning/items", None, "MemoryItemsSetting"),
+    "putLearningItems": (
+        "PUT",
+        "/v1/call-types/{id}/learning/items",
+        "MemoryItemsParams",
+        "MemoryItemsSetting",
+    ),
+    "validateMemoryItem": (
+        "POST",
+        "/v1/call-types/{id}/learning/items/{item_id}/validate",
+        "MemoryItemValidateParams",
+        "MemoryItemValidation",
+    ),
     "pauseLearning": ("POST", "/v1/call-types/{id}/learning/pause", None, "LearningControl"),
     "resumeLearning": ("POST", "/v1/call-types/{id}/learning/resume", None, "LearningControl"),
+    "setLearningRetrieval": (
+        "PUT",
+        "/v1/call-types/{id}/learning/retrieval",
+        "LearningRetrievalParams",
+        "LearningStatus",
+    ),
     "rollbackLearning": (
         "POST",
         "/v1/call-types/{id}/learning/rollback",
         "LearningRollbackParams",
         "LearningControl",
+    ),
+    "listMemoryRules": ("GET", "/v1/call-types/{id}/learning/rules", None, "MemoryRuleList"),
+    "createMemoryRule": (
+        "POST",
+        "/v1/call-types/{id}/learning/rules",
+        "MemoryRuleCreateParams",
+        "MemoryRule",
+    ),
+    "restoreMemoryRule": (
+        "POST",
+        "/v1/call-types/{id}/learning/rules/{item_id}/restore",
+        None,
+        "MemoryRuleChange",
+    ),
+    "retireMemoryRule": (
+        "POST",
+        "/v1/call-types/{id}/learning/rules/{item_id}/retire",
+        None,
+        "MemoryRuleChange",
     ),
     "getLearningToolDocumentation": (
         "GET",

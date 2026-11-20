@@ -131,6 +131,8 @@ Record the human-approved final output version (the correction channel).
 | `draft` | `str` | no | The draft body — used ONLY to compute server-side diff_stats under consent. |
 | `final` | `str` | no | The final body — stored ONLY under corrections_consent. |
 | `final_hash` | `str` | no | The final content hash (required on the no-consent metadata-only path). |
+| `given_by` | `Literal['developer', 'tenant_admin', 'end_user']` | no | Who corrects. `developer` only from a dashboard session or an api key marked `server_side`, `tenant_admin` only from such a key; anything else is an end user. Decides how far the corrected answer may be served under memory items: a tenant admin’s opens to its tenant, an end user’s stays with its giver. |
+| `user` | `str` | no | The corrector’s end-user key (stored as a digest). Omitted: the corrected request’s own end user. |
 
 ### ArtifactList
 
@@ -1995,6 +1997,44 @@ A pinned learned-context module reference.
 | `module_id` | `Required[str]` | no | The learned-context module id (`lcm_…`). |
 | `module_version` | `Required[str]` | no | The PINNED module version — the recipe hash (`lcm1_…`). |
 
+### ConversationMemory
+
+*response model*
+
+A call type’s conversation memory: the switch, what it does, and what it holds (counts only).
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `call_type_id` | `str` | yes |  |
+| `ceiling_characters` | `int` | yes | The most the block adds to one request, in characters (about a quarter as many tokens). |
+| `changed` | `bool \| None` | no |  |
+| `config_version` | `int \| None` | no |  |
+| `consequence` | `str` | yes | What switching on does, in one paragraph: read it before switching on. |
+| `consequence_sha256` | `str` | yes | Send it back as `acknowledged_consequence_sha256` to switch on. |
+| `conversations` | `int` | yes | Live recorded conversations of the call type (counts only). |
+| `enabled` | `bool` | yes |  |
+| `end_users` | `int` | yes | Distinct end-user keys among them. |
+| `k` | `int` | yes | Earlier conversations served per turn (the value an enable writes when off). |
+| `largest_end_user_share` | `float \| None` | yes | The largest single key’s share of the conversations (0 to 1; null with none). Near 1 with many conversations: one key is probably shared by many people. |
+| `min_similarity` | `float` | yes |  |
+| `object` | `str` | yes | Known values: ``conversation_memory``. |
+| `retention_days` | `int` | yes | The workspace’s retention window: memory remembers the last N days. |
+| `user_field_identifies_person` | `bool` | yes |  |
+
+### ConversationMemoryParams
+
+*request shape (TypedDict)*
+
+Switch conversation memory on or off for a call type.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `acknowledged_consequence_sha256` | `str` | no | Required to switch on: the sha256 of the consequence sentence for these values (`consequence_sha256` of the GET with the same `k` and `user_field_identifies_person`). Anything else is refused 409 `consequence_not_acknowledged`, with the sentence. |
+| `enabled` | `Required[bool]` | no | Remember each end user’s conversations of this kind, for that end user only (true), or stop (false). Switching off stops recording and serving on the next request and deletes nothing. |
+| `k` | `int` | no | Earlier conversations served per turn, 1 to 5 (default 5). |
+| `min_similarity` | `float` | no | The keyword picker’s floor: an earlier conversation is served only when its similarity to the latest user turn reaches it (default 0: any shared word). |
+| `user_field_identifies_person` | `bool` | no | The OpenAI `user` field names ONE person, so it may key memory too (default false: only `ur.memory_partition` or the `X-UR-Memory-Partition` header key a conversation). |
+
 ### CreateEmbeddingResponse
 
 *response model*
@@ -2250,6 +2290,7 @@ Per store, for an erasure: rows it reached that an earlier erasure had already e
 | `import_execution_calls` | `int` | yes | Imported workflow calls recorded against a request the erasure reached, their bodies removed. |
 | `import_records` | `int` | yes | Imported records and executions on an artifact the erasure reached, their bodies removed. |
 | `knowledge_facts` | `int` | yes | Knowledge facts whose content came from a final or a verified correction the erasure reached: retired (no longer read or served) and their text removed. A fact other end users also supported is retired whole and re-derived from what remains on the next learning pass. |
+| `memory_items` | `int` | yes | Declared rules and notes the erased end user gave (memory items), in every call type; their validations and their key on corrections they gave go with them. |
 | `oracle_jobs` | `int` | yes | Verification jobs on a request the erasure reached, their payload removed. |
 | `outcome_details` | `int` | yes | Outcome details (a reason you sent with an edited or rejected outcome) for those requests, their text and its fingerprints removed (the detail keeps its length). |
 | `outcome_receipts` | `int` | yes | Outcome reports received for those requests, kept as a marker with `status: erased` and their input removed. |
@@ -2652,6 +2693,7 @@ The frozen episode-memory setting on a call-type config version.
 | `framing` | `str \| None` | no | Present only when not the default `reuse`.  Known values: ``reuse``, ``adapt``. |
 | `importance_boost` | `float \| None` | no | Present only when set (not 0). |
 | `index_actions` | `bool \| None` | no | Present only when true. |
+| `items` | `EpisodeMemoryStatusSettingItems \| None` | no | Present only when memory items are on (`PUT /v1/call-types/{id}/learning/items`). |
 | `k` | `int` | yes |  |
 | `learned_read_timeout_ms` | `int \| None` | no | The shared learned-memory read deadline in milliseconds (25..2000, default 250). A ceiling, not a delay: a read completed in 3 ms costs 3 ms. Bounds latency before the first token. Skips carry refusal fell_back on the receipt; GET learning reports the last 24 hours of completed hourly buckets. The default is 250 ms; lower it if your first-token latency matters more than memory. |
 | `lessons` | `EpisodeMemoryStatusSettingLessons \| None` | no | Present only when the learned-playbook mode is not `off`. |
@@ -2661,12 +2703,26 @@ The frozen episode-memory setting on a call-type config version.
 | `observation_chars` | `int` | yes |  |
 | `prefer_shorter` | `bool \| None` | no | Present only when true. |
 | `record` | `bool` | yes |  |
+| `retrieval` | `RetrievalRecipe \| None` | no | Present only when retrieval by meaning is on (`PUT /v1/call-types/{id}/learning/retrieval`). |
 | `retrieval_key` | `str \| None` | no | Present only when not the default `first_user_message`.  Known values: ``first_user_message``, ``content_lines``. |
-| `rule_version` | `str` | yes | `epm1` — the pure rule version a stored setting is parsed under. |
+| `rule_version` | `str` | yes | `epm1` — the pure rule version a stored setting is parsed under; `epm2` for a setting with `items` (a build that does not know items reads it as memory off). |
 | `self_serve` | `bool \| None` | no | Present (true) only when learning was enabled self-serve through `POST /v1/call-types/{id}/learning/enable` — a published version is then a candidate. In evaluate mode it receives a randomized share of eligible episodes before the policy can make it the active version. |
 | `serve_corrections` | `bool \| None` | no | Present only when true. |
 | `show_mistake` | `bool \| None` | no | Present only when true. |
 | `source_call_type_id` | `str \| None` | yes |  |
+
+### EpisodeMemoryStatusSettingItems
+
+*response model*
+
+Present only when memory items are on (`PUT /v1/call-types/{id}/learning/items`).
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `key` | `str` | yes | Known values: ``conversation``. |
+| `ranker` | `RetrievalRecipe` | yes | A call type’s retrieval recipe (present only when retrieval by meaning is on). |
+| `switched_on_at` | `str` | yes |  |
+| `validation_first` | `bool` | yes |  |
 
 ### EpisodeMemoryStatusSettingLessons
 
@@ -2680,6 +2736,7 @@ Present only when the learned-playbook mode is not `off`.
 | `k` | `int` | yes |  |
 | `mode` | `str` | yes | Known values: ``off``, ``only``, ``with_precedents``. |
 | `recipe` | `EpisodeMemoryStatusSettingLessonsRecipe \| None` | no | Present only for a non-legacy learner recipe (absent ⇒ the legacy learner). |
+| `selector` | `str \| None` | no | Present only when set: how lessons are chosen (absent ⇒ today’s selector).  Known values: ``els1``, ``els2``. |
 | `version_id` | `str \| None` | yes |  |
 
 ### EpisodeMemoryStatusSettingLessonsRecipe
@@ -3552,7 +3609,9 @@ A stored feedback row.
 | --- | --- | --- | --- |
 | `comment` | `str \| None` | yes |  |
 | `created_at` | `str` | yes |  |
+| `giver_role` | `str \| None` | yes | The role `given_by` resolved to (null on feedback stored before it existed).  Known values: ``developer``, ``tenant_admin``, ``end_user``. |
 | `id` | `str` | yes |  |
+| `memory_item_id` | `str \| None` | yes | The memory item the comment became (`mit_…`): validate, retire or restore it under `/v1/call-types/{id}/learning/`. Null when none was stored (no comment, no corrections consent). |
 | `object` | `str` | yes | Known values: ``request_feedback``. |
 | `rating` | `float` | yes |  |
 | `request_id` | `str` | yes |  |
@@ -3566,9 +3625,11 @@ Human feedback on a prior request.
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `comment` | `str` | no | Optional free-text comment. |
+| `comment` | `str` | no | Optional free-text comment on the answer. When the workspace has granted the corrections consent, a comment with words of its own also becomes a memory item attached to this request (`memory_item_id`), served only to the requests its giver and tenant allow while the call type serves memory items, and deleted after the corrections retention window. |
+| `given_by` | `Literal['developer', 'tenant_admin', 'end_user']` | no | Who gives this feedback. `developer` or `tenant_admin` is honoured only from an api key marked `server_side`; anything else is recorded as `end_user`. |
 | `rating` | `Required[Literal[1] \| Literal[-1]]` | no | Thumbs up (1) or thumbs down (-1) — the human feedback signal evals consume. |
 | `tags` | `list[str]` | no | Optional free-form tags (e.g. "hallucination", "great"). |
+| `user` | `str` | no | The giver’s end-user key, as requests carry it (`ur.memory_partition`, `X-UR-Memory-Partition` or `user`); stored only as a digest. Omitted: an end user’s comment is the request’s own end user’s. |
 
 ### FeedbackEnvelope
 
@@ -4750,6 +4811,17 @@ Change only the learned read limit on an existing memory setting. 25..2000 ms; c
 | --- | --- | --- | --- |
 | `learned_read_timeout_ms` | `Required[int]` | no | The default is 250 ms; lower it if your first-token latency matters more than memory. This is a ceiling, not a delay: a read completed in 3 ms costs 3 ms. |
 
+### LearningRetrievalParams
+
+*request shape (TypedDict)*
+
+Set or clear the retrieval recipe of an existing memory setting; nothing else changes. config:write or owner/admin session. Appends a config version (visible within 5 seconds) and audits the before and after recipe.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `lessons_selector` | `Literal['els1', 'els2']` | no | How lessons are chosen. `els2` (by situation, with meaning) is not served yet and is refused by name; `els1` is today’s selector. |
+| `retrieval` | `Required[Literal['recommended'] \| RetrievalRecipeParams \| None]` | no | `recommended`: the measured recipe (`SDE1_RECOMMENDED_RETRIEVAL`) for the deployment’s encoder (it sets a similarity floor to 0). An explicit block: that recipe (its encoder must be the one the deployment configures, `memory_encoder.encoder` in the learning status). `null`: back to retrieval by words only. |
+
 ### LearningRollbackParams
 
 *request shape (TypedDict)*
@@ -4780,6 +4852,7 @@ A call type’s learning status.
 | `governed` | `bool` | yes | Uses a configured promotion policy. In evaluate mode, candidates receive a randomized share of eligible episodes before any active-version change. |
 | `last_evaluation` | `LearningEvaluation \| None` | yes | The newest evaluation (any decision). |
 | `latest_candidate` | `LearningVersionRef \| None` | yes |  |
+| `memory_encoder` | `LearningStatusMemoryEncoder \| None` | no | The deployment’s memory encoder for retrieval by meaning (present on the gateway’s learning routes). |
 | `memory_read` | `LearningStatusMemoryRead \| None` | no | Last 24 hours of completed hourly serving rollups; through is the bucket boundary, hourly refresh. The denominator eligible counts eligible TREATMENT requests only; holdout is separate and never counted as skips. Counts include served requests and skips specifically due to the read deadline. The current limit is 250 ms unless configured. |
 | `object` | `str` | yes | Known values: ``learning``. |
 | `outcome_receipts` | `LearningStatusOutcomeReceipts` | yes | Outcome receipts (`POST /v1/requests/{id}/outcomes`) attributed to this call type’s requests, by state: a receipt counts once its request or its episode has been recorded for the call type. Settled receipts are counted until they are purged (30 days). |
@@ -4788,6 +4861,7 @@ A call type’s learning status.
 | `reason` | `str` | yes | A bounded code explaining the state. |
 | `recipe` | `LearningStatusRecipe \| None` | yes | The learner recipe the next reflection runs, read from the call type’s episode-memory setting (the one place it lives); null when the call type has no explicit setting. |
 | `reflection` | `LearningStatusReflection` | yes |  |
+| `retrieval` | `RetrievalRecipe \| None` | no | The call type’s retrieval recipe when retrieval by meaning is on; null when examples are chosen by words only. |
 | `self_serve` | `bool` | yes | Enabled through this API (not a staff-granted study). |
 | `serving_stopped` | `LearningStatusServingStopped \| None` | yes | Set while the call type serves NO lessons because an erasure cleared its active version (precedents still serve). It clears when a version is activated again: promote one with `POST /v1/call-types/{id}/learning/versions/{version_id}/promote`. Null otherwise. |
 | `state` | `str` | yes | `collecting` (enabled, waiting for evidence), `learning` (a reflection is due or an evaluation runs), `paused`, `disabled` (the kill switch), `unavailable` (consent, provider or repeated failures), `quota_exhausted` / `budget_exhausted` (refused for resources — retried with backoff), `off`. With lessons off and precedent memory serving, the state is the memory stage’s: `serving`, `stalled`, `not_a_fit` or `collecting` (never `off`). New values may be added: a client must accept a state it does not know and treat it as `collecting`.  Known values: ``off``, ``collecting``, ``learning``, ``paused``, ``disabled``, ``unavailable``, ``quota_exhausted``, ``budget_exhausted``, ``serving``, ``stalled``, ``not_a_fit``. |
@@ -4825,6 +4899,18 @@ Evidence arrived vs verified vs incorporated vs pending.
 | `verified` | `int` | yes |  |
 | `verified_fail` | `int` | yes |  |
 | `verified_pass` | `int` | yes |  |
+
+### LearningStatusMemoryEncoder
+
+*response model*
+
+The deployment’s memory encoder for retrieval by meaning (present on the gateway’s learning routes).
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `configured` | `bool` | yes | The deployment names a memory encoder (retrieval by meaning can be served). |
+| `encoder` | `str \| None` | yes | The configured encoder’s id, as an explicit retrieval block names it; null when the gateway that answered could not load it. |
+| `reason` | `str \| None` | no | Why `encoder` is null: `not_configured`, `sha256_missing`, `unreadable`, `sha256_mismatch` or `invalid`. |
 
 ### LearningStatusMemoryRead
 
@@ -5178,6 +5264,121 @@ The exact declared range; absent for an opaque part hashed over canonical JSON.
 | `message_index` | `Required[int]` | no | Index into the `messages` array. |
 | `part_index` | `int` | no | Index into a multi-part message content array (omit for string content). |
 | `start` | `Required[int]` | no | Span start (UTF-16 code-unit offset). |
+
+### MemoryItemsParams
+
+*request shape (TypedDict)*
+
+Switch memory items on or off for a call type.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `dense_floor` | `float \| None` | no | The ranker’s meaning floor: an item is served only when its best cosine reaches it. Null or omitted: off (every ranked item may be served, the measured default). The measured alternative is 0.20. |
+| `enabled` | `Required[bool]` | no | Serve this call type from memory items (true) or as before (false). Switching on records the instant: only items stored at or after it are served. |
+| `validation_first` | `bool` | no | A tenant admin’s own item waits for a validation before anyone else sees it (default false). |
+
+### MemoryItemsSetting
+
+*response model*
+
+A call type’s memory-items switch.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `call_type_id` | `str` | yes |  |
+| `changed` | `bool \| None` | no |  |
+| `dense_floor` | `float \| None` | yes | Null = floors off. |
+| `enabled` | `bool` | yes |  |
+| `key` | `str \| None` | yes | What a request is matched on (null when off).  Known values: ``conversation``. |
+| `object` | `str` | yes | Known values: ``learning_items``. |
+| `switched_on_at` | `str \| None` | yes |  |
+| `validation_first` | `bool` | yes |  |
+
+### MemoryItemValidateParams
+
+*request shape (TypedDict)*
+
+Validate an item: opens it to its own tenant (never further in stop 1).
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `given_by` | `Literal['developer', 'tenant_admin', 'end_user']` | no | Who gives this. `developer` is honoured only from a dashboard session or an api key marked `server_side`; `tenant_admin` only from an api key marked `server_side`; anything else is recorded as `end_user`, the role whose items stay with their giver. Omitted: a session is a developer, any api key an end user. |
+| `tenant` | `str` | no | The validating tenant admin’s tenant, when the setting is `metadata:<key>` (under `api_key` the key’s tenant). |
+| `user` | `str` | no | The validating tenant admin’s end-user key (a tenant admin never validates their own item). |
+
+### MemoryItemValidation
+
+*response model*
+
+A recorded validation.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `created_at` | `str` | yes |  |
+| `id` | `str` | yes | `miv_…`. |
+| `item_id` | `str` | yes | The validated item: a rule or note (`mit_…`) or a corrected trace (`ept_…`). |
+| `object` | `str` | yes | Known values: ``memory_item_validation``. |
+| `role` | `str` | yes | Known values: ``developer``, ``tenant_admin``. |
+
+### MemoryRule
+
+*response model*
+
+One memory item: a declared rule or note, or a comment on an answer.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `call_type_id` | `str \| None` | yes | The kind it serves; null = every kind. |
+| `created_at` | `str` | yes |  |
+| `expires_at` | `str \| None` | yes | When it is deleted (an end user’s or a tenant admin’s words: the corrections retention window); null = kept. |
+| `giver_role` | `str` | yes | The role the call’s claim resolved to.  Known values: ``developer``, ``tenant_admin``, ``end_user``. |
+| `has_vectors` | `bool` | yes | Its meaning vector was made at write time. |
+| `id` | `str` | yes | `mit_…`. |
+| `named_tenant` | `bool` | yes | A developer restricted it to one named tenant. |
+| `object` | `str` | yes | Known values: ``memory_item``. |
+| `request_id` | `str \| None` | yes | The request a comment is attached to; null for a rule or a note. |
+| `retired_at` | `str \| None` | yes |  |
+| `sort` | `str` | yes | `rule` or `note` (declared here), or `comment` (a comment sent with the feedback call, attached to its request).  Known values: ``rule``, ``note``, ``comment``. |
+| `tenant_scoped` | `bool` | yes | Given in a tenant (its reach stops there unless it is a developer’s own words). |
+| `text` | `str` | yes | The giver’s own words. |
+| `text_sha256` | `str` | yes |  |
+
+### MemoryRuleChange
+
+*response model*
+
+A retired or restored item (a rule, a note or a comment).
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `changed` | `bool` | yes | False when the item was already in the asked state. |
+| `item` | `MemoryRule` | yes | One memory item: a declared rule or note, or a comment on an answer. |
+
+### MemoryRuleCreateParams
+
+*request shape (TypedDict)*
+
+Declare a rule or a note.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `every_kind` | `bool` | no | Serve it to every kind of call of the workspace (default false: only this call type, the path’s `id`). |
+| `given_by` | `Literal['developer', 'tenant_admin', 'end_user']` | no | Who gives this. `developer` is honoured only from a dashboard session or an api key marked `server_side`; `tenant_admin` only from an api key marked `server_side`; anything else is recorded as `end_user`, the role whose items stay with their giver. Omitted: a session is a developer, any api key an end user. |
+| `sort` | `Literal['rule', 'note']` | no | `rule` (a standing instruction, the default) or `note` (a standing fact). |
+| `tenant` | `str` | no | For a developer: the ONE tenant the item is restricted to (omit to serve every tenant). For a tenant admin or an end user: the tenant they give in, when the setting is `metadata:<key>` (under `api_key` the key’s tenant is used). Stored as a digest. |
+| `text` | `Required[str]` | no | The rule or note in the giver’s own words (served verbatim; never rewritten). |
+| `user` | `str` | no | The giver’s end-user key, as the requests carry it (`ur.memory_partition`, `X-UR-Memory-Partition` or `user`); stored only as a digest (`epp1_…`). The giver is always served their own item. |
+
+### MemoryRuleList
+
+*response model*
+
+The call type’s rules and notes (and every-kind ones), newest first; a tenant-bound key sees its tenant’s only.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `data` | `list[MemoryRule]` | yes |  |
+| `object` | `str` | yes | Known values: ``list``. |
 
 ### MoatNext
 
@@ -5907,7 +6108,7 @@ The episode association of an applied teaching outcome.
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `reason` | `str \| None` | yes | Why the episode is `not_recorded`, by name; null otherwise. `memory_off`: the call type records no episodes; `record_off`, `consent_off`, `retention_not_full`: recording, the corrections consent or full retention is off; `held_out`: the standing holdout withheld the request; `no_call_type`, `no_episode`: the request named no call type, or carried no task to record; `stream_cancelled`, `stream_error`, `stream_incomplete`: a streamed answer that the client cancelled, that failed, or that ended without a finish (a stream records only its complete answer); `erased_in_flight`: reserved, answered only under an experimental setting that is off by default; `answered_from_memory`: the gateway answered from verified memory, with no model call; `request_failed`: the request failed; `route_not_recorded`: a route that records no episodes (embeddings, the native routes, a preflight); `association_window_passed`: no episode held the request within 15 minutes; `end_user_erased`: the end user of the request was erased before its episode was recorded; `ambiguous_partition`, `ambiguous_request`: only for an episode recorded before request ids were always the gateway’s own — the episodes holding the id belong to different end users (or one without an identity sits beside a known one), or several episodes of one end user hold it; none takes the verdict.  Known values: ``memory_off``, ``no_call_type``, ``record_off``, ``consent_off``, ``retention_not_full``, ``held_out``, ``no_episode``, ``stream_cancelled``, ``stream_error``, ``stream_incomplete``, ``erased_in_flight``, ``answered_from_memory``, ``request_failed``, ``route_not_recorded``, ``association_window_passed``, ``ambiguous_partition``, ``ambiguous_request``, ``end_user_erased``. |
+| `reason` | `str \| None` | yes | Why the episode is `not_recorded`, by name; null otherwise. `memory_off`: the call type records no episodes; `record_off`, `consent_off`, `retention_not_full`: recording, the corrections consent or full retention is off; `held_out`: the standing holdout withheld the request; `no_call_type`, `no_episode`: the request named no call type, or carried no task to record; `stream_cancelled`, `stream_error`, `stream_incomplete`: a streamed answer that the client cancelled, that failed, or that ended without a finish (a stream records only its complete answer); `erased_in_flight`: reserved, answered only under an experimental setting that is off by default; `answered_from_memory`: the gateway answered from verified memory, with no model call; `request_failed`: the request failed; `route_not_recorded`: a route that records no episodes (embeddings, the native routes, a preflight); `association_window_passed`: no episode held the request within 15 minutes; `end_user_erased`: the end user of the request was erased before its episode was recorded; `ambiguous_partition`, `ambiguous_request`: only for an episode recorded before request ids were always the gateway’s own — the episodes holding the id belong to different end users (or one without an identity sits beside a known one), or several episodes of one end user hold it; none takes the verdict.  Known values: ``memory_off``, ``no_call_type``, ``record_off``, ``consent_off``, ``retention_not_full``, ``held_out``, ``no_episode``, ``stream_cancelled``, ``stream_error``, ``stream_incomplete``, ``erased_in_flight``, ``answered_from_memory``, ``request_failed``, ``route_not_recorded``, ``partition_missing``, ``tenant_missing``, ``association_window_passed``, ``ambiguous_partition``, ``ambiguous_request``, ``end_user_erased``. |
 | `status` | `str` | yes | `associated` — the episode holding this request carries a verdict; `pending` — a teaching outcome waiting for its episode to be recorded; `not_recorded` — no episode holds this request and none will: at once when the request itself says so (`reason`: memory off on its call type, recording or consent off, retention not `full`, held out, a stream that was cancelled, failed or ended early), otherwise when no episode held the request within 15 minutes (`reason: association_window_passed`), or when several episodes hold this request id and none can be shown to be its own; `not_applicable` — the outcome does not teach (a proxy, behavioral or mechanical signal) or was not applied.  Known values: ``associated``, ``pending``, ``not_recorded``, ``not_applicable``. |
 | `trace_id` | `str \| None` | yes | The episode (`ept_…`) the outcome was associated with, once associated. |
 | `verdict` | `str \| None` | yes | What the outcome did to the episode: `recorded` — it is the episode verdict; `kept_earlier` — the episode already had a verdict (the first verdict wins); `revised` — it superseded the verdict (`supersedes_event_id`) before any learned version used the episode, so the verdict was replaced; `revised_after_incorporation` — the superseded verdict was already used by a learned version: the revision is recorded and counted, the episode is not silently unlearned.  Known values: ``recorded``, ``kept_earlier``, ``revised``, ``revised_after_incorporation``. |
@@ -6387,6 +6588,64 @@ Request shape `ResponseFormatTextParam`.
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
 | `type` | `Required[Literal['text']]` | no |  |
+
+### RetrievalRecipe
+
+*response model*
+
+A call type’s retrieval recipe (present only when retrieval by meaning is on).
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `dense_floor` | `float` | yes | The meaning similarity (cosine) that admits an example. |
+| `dense_floor_slope` | `float \| None` | no | How the meaning threshold moves per doubling of the vectors compared (absent ⇒ fixed). |
+| `encoder` | `str` | yes | The static encoder: `sde1:<source revision>:<SHA-256 of the asset>`. Must be the encoder the gateway has loaded. |
+| `fusion` | `RetrievalRecipeFusion` | yes | Rank-fusion weights of the keyword, meaning and exact-reference arms. |
+| `lexical` | `str` | yes | The keyword encoder (`lb14uni1`: Unicode words, the recommended one).  Known values: ``lb13s1lex1``, ``lb14uni1``. |
+| `lexical_floor` | `float` | yes | The keyword similarity that admits an example. |
+| `mode` | `str` | yes | Retrieval by meaning AND by words (`lexical` blocks are not served).  Known values: ``hybrid``. |
+| `views` | `bool` | yes | Index write-time alternative wordings too (not built yet: keep false). |
+
+### RetrievalRecipeFusion
+
+*response model*
+
+Rank-fusion weights of the keyword, meaning and exact-reference arms.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `dense` | `float` | yes |  |
+| `lexical` | `float` | yes |  |
+| `reference` | `float \| None` | no |  |
+
+### RetrievalRecipeParams
+
+*request shape (TypedDict)*
+
+A call type’s retrieval recipe (present only when retrieval by meaning is on).
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `dense_floor` | `Required[float]` | no | The meaning similarity (cosine) that admits an example. |
+| `dense_floor_slope` | `float` | no | How the meaning threshold moves per doubling of the vectors compared (absent ⇒ fixed). |
+| `encoder` | `Required[str]` | no | The static encoder: `sde1:<source revision>:<SHA-256 of the asset>`. Must be the encoder the gateway has loaded. |
+| `fusion` | `Required[RetrievalRecipeParamsFusion]` | no | Rank-fusion weights of the keyword, meaning and exact-reference arms. |
+| `lexical` | `Required[Literal['lb13s1lex1', 'lb14uni1']]` | no | The keyword encoder (`lb14uni1`: Unicode words, the recommended one). |
+| `lexical_floor` | `Required[float]` | no | The keyword similarity that admits an example. |
+| `mode` | `Required[Literal['hybrid']]` | no | Retrieval by meaning AND by words (`lexical` blocks are not served). |
+| `views` | `Required[bool]` | no | Index write-time alternative wordings too (not built yet: keep false). |
+
+### RetrievalRecipeParamsFusion
+
+*request shape (TypedDict)*
+
+Rank-fusion weights of the keyword, meaning and exact-reference arms.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `dense` | `Required[float]` | no |  |
+| `lexical` | `Required[float]` | no |  |
+| `reference` | `float` | no |  |
 
 ### ReviewerBackfillParams
 

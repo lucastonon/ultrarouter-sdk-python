@@ -2351,6 +2351,196 @@ What episode memory costs the call type over a window (`window="30d"`, 1 to 90 d
 Integer micro-USD: the call type's spend, the estimate of the memory block's cost, and the
 observed difference in cost per request against the standing holdout (display only).
 
+#### client.learning.conversation_memory
+
+```python
+client.learning.conversation_memory(
+    call_type_id: str,
+    *,
+    options: RequestOptions | None = None,
+) -> ConversationMemory
+```
+
+Read conversation memory (`GET .../learning/conversation-memory`).
+
+Whether the call type remembers each end user's conversations, for that end user only; what
+switching it on does (`consequence`, and the `consequence_sha256` to send back); the
+retention window; the most it adds to one request; and what it holds, as counts only.
+Needs `config:read`.
+
+#### client.learning.set_conversation_memory
+
+```python
+client.learning.set_conversation_memory(
+    call_type_id: str,
+    enabled: bool,
+    *,
+    k: int | None = None,
+    min_similarity: float | None = None,
+    user_field_identifies_person: bool | None = None,
+    acknowledged_consequence_sha256: str | None = None,
+    options: RequestOptions | None = None,
+) -> ConversationMemory
+```
+
+Switch conversation memory on or off (`PUT .../learning/conversation-memory`).
+
+Switching on is the workspace owner's, through a signed-in session (an API key is refused),
+and needs `acknowledged_consequence_sha256`: the `consequence_sha256` that
+`conversation_memory` returns for the same `k` and `user_field_identifies_person`.
+Switching off stops recording and serving on the next request and deletes nothing; a
+`config:write` key may do it. The same values again are a no-op (`changed` is
+`False`).
+
+#### client.learning.memory_items
+
+```python
+client.learning.memory_items(
+    call_type_id: str,
+    *,
+    options: RequestOptions | None = None,
+) -> MemoryItemsSetting
+```
+
+Read the memory-items switch (`GET .../learning/items`): whether the call type is
+served from memory items, since when, and the ranker's meaning floor. Needs `config:read`.
+
+#### client.learning.set_memory_items
+
+```python
+client.learning.set_memory_items(
+    call_type_id: str,
+    enabled: bool,
+    *,
+    validation_first: bool | None = None,
+    dense_floor: float | None = None,
+    options: RequestOptions | None = None,
+) -> MemoryItemsSetting
+```
+
+Serve the call type from memory items, or as before (`PUT .../learning/items`).
+
+Switching on records the instant: only items stored at or after it are served, and
+switching on again keeps it. `validation_first` makes a tenant admin's own item wait for a
+validation; `dense_floor` (omitted: off) is the ranker's meaning floor. A key bound to a
+tenant cannot change it. Needs `config:write`; the same values again are a no-op.
+
+#### client.learning.validate_item
+
+```python
+client.learning.validate_item(
+    call_type_id: str,
+    item_id: str,
+    *,
+    given_by: GivenBy | None = None,
+    tenant: str | None = None,
+    user: str | None = None,
+    options: RequestOptions | None = None,
+) -> MemoryItemValidation
+```
+
+Vouch for a memory item (`POST .../learning/items/{item_id}/validate`).
+
+`item_id` is a rule, note or comment (`mit_…`) or a corrected request's episode
+(`ept_…`). Only a developer (an API key marked server-side claiming
+`given_by="developer"`) or a tenant admin (a server-side key claiming
+`given_by="tenant_admin"`) may validate; anyone else is refused `403`. A validation
+opens an end user's item to its own tenant, never further. Needs `config:write`.
+
+#### client.learning.set_retrieval
+
+```python
+client.learning.set_retrieval(
+    call_type_id: str,
+    retrieval: Literal['recommended'] | RetrievalRecipeParams | Mapping[str, Any] | None,
+    *,
+    lessons_selector: Literal['els1', 'els2'] | None = None,
+    options: RequestOptions | None = None,
+) -> LearningStatus
+```
+
+Set how memory picks examples (`PUT .../learning/retrieval`); nothing else changes.
+
+`"recommended"` is the measured recipe for the deployment's encoder (by meaning and by
+words); an explicit recipe must name the encoder the deployment configures
+(`memory_encoder` in `status`); `None` goes back to picking by words only.
+Needs an existing memory setting, learning enabled and `config:write`.
+
+#### client.learning.rules
+
+```python
+client.learning.rules(
+    call_type_id: str,
+    *,
+    limit: int | None = None,
+    include_retired: bool | None = None,
+    options: RequestOptions | None = None,
+) -> MemoryRuleList
+```
+
+The call type's rules and notes, newest first (`GET .../learning/rules`).
+
+`limit` is 1 to 500 (default 100); `include_retired=True` adds retired ones. A key bound
+to a tenant sees only the items given in, or named for, its tenant. Needs `config:read`.
+
+#### client.learning.create_rule
+
+```python
+client.learning.create_rule(
+    call_type_id: str,
+    text: str,
+    *,
+    sort: Literal['rule', 'note'] | None = None,
+    every_kind: bool | None = None,
+    given_by: GivenBy | None = None,
+    tenant: str | None = None,
+    user: str | None = None,
+    options: RequestOptions | None = None,
+) -> MemoryRule
+```
+
+Store a rule (a standing instruction) or a note (a standing fact), served verbatim
+(`POST .../learning/rules`).
+
+Who gives it decides who it reaches: a developer's (a server-side key claiming
+`given_by="developer"`) reaches every request of the call type (or of every kind with
+`every_kind=True`), or only the one `tenant` it names; a tenant admin's reaches its own
+tenant; anything else is an end user's and reaches only that end user (`user`). It is
+served only while the call type's memory-items switch is on. Needs `config:write`.
+
+Storing is not idempotent (a retry after a lost response stores the item twice), so it is
+sent once: pass `options={"max_retries": n}` to allow retries.
+
+#### client.learning.retire_rule
+
+```python
+client.learning.retire_rule(
+    call_type_id: str,
+    item_id: str,
+    *,
+    options: RequestOptions | None = None,
+) -> MemoryRuleChange
+```
+
+Stop serving a rule, a note or a feedback comment (its `memory_item_id`) from the next
+request on (`POST .../learning/rules/{item_id}/retire`). It stays stored and can be
+restored. Idempotent (`changed` is `False` when already retired). Needs
+`config:write`.
+
+#### client.learning.restore_rule
+
+```python
+client.learning.restore_rule(
+    call_type_id: str,
+    item_id: str,
+    *,
+    options: RequestOptions | None = None,
+) -> MemoryRuleChange
+```
+
+Serve a retired item again (`POST .../learning/rules/{item_id}/restore`). Idempotent
+(`changed` is `False` when not retired). Needs `config:write`.
+
 Async differences: on `AsyncUltraRouter`, `client.reviewer.record(...)` and
 `client.reviewer.dead_letters()` stay synchronous (they never touch the network).
 
@@ -2724,6 +2914,7 @@ events can be recovered by hand.
 - `GATEWAY_ERROR_CODES` = `('invalid_request', 'manifest_invalid', 'manifest_mismatch', 'authentication', 'permission', 'internal_knowledge_ask', 'not_found', 'model_denied_by_policy', 'model_unpriced', 'capability_unsupport...`
 - `GATEWAY_ERROR_TAXONOMY` = `{'invalid_request': ErrorTaxonomyEntry(status=400, retryable=False), 'manifest_invalid': ErrorTaxonomyEntry(status=400, retryable=False), 'manifest_mismatch': ErrorTaxonomyEntry(status=400, retryab...`
 - `GenerationStats`: response model; see the [types reference](types-reference.md#generationstats).
+- `GivenBy` = `typing.Literal['developer', 'tenant_admin', 'end_user']`
 ### is_gateway_error_code
 
 ```python

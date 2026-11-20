@@ -2,7 +2,7 @@
 
 # API coverage
 
-Every endpoint in `openapi/openapi.yaml` that accepts an API key (111 operations):
+Every endpoint in `openapi/openapi.yaml` that accepts an API key (121 operations):
 the SDK method that calls it, sync and async, and the tests that call it against the mock
 gateway and validate the request body against the specification
 (`tests/test_api_coverage.py`).
@@ -43,13 +43,23 @@ gateway and validate the request body against the specification
 | `POST /v1/call-types/{id}/evals` | `enqueueCallTypeEval` | `client.call_types.enqueue_eval(...)` | `await client.call_types.enqueue_eval(...)` | `test_operation_sync[enqueueCallTypeEval]`, `test_operation_async[enqueueCallTypeEval]` |
 | `GET /v1/call-types/{id}/learning` | `getLearningStatus` | `client.learning.status(...)` | `await client.learning.status(...)` | `test_operation_sync[getLearningStatus]`, `test_operation_async[getLearningStatus]` |
 | `PATCH /v1/call-types/{id}/learning` | `updateLearningReadLimit` | `client.learning.set_read_limit(...)` | `await client.learning.set_read_limit(...)` | `test_operation_sync[updateLearningReadLimit]`, `test_operation_async[updateLearningReadLimit]` |
+| `GET /v1/call-types/{id}/learning/conversation-memory` | `getConversationMemory` | `client.learning.conversation_memory(...)` | `await client.learning.conversation_memory(...)` | `test_operation_sync[getConversationMemory]`, `test_operation_async[getConversationMemory]` |
+| `PUT /v1/call-types/{id}/learning/conversation-memory` | `putConversationMemory` | `client.learning.set_conversation_memory(...)` | `await client.learning.set_conversation_memory(...)` | `test_operation_sync[putConversationMemory]`, `test_operation_async[putConversationMemory]` |
 | `GET /v1/call-types/{id}/learning/cost` | `getLearningCost` | `client.learning.cost(...)` | `await client.learning.cost(...)` | `test_operation_sync[getLearningCost]`, `test_operation_async[getLearningCost]` |
 | `POST /v1/call-types/{id}/learning/disable` | `disableLearning` | `client.learning.disable(...)` | `await client.learning.disable(...)` | `test_operation_sync[disableLearning]`, `test_operation_async[disableLearning]` |
 | `POST /v1/call-types/{id}/learning/enable` | `enableLearning` | `client.learning.enable(...)` | `await client.learning.enable(...)` | `test_operation_sync[enableLearning]`, `test_operation_async[enableLearning]` |
 | `GET /v1/call-types/{id}/learning/evaluations` | `listLearningEvaluations` | `client.learning.evaluations(...)` | `await client.learning.evaluations(...)` | `test_operation_sync[listLearningEvaluations]`, `test_operation_async[listLearningEvaluations]` |
+| `GET /v1/call-types/{id}/learning/items` | `getLearningItems` | `client.learning.memory_items(...)` | `await client.learning.memory_items(...)` | `test_operation_sync[getLearningItems]`, `test_operation_async[getLearningItems]` |
+| `PUT /v1/call-types/{id}/learning/items` | `putLearningItems` | `client.learning.set_memory_items(...)` | `await client.learning.set_memory_items(...)` | `test_operation_sync[putLearningItems]`, `test_operation_async[putLearningItems]` |
+| `POST /v1/call-types/{id}/learning/items/{item_id}/validate` | `validateMemoryItem` | `client.learning.validate_item(...)` | `await client.learning.validate_item(...)` | `test_operation_sync[validateMemoryItem]`, `test_operation_async[validateMemoryItem]` |
 | `POST /v1/call-types/{id}/learning/pause` | `pauseLearning` | `client.learning.pause(...)` | `await client.learning.pause(...)` | `test_operation_sync[pauseLearning]`, `test_operation_async[pauseLearning]` |
 | `POST /v1/call-types/{id}/learning/resume` | `resumeLearning` | `client.learning.resume(...)` | `await client.learning.resume(...)` | `test_operation_sync[resumeLearning]`, `test_operation_async[resumeLearning]` |
+| `PUT /v1/call-types/{id}/learning/retrieval` | `setLearningRetrieval` | `client.learning.set_retrieval(...)` | `await client.learning.set_retrieval(...)` | `test_operation_sync[setLearningRetrieval]`, `test_operation_async[setLearningRetrieval]` |
 | `POST /v1/call-types/{id}/learning/rollback` | `rollbackLearning` | `client.learning.rollback(...)` | `await client.learning.rollback(...)` | `test_operation_sync[rollbackLearning]`, `test_operation_async[rollbackLearning]` |
+| `GET /v1/call-types/{id}/learning/rules` | `listMemoryRules` | `client.learning.rules(...)` | `await client.learning.rules(...)` | `test_operation_sync[listMemoryRules]`, `test_operation_async[listMemoryRules]` |
+| `POST /v1/call-types/{id}/learning/rules` | `createMemoryRule` | `client.learning.create_rule(...)` | `await client.learning.create_rule(...)` | `test_operation_sync[createMemoryRule]`, `test_operation_async[createMemoryRule]` |
+| `POST /v1/call-types/{id}/learning/rules/{item_id}/restore` | `restoreMemoryRule` | `client.learning.restore_rule(...)` | `await client.learning.restore_rule(...)` | `test_operation_sync[restoreMemoryRule]`, `test_operation_async[restoreMemoryRule]` |
+| `POST /v1/call-types/{id}/learning/rules/{item_id}/retire` | `retireMemoryRule` | `client.learning.retire_rule(...)` | `await client.learning.retire_rule(...)` | `test_operation_sync[retireMemoryRule]`, `test_operation_async[retireMemoryRule]` |
 | `GET /v1/call-types/{id}/learning/tool-documentation` | `getLearningToolDocumentation` | `client.learning.tool_documentation(...)` | `await client.learning.tool_documentation(...)` | `test_operation_sync[getLearningToolDocumentation]`, `test_operation_async[getLearningToolDocumentation]` |
 | `PUT /v1/call-types/{id}/learning/tool-documentation` | `putLearningToolDocumentation` | `client.learning.put_tool_documentation(...)` | `await client.learning.put_tool_documentation(...)` | `test_operation_sync[putLearningToolDocumentation]`, `test_operation_async[putLearningToolDocumentation]` |
 | `GET /v1/call-types/{id}/learning/versions` | `listLearningVersions` | `client.learning.versions(...)` | `await client.learning.versions(...)` | `test_operation_sync[listLearningVersions]`, `test_operation_async[listLearningVersions]` |
@@ -191,6 +201,8 @@ an API-key SDK cannot call them:
 - `GET /v1/workspaces/{id}/members` (`listMembers`)
 - `DELETE /v1/workspaces/{id}/members/{userId}` (`removeMember`)
 - `PATCH /v1/workspaces/{id}/members/{userId}` (`changeMemberRole`)
+- `GET /v1/workspaces/{id}/memory-tenancy` (`getMemoryTenancy`)
+- `PUT /v1/workspaces/{id}/memory-tenancy` (`putMemoryTenancy`)
 - `GET /v1/workspaces/{id}/model-policy` (`getModelPolicy`)
 - `PUT /v1/workspaces/{id}/model-policy` (`putModelPolicy`)
 - `POST /v1/workspaces/{id}/model-policy/preview` (`previewModelPolicy`)

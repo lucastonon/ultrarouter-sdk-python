@@ -149,7 +149,7 @@ from ._queue import (
     ReviewerFlushReport,
 )
 from ._resources.flywheel import EXPERIMENT_EXECUTION_HEADER, candidate_decision_callback_id
-from ._resources.learning import LearningObjective, LessonsMode, PromotionMode
+from ._resources.learning import GivenBy, LearningObjective, LessonsMode, PromotionMode
 from ._signing import (
     REVIEWER_SIGNATURE_HEADER,
     REVIEWER_TIMESTAMP_HEADER,
@@ -244,6 +244,7 @@ __all__ = [
     "Feedback",
     "FileOutcomeStore",
     "GenerationStats",
+    "GivenBy",
     "InternalKnowledgeAskError",
     "InternalServerError",
     "InvalidRequestError",

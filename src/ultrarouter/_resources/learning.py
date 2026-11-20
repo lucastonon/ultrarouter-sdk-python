@@ -15,7 +15,13 @@ that loop:
   effect) with the resulting status;
 * :meth:`Learning.versions`, :meth:`Learning.version`, :meth:`Learning.evaluations`;
 * :meth:`Learning.set_read_limit` (the learned-memory read deadline) and :meth:`Learning.cost`
-  (what episode memory costs the call type).
+  (what episode memory costs the call type);
+* memory items: :meth:`Learning.memory_items` / :meth:`Learning.set_memory_items` (the switch),
+  :meth:`Learning.rules`, :meth:`Learning.create_rule`, :meth:`Learning.retire_rule`,
+  :meth:`Learning.restore_rule` (rules, notes and feedback comments) and
+  :meth:`Learning.validate_item`;
+* :meth:`Learning.conversation_memory` / :meth:`Learning.set_conversation_memory` (each end user's
+  own conversations) and :meth:`Learning.set_retrieval` (how memory picks examples).
 
 Reads need the ``config:read`` scope, controls ``config:write``. Refusals raise an actionable
 :class:`~ultrarouter.LearningError` subclass whose ``reason`` names the problem, ``refusal`` the
@@ -33,6 +39,7 @@ from .._base_client import APIRequest, RequestOptions
 from .._errors import APIStatusError, InvalidRequestError, learning_error
 from .._types import compact
 from ..types import (
+    ConversationMemory,
     LearnerRecipeParams,
     LearningControl,
     LearningCost,
@@ -42,11 +49,24 @@ from ..types import (
     LearningToolDocumentation,
     LearningVersionDetail,
     LearningVersionList,
+    MemoryItemsSetting,
+    MemoryItemValidation,
+    MemoryRule,
+    MemoryRuleChange,
+    MemoryRuleList,
     PutLearningToolDocumentationParamsTool,
+    RetrievalRecipeParams,
 )
 from ._base import AsyncAPIResource, SyncAPIResource, build, seg
 
-__all__ = ["AsyncLearning", "Learning", "LearningObjective", "LessonsMode", "PromotionMode"]
+__all__ = [
+    "AsyncLearning",
+    "GivenBy",
+    "Learning",
+    "LearningObjective",
+    "LessonsMode",
+    "PromotionMode",
+]
 
 ModelT = TypeVar("ModelT", bound=pydantic.BaseModel)
 
@@ -62,9 +82,21 @@ more success than the margin (``cost_noninferior``)."""
 LessonsMode = Literal["only", "with_precedents"]
 """What is served: the learned lessons ``only``, or lessons then similar verified past episodes."""
 
+GivenBy = Literal["developer", "tenant_admin", "end_user"]
+"""Who gives a memory item or a validation. ``developer`` and ``tenant_admin`` are honoured only
+from an API key marked server-side; anything else is recorded as ``end_user``."""
+
 
 def _base(call_type_id: str) -> str:
     return f"/v1/call-types/{seg(call_type_id)}/learning"
+
+
+def _send_once(options: RequestOptions | None) -> RequestOptions:
+    # Storing a rule or a note is not idempotent: never retried unless the caller asks for it.
+    merged: RequestOptions = {"max_retries": 0}
+    if options is not None:
+        merged.update(options)
+    return merged
 
 
 def _enable_body(
@@ -317,6 +349,236 @@ class Learning(SyncAPIResource):
             LearningCost,
         )
 
+    # ── memory items, rules and notes, conversation memory, retrieval ──
+
+    def conversation_memory(
+        self, call_type_id: str, *, options: RequestOptions | None = None
+    ) -> ConversationMemory:
+        """Read conversation memory (``GET .../learning/conversation-memory``).
+
+        Whether the call type remembers each end user's conversations, for that end user only; what
+        switching it on does (``consequence``, and the ``consequence_sha256`` to send back); the
+        retention window; the most it adds to one request; and what it holds, as counts only.
+        Needs ``config:read``.
+        """
+        return self._call(
+            build("GET", f"{_base(call_type_id)}/conversation-memory", options=options),
+            ConversationMemory,
+        )
+
+    def set_conversation_memory(
+        self,
+        call_type_id: str,
+        enabled: bool,
+        *,
+        k: int | None = None,
+        min_similarity: float | None = None,
+        user_field_identifies_person: bool | None = None,
+        acknowledged_consequence_sha256: str | None = None,
+        options: RequestOptions | None = None,
+    ) -> ConversationMemory:
+        """Switch conversation memory on or off (``PUT .../learning/conversation-memory``).
+
+        Switching on is the workspace owner's, through a signed-in session (an API key is refused),
+        and needs ``acknowledged_consequence_sha256``: the ``consequence_sha256`` that
+        :meth:`conversation_memory` returns for the same ``k`` and ``user_field_identifies_person``.
+        Switching off stops recording and serving on the next request and deletes nothing; a
+        ``config:write`` key may do it. The same values again are a no-op (``changed`` is
+        ``False``).
+        """
+        return self._call(
+            build(
+                "PUT",
+                f"{_base(call_type_id)}/conversation-memory",
+                body=compact(
+                    enabled=enabled,
+                    k=k,
+                    min_similarity=min_similarity,
+                    user_field_identifies_person=user_field_identifies_person,
+                    acknowledged_consequence_sha256=acknowledged_consequence_sha256,
+                ),
+                options=options,
+            ),
+            ConversationMemory,
+        )
+
+    def memory_items(
+        self, call_type_id: str, *, options: RequestOptions | None = None
+    ) -> MemoryItemsSetting:
+        """Read the memory-items switch (``GET .../learning/items``): whether the call type is
+        served from memory items, since when, and the ranker's meaning floor. Needs ``config:read``.
+        """
+        return self._call(
+            build("GET", f"{_base(call_type_id)}/items", options=options), MemoryItemsSetting
+        )
+
+    def set_memory_items(
+        self,
+        call_type_id: str,
+        enabled: bool,
+        *,
+        validation_first: bool | None = None,
+        dense_floor: float | None = None,
+        options: RequestOptions | None = None,
+    ) -> MemoryItemsSetting:
+        """Serve the call type from memory items, or as before (``PUT .../learning/items``).
+
+        Switching on records the instant: only items stored at or after it are served, and
+        switching on again keeps it. ``validation_first`` makes a tenant admin's own item wait for a
+        validation; ``dense_floor`` (omitted: off) is the ranker's meaning floor. A key bound to a
+        tenant cannot change it. Needs ``config:write``; the same values again are a no-op.
+        """
+        return self._call(
+            build(
+                "PUT",
+                f"{_base(call_type_id)}/items",
+                body=compact(
+                    enabled=enabled, validation_first=validation_first, dense_floor=dense_floor
+                ),
+                options=options,
+            ),
+            MemoryItemsSetting,
+        )
+
+    def validate_item(
+        self,
+        call_type_id: str,
+        item_id: str,
+        *,
+        given_by: GivenBy | None = None,
+        tenant: str | None = None,
+        user: str | None = None,
+        options: RequestOptions | None = None,
+    ) -> MemoryItemValidation:
+        """Vouch for a memory item (``POST .../learning/items/{item_id}/validate``).
+
+        ``item_id`` is a rule, note or comment (``mit_…``) or a corrected request's episode
+        (``ept_…``). Only a developer (an API key marked server-side claiming
+        ``given_by="developer"``) or a tenant admin (a server-side key claiming
+        ``given_by="tenant_admin"``) may validate; anyone else is refused ``403``. A validation
+        opens an end user's item to its own tenant, never further. Needs ``config:write``.
+        """
+        return self._call(
+            build(
+                "POST",
+                f"{_base(call_type_id)}/items/{seg(item_id)}/validate",
+                body=compact(given_by=given_by, tenant=tenant, user=user),
+                options=options,
+            ),
+            MemoryItemValidation,
+        )
+
+    def set_retrieval(
+        self,
+        call_type_id: str,
+        retrieval: Literal["recommended"] | RetrievalRecipeParams | Mapping[str, Any] | None,
+        *,
+        lessons_selector: Literal["els1", "els2"] | None = None,
+        options: RequestOptions | None = None,
+    ) -> LearningStatus:
+        """Set how memory picks examples (``PUT .../learning/retrieval``); nothing else changes.
+
+        ``"recommended"`` is the measured recipe for the deployment's encoder (by meaning and by
+        words); an explicit recipe must name the encoder the deployment configures
+        (``memory_encoder`` in :meth:`status`); ``None`` goes back to picking by words only.
+        Needs an existing memory setting, learning enabled and ``config:write``.
+        """
+        body: dict[str, Any] = {"retrieval": retrieval}
+        if lessons_selector is not None:
+            body["lessons_selector"] = lessons_selector
+        return self._call(
+            build("PUT", f"{_base(call_type_id)}/retrieval", body=body, options=options),
+            LearningStatus,
+        )
+
+    def rules(
+        self,
+        call_type_id: str,
+        *,
+        limit: int | None = None,
+        include_retired: bool | None = None,
+        options: RequestOptions | None = None,
+    ) -> MemoryRuleList:
+        """The call type's rules and notes, newest first (``GET .../learning/rules``).
+
+        ``limit`` is 1 to 500 (default 100); ``include_retired=True`` adds retired ones. A key bound
+        to a tenant sees only the items given in, or named for, its tenant. Needs ``config:read``.
+        """
+        return self._call(
+            build(
+                "GET",
+                f"{_base(call_type_id)}/rules",
+                query=compact(limit=limit, include_retired=include_retired),
+                options=options,
+            ),
+            MemoryRuleList,
+        )
+
+    def create_rule(
+        self,
+        call_type_id: str,
+        text: str,
+        *,
+        sort: Literal["rule", "note"] | None = None,
+        every_kind: bool | None = None,
+        given_by: GivenBy | None = None,
+        tenant: str | None = None,
+        user: str | None = None,
+        options: RequestOptions | None = None,
+    ) -> MemoryRule:
+        """Store a rule (a standing instruction) or a note (a standing fact), served verbatim
+        (``POST .../learning/rules``).
+
+        Who gives it decides who it reaches: a developer's (a server-side key claiming
+        ``given_by="developer"``) reaches every request of the call type (or of every kind with
+        ``every_kind=True``), or only the one ``tenant`` it names; a tenant admin's reaches its own
+        tenant; anything else is an end user's and reaches only that end user (``user``). It is
+        served only while the call type's memory-items switch is on. Needs ``config:write``.
+
+        Storing is not idempotent (a retry after a lost response stores the item twice), so it is
+        sent once: pass ``options={"max_retries": n}`` to allow retries.
+        """
+        return self._call(
+            build(
+                "POST",
+                f"{_base(call_type_id)}/rules",
+                body=compact(
+                    text=text,
+                    sort=sort,
+                    every_kind=every_kind,
+                    given_by=given_by,
+                    tenant=tenant,
+                    user=user,
+                ),
+                options=_send_once(options),
+            ),
+            MemoryRule,
+        )
+
+    def retire_rule(
+        self, call_type_id: str, item_id: str, *, options: RequestOptions | None = None
+    ) -> MemoryRuleChange:
+        """Stop serving a rule, a note or a feedback comment (its ``memory_item_id``) from the next
+        request on (``POST .../learning/rules/{item_id}/retire``). It stays stored and can be
+        restored. Idempotent (``changed`` is ``False`` when already retired). Needs
+        ``config:write``.
+        """
+        return self._call(
+            build("POST", f"{_base(call_type_id)}/rules/{seg(item_id)}/retire", options=options),
+            MemoryRuleChange,
+        )
+
+    def restore_rule(
+        self, call_type_id: str, item_id: str, *, options: RequestOptions | None = None
+    ) -> MemoryRuleChange:
+        """Serve a retired item again (``POST .../learning/rules/{item_id}/restore``). Idempotent
+        (``changed`` is ``False`` when not retired). Needs ``config:write``.
+        """
+        return self._call(
+            build("POST", f"{_base(call_type_id)}/rules/{seg(item_id)}/restore", options=options),
+            MemoryRuleChange,
+        )
+
 
 class AsyncLearning(AsyncAPIResource):
     """``client.learning`` on :class:`~ultrarouter.AsyncUltraRouter`."""
@@ -510,4 +772,178 @@ class AsyncLearning(AsyncAPIResource):
                 "GET", f"{_base(call_type_id)}/cost", query=compact(window=window), options=options
             ),
             LearningCost,
+        )
+
+    # ── memory items, rules and notes, conversation memory, retrieval ──
+
+    async def conversation_memory(
+        self, call_type_id: str, *, options: RequestOptions | None = None
+    ) -> ConversationMemory:
+        """Read conversation memory; async twin of :meth:`Learning.conversation_memory`."""
+        return await self._call(
+            build("GET", f"{_base(call_type_id)}/conversation-memory", options=options),
+            ConversationMemory,
+        )
+
+    async def set_conversation_memory(
+        self,
+        call_type_id: str,
+        enabled: bool,
+        *,
+        k: int | None = None,
+        min_similarity: float | None = None,
+        user_field_identifies_person: bool | None = None,
+        acknowledged_consequence_sha256: str | None = None,
+        options: RequestOptions | None = None,
+    ) -> ConversationMemory:
+        """Switch conversation memory; async twin of :meth:`Learning.set_conversation_memory`."""
+        return await self._call(
+            build(
+                "PUT",
+                f"{_base(call_type_id)}/conversation-memory",
+                body=compact(
+                    enabled=enabled,
+                    k=k,
+                    min_similarity=min_similarity,
+                    user_field_identifies_person=user_field_identifies_person,
+                    acknowledged_consequence_sha256=acknowledged_consequence_sha256,
+                ),
+                options=options,
+            ),
+            ConversationMemory,
+        )
+
+    async def memory_items(
+        self, call_type_id: str, *, options: RequestOptions | None = None
+    ) -> MemoryItemsSetting:
+        """Read the memory-items switch; async twin of :meth:`Learning.memory_items`."""
+        return await self._call(
+            build("GET", f"{_base(call_type_id)}/items", options=options), MemoryItemsSetting
+        )
+
+    async def set_memory_items(
+        self,
+        call_type_id: str,
+        enabled: bool,
+        *,
+        validation_first: bool | None = None,
+        dense_floor: float | None = None,
+        options: RequestOptions | None = None,
+    ) -> MemoryItemsSetting:
+        """Switch memory items; async twin of :meth:`Learning.set_memory_items`."""
+        return await self._call(
+            build(
+                "PUT",
+                f"{_base(call_type_id)}/items",
+                body=compact(
+                    enabled=enabled, validation_first=validation_first, dense_floor=dense_floor
+                ),
+                options=options,
+            ),
+            MemoryItemsSetting,
+        )
+
+    async def validate_item(
+        self,
+        call_type_id: str,
+        item_id: str,
+        *,
+        given_by: GivenBy | None = None,
+        tenant: str | None = None,
+        user: str | None = None,
+        options: RequestOptions | None = None,
+    ) -> MemoryItemValidation:
+        """Vouch for a memory item; async twin of :meth:`Learning.validate_item`."""
+        return await self._call(
+            build(
+                "POST",
+                f"{_base(call_type_id)}/items/{seg(item_id)}/validate",
+                body=compact(given_by=given_by, tenant=tenant, user=user),
+                options=options,
+            ),
+            MemoryItemValidation,
+        )
+
+    async def set_retrieval(
+        self,
+        call_type_id: str,
+        retrieval: Literal["recommended"] | RetrievalRecipeParams | Mapping[str, Any] | None,
+        *,
+        lessons_selector: Literal["els1", "els2"] | None = None,
+        options: RequestOptions | None = None,
+    ) -> LearningStatus:
+        """Set how memory picks examples; async twin of :meth:`Learning.set_retrieval`."""
+        body: dict[str, Any] = {"retrieval": retrieval}
+        if lessons_selector is not None:
+            body["lessons_selector"] = lessons_selector
+        return await self._call(
+            build("PUT", f"{_base(call_type_id)}/retrieval", body=body, options=options),
+            LearningStatus,
+        )
+
+    async def rules(
+        self,
+        call_type_id: str,
+        *,
+        limit: int | None = None,
+        include_retired: bool | None = None,
+        options: RequestOptions | None = None,
+    ) -> MemoryRuleList:
+        """The rules and notes; async twin of :meth:`Learning.rules`."""
+        return await self._call(
+            build(
+                "GET",
+                f"{_base(call_type_id)}/rules",
+                query=compact(limit=limit, include_retired=include_retired),
+                options=options,
+            ),
+            MemoryRuleList,
+        )
+
+    async def create_rule(
+        self,
+        call_type_id: str,
+        text: str,
+        *,
+        sort: Literal["rule", "note"] | None = None,
+        every_kind: bool | None = None,
+        given_by: GivenBy | None = None,
+        tenant: str | None = None,
+        user: str | None = None,
+        options: RequestOptions | None = None,
+    ) -> MemoryRule:
+        """Store a rule or a note; async twin of :meth:`Learning.create_rule` (sent once)."""
+        return await self._call(
+            build(
+                "POST",
+                f"{_base(call_type_id)}/rules",
+                body=compact(
+                    text=text,
+                    sort=sort,
+                    every_kind=every_kind,
+                    given_by=given_by,
+                    tenant=tenant,
+                    user=user,
+                ),
+                options=_send_once(options),
+            ),
+            MemoryRule,
+        )
+
+    async def retire_rule(
+        self, call_type_id: str, item_id: str, *, options: RequestOptions | None = None
+    ) -> MemoryRuleChange:
+        """Retire a rule, note or comment; async twin of :meth:`Learning.retire_rule`."""
+        return await self._call(
+            build("POST", f"{_base(call_type_id)}/rules/{seg(item_id)}/retire", options=options),
+            MemoryRuleChange,
+        )
+
+    async def restore_rule(
+        self, call_type_id: str, item_id: str, *, options: RequestOptions | None = None
+    ) -> MemoryRuleChange:
+        """Restore a retired item; async twin of :meth:`Learning.restore_rule`."""
+        return await self._call(
+            build("POST", f"{_base(call_type_id)}/rules/{seg(item_id)}/restore", options=options),
+            MemoryRuleChange,
         )

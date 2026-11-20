@@ -1,5 +1,5 @@
 # ultrarouter public API specification (OpenAPI). Synced artifact: do not hand-edit.
-# spec-sha256: 7033e9266558d0b90214f24faa66025c55402401c8173483dad05b6ad7677f01
+# spec-sha256: 2a2c6256c7af3ef0ac10435736041d3b56374d65992d6411315ae91d08ad6242
 # Generated from the ultrarouter API route schemas — DO NOT EDIT BY HAND.
 # Regenerated from the schemas on every change; hand edits are overwritten.
 components:
@@ -47,6 +47,9 @@ components:
         lastUsedAt:
           nullable: true
           type: "string"
+        memoryTenantBound:
+          description: "The key is bound to a tenant (the label is stored only as a digest, never returned)."
+          type: "boolean"
         metadata:
           additionalProperties:
             nullable: true
@@ -69,6 +72,9 @@ components:
           items:
             type: "string"
           type: "array"
+        serverSide:
+          description: "The customer marked the key as never leaving its servers."
+          type: "boolean"
         spendCapMicroUsd:
           nullable: true
           type: "integer"
@@ -82,6 +88,8 @@ components:
         - "rpsLimit"
         - "benchSuiteDefault"
         - "defaultCallTypeId"
+        - "serverSide"
+        - "memoryTenantBound"
         - "expiresAt"
         - "lastUsedAt"
         - "metadata"
@@ -113,6 +121,9 @@ components:
               lastUsedAt:
                 nullable: true
                 type: "string"
+              memoryTenantBound:
+                description: "The key is bound to a tenant (the label is stored only as a digest, never returned)."
+                type: "boolean"
               metadata:
                 additionalProperties:
                   nullable: true
@@ -135,6 +146,9 @@ components:
                 items:
                   type: "string"
                 type: "array"
+              serverSide:
+                description: "The customer marked the key as never leaving its servers."
+                type: "boolean"
               spendCapMicroUsd:
                 nullable: true
                 type: "integer"
@@ -148,6 +162,8 @@ components:
               - "rpsLimit"
               - "benchSuiteDefault"
               - "defaultCallTypeId"
+              - "serverSide"
+              - "memoryTenantBound"
               - "expiresAt"
               - "lastUsedAt"
               - "metadata"
@@ -1682,6 +1698,8 @@ components:
                     - "answered_from_memory"
                     - "request_failed"
                     - "route_not_recorded"
+                    - "partition_missing"
+                    - "tenant_missing"
                     - "association_window_passed"
                     - "ambiguous_partition"
                     - "ambiguous_request"
@@ -2037,6 +2055,8 @@ components:
                           - "answered_from_memory"
                           - "request_failed"
                           - "route_not_recorded"
+                          - "partition_missing"
+                          - "tenant_missing"
                           - "association_window_passed"
                           - "ambiguous_partition"
                           - "ambiguous_request"
@@ -9144,7 +9164,19 @@ components:
               type: "string"
             created_at:
               type: "string"
+            giver_role:
+              description: "The role `given_by` resolved to (null on feedback stored before it existed)."
+              enum:
+                - "developer"
+                - "tenant_admin"
+                - "end_user"
+              nullable: true
+              type: "string"
             id:
+              type: "string"
+            memory_item_id:
+              description: "The memory item the comment became (`mit_…`): validate, retire or restore it under `/v1/call-types/{id}/learning/`. Null when none was stored (no comment, no corrections consent)."
+              nullable: true
               type: "string"
             object:
               enum:
@@ -9173,6 +9205,8 @@ components:
             - "rating"
             - "tags"
             - "comment"
+            - "giver_role"
+            - "memory_item_id"
             - "created_at"
           type: "object"
       required:
@@ -9182,8 +9216,15 @@ components:
       description: "Human feedback on a prior request."
       properties:
         comment:
-          description: "Optional free-text comment."
+          description: "Optional free-text comment on the answer. When the workspace has granted the corrections consent, a comment with words of its own also becomes a memory item attached to this request (`memory_item_id`), served only to the requests its giver and tenant allow while the call type serves memory items, and deleted after the corrections retention window."
           maxLength: 4000
+          type: "string"
+        given_by:
+          description: "Who gives this feedback. `developer` or `tenant_admin` is honoured only from an api key marked `server_side`; anything else is recorded as `end_user`."
+          enum:
+            - "developer"
+            - "tenant_admin"
+            - "end_user"
           type: "string"
         rating:
           anyOf:
@@ -9202,6 +9243,11 @@ components:
             type: "string"
           maxItems: 32
           type: "array"
+        user:
+          description: "The giver’s end-user key, as requests carry it (`ur.memory_partition`, `X-UR-Memory-Partition` or `user`); stored only as a digest. Omitted: an end user’s comment is the request’s own end user’s."
+          maxLength: 1024
+          minLength: 1
+          type: "string"
       required:
         - "rating"
       type: "object"
@@ -9213,7 +9259,19 @@ components:
           type: "string"
         created_at:
           type: "string"
+        giver_role:
+          description: "The role `given_by` resolved to (null on feedback stored before it existed)."
+          enum:
+            - "developer"
+            - "tenant_admin"
+            - "end_user"
+          nullable: true
+          type: "string"
         id:
+          type: "string"
+        memory_item_id:
+          description: "The memory item the comment became (`mit_…`): validate, retire or restore it under `/v1/call-types/{id}/learning/`. Null when none was stored (no comment, no corrections consent)."
+          nullable: true
           type: "string"
         object:
           enum:
@@ -9242,6 +9300,8 @@ components:
         - "rating"
         - "tags"
         - "comment"
+        - "giver_role"
+        - "memory_item_id"
         - "created_at"
       type: "object"
     FinalRequest:
@@ -9289,6 +9349,18 @@ components:
         final_hash:
           description: "The final content hash (required on the no-consent metadata-only path)."
           pattern: "^(?:sha256:)?[0-9a-fA-F]{8,128}$"
+          type: "string"
+        given_by:
+          description: "Who corrects. `developer` only from a dashboard session or an api key marked `server_side`, `tenant_admin` only from such a key; anything else is an end user. Decides how far the corrected answer may be served under memory items: a tenant admin’s opens to its tenant, an end user’s stays with its giver."
+          enum:
+            - "developer"
+            - "tenant_admin"
+            - "end_user"
+          type: "string"
+        user:
+          description: "The corrector’s end-user key (stored as a digest). Omitted: the corrected request’s own end user."
+          maxLength: 1024
+          minLength: 1
           type: "string"
       type: "object"
     FinalResponse:
@@ -9358,6 +9430,8 @@ components:
                         - "answered_from_memory"
                         - "request_failed"
                         - "route_not_recorded"
+                        - "partition_missing"
+                        - "tenant_missing"
                         - "association_window_passed"
                         - "ambiguous_partition"
                         - "ambiguous_request"
@@ -11701,6 +11775,9 @@ components:
             lastUsedAt:
               nullable: true
               type: "string"
+            memoryTenantBound:
+              description: "The key is bound to a tenant (the label is stored only as a digest, never returned)."
+              type: "boolean"
             metadata:
               additionalProperties:
                 nullable: true
@@ -11723,6 +11800,9 @@ components:
               items:
                 type: "string"
               type: "array"
+            serverSide:
+              description: "The customer marked the key as never leaving its servers."
+              type: "boolean"
             spendCapMicroUsd:
               nullable: true
               type: "integer"
@@ -11736,6 +11816,8 @@ components:
             - "rpsLimit"
             - "benchSuiteDefault"
             - "defaultCallTypeId"
+            - "serverSide"
+            - "memoryTenantBound"
             - "expiresAt"
             - "lastUsedAt"
             - "metadata"
@@ -13206,6 +13288,24 @@ components:
                 - "digest"
                 - "created_at"
               type: "object"
+            memory_encoder:
+              additionalProperties: false
+              description: "The deployment’s memory encoder for retrieval by meaning (present on the gateway’s learning routes)."
+              properties:
+                configured:
+                  description: "The deployment names a memory encoder (retrieval by meaning can be served)."
+                  type: "boolean"
+                encoder:
+                  description: "The configured encoder’s id, as an explicit retrieval block names it; null when the gateway that answered could not load it."
+                  nullable: true
+                  type: "string"
+                reason:
+                  description: "Why `encoder` is null: `not_configured`, `sha256_missing`, `unreadable`, `sha256_mismatch` or `invalid`."
+                  type: "string"
+              required:
+                - "configured"
+                - "encoder"
+              type: "object"
             memory_read:
               description: "Last 24 hours of completed hourly serving rollups; through is the bucket boundary, hourly refresh. The denominator eligible counts eligible TREATMENT requests only; holdout is separate and never counted as skips. Counts include served requests and skips specifically due to the read deadline. The current limit is 250 ms unless configured."
               properties:
@@ -13503,6 +13603,72 @@ components:
                 - "last_attempt_reason"
                 - "last_published_at"
                 - "next"
+              type: "object"
+            retrieval:
+              additionalProperties: false
+              description: "The call type’s retrieval recipe when retrieval by meaning is on; null when examples are chosen by words only."
+              nullable: true
+              properties:
+                dense_floor:
+                  description: "The meaning similarity (cosine) that admits an example."
+                  maximum: 1
+                  minimum: -1
+                  type: "number"
+                dense_floor_slope:
+                  description: "How the meaning threshold moves per doubling of the vectors compared (absent ⇒ fixed)."
+                  maximum: 0.1
+                  minimum: 0
+                  type: "number"
+                encoder:
+                  description: "The static encoder: `sde1:<source revision>:<SHA-256 of the asset>`. Must be the encoder the gateway has loaded."
+                  type: "string"
+                fusion:
+                  additionalProperties: false
+                  description: "Rank-fusion weights of the keyword, meaning and exact-reference arms."
+                  properties:
+                    dense:
+                      maximum: 100
+                      minimum: 0
+                      type: "number"
+                    lexical:
+                      maximum: 100
+                      minimum: 0
+                      type: "number"
+                    reference:
+                      maximum: 100
+                      minimum: 0
+                      type: "number"
+                  required:
+                    - "lexical"
+                    - "dense"
+                  type: "object"
+                lexical:
+                  description: "The keyword encoder (`lb14uni1`: Unicode words, the recommended one)."
+                  enum:
+                    - "lb13s1lex1"
+                    - "lb14uni1"
+                  type: "string"
+                lexical_floor:
+                  description: "The keyword similarity that admits an example."
+                  maximum: 1
+                  minimum: 0
+                  type: "number"
+                mode:
+                  description: "Retrieval by meaning AND by words (`lexical` blocks are not served)."
+                  enum:
+                    - "hybrid"
+                  type: "string"
+                views:
+                  description: "Index write-time alternative wordings too (not built yet: keep false)."
+                  type: "boolean"
+              required:
+                - "mode"
+                - "encoder"
+                - "lexical"
+                - "fusion"
+                - "lexical_floor"
+                - "dense_floor"
+                - "views"
               type: "object"
             self_serve:
               description: "Enabled through this API (not a staff-granted study)."
@@ -15367,6 +15533,24 @@ components:
             - "digest"
             - "created_at"
           type: "object"
+        memory_encoder:
+          additionalProperties: false
+          description: "The deployment’s memory encoder for retrieval by meaning (present on the gateway’s learning routes)."
+          properties:
+            configured:
+              description: "The deployment names a memory encoder (retrieval by meaning can be served)."
+              type: "boolean"
+            encoder:
+              description: "The configured encoder’s id, as an explicit retrieval block names it; null when the gateway that answered could not load it."
+              nullable: true
+              type: "string"
+            reason:
+              description: "Why `encoder` is null: `not_configured`, `sha256_missing`, `unreadable`, `sha256_mismatch` or `invalid`."
+              type: "string"
+          required:
+            - "configured"
+            - "encoder"
+          type: "object"
         memory_read:
           description: "Last 24 hours of completed hourly serving rollups; through is the bucket boundary, hourly refresh. The denominator eligible counts eligible TREATMENT requests only; holdout is separate and never counted as skips. Counts include served requests and skips specifically due to the read deadline. The current limit is 250 ms unless configured."
           properties:
@@ -15664,6 +15848,72 @@ components:
             - "last_attempt_reason"
             - "last_published_at"
             - "next"
+          type: "object"
+        retrieval:
+          additionalProperties: false
+          description: "The call type’s retrieval recipe when retrieval by meaning is on; null when examples are chosen by words only."
+          nullable: true
+          properties:
+            dense_floor:
+              description: "The meaning similarity (cosine) that admits an example."
+              maximum: 1
+              minimum: -1
+              type: "number"
+            dense_floor_slope:
+              description: "How the meaning threshold moves per doubling of the vectors compared (absent ⇒ fixed)."
+              maximum: 0.1
+              minimum: 0
+              type: "number"
+            encoder:
+              description: "The static encoder: `sde1:<source revision>:<SHA-256 of the asset>`. Must be the encoder the gateway has loaded."
+              type: "string"
+            fusion:
+              additionalProperties: false
+              description: "Rank-fusion weights of the keyword, meaning and exact-reference arms."
+              properties:
+                dense:
+                  maximum: 100
+                  minimum: 0
+                  type: "number"
+                lexical:
+                  maximum: 100
+                  minimum: 0
+                  type: "number"
+                reference:
+                  maximum: 100
+                  minimum: 0
+                  type: "number"
+              required:
+                - "lexical"
+                - "dense"
+              type: "object"
+            lexical:
+              description: "The keyword encoder (`lb14uni1`: Unicode words, the recommended one)."
+              enum:
+                - "lb13s1lex1"
+                - "lb14uni1"
+              type: "string"
+            lexical_floor:
+              description: "The keyword similarity that admits an example."
+              maximum: 1
+              minimum: 0
+              type: "number"
+            mode:
+              description: "Retrieval by meaning AND by words (`lexical` blocks are not served)."
+              enum:
+                - "hybrid"
+              type: "string"
+            views:
+              description: "Index write-time alternative wordings too (not built yet: keep false)."
+              type: "boolean"
+          required:
+            - "mode"
+            - "encoder"
+            - "lexical"
+            - "fusion"
+            - "lexical_floor"
+            - "dense_floor"
+            - "views"
           type: "object"
         self_serve:
           description: "Enabled through this API (not a staff-granted study)."
@@ -21191,7 +21441,7 @@ paths:
       tags:
         - "Flywheel"
     post:
-      description: "Create/upsert the customer’s unit of value by `key` (archetype, artifact_type, occurred_at, request_ids[], declared claims[], situation facets). A request already grouped into ANOTHER artifact is a `conflict` (409) with the owning artifact id. Declared claims always win their claim_key: a key the platform extractor already owns is SUPERSEDED — the extracted claim is kept under `superseded_claims` (state `superseded`, linked by `superseded_by_claim_id`) and your claim becomes the active one; re-declaring a key you already declared keeps the first declaration. NEVER a body. Request IDs produced by Knowledge Ask refuse 403 internal_knowledge_ask before any artifact, membership or claim write. Request IDs without a request row can still bind artifacts. Requires API-key scope: outcomes:write."
+      description: "Create/upsert the customer’s unit of value by `key` (archetype, artifact_type, occurred_at, request_ids[], declared claims[], situation facets). A request already grouped into ANOTHER artifact is a `conflict` (409) with the owning artifact id. Declared claims always win their claim_key: a key the platform extractor already owns is SUPERSEDED — the extracted claim is kept under `superseded_claims` (state `superseded`, linked by `superseded_by_claim_id`) and your claim becomes the active one; re-declaring a key you already declared keeps the first declaration. NEVER a body. Request IDs produced by Knowledge Ask refuse 403 internal_knowledge_ask before any artifact, membership or claim write. Each of `request_ids` must be the gateway’s id of a request served in your workspace (the `X-UR-Request-Id` response header): one the gateway has not recorded yet (it records a request right after answering it) answers the retryable 503 `request_not_landed` with `Retry-After` and writes nothing, so send it again; any other is 404 `request_not_found`, writing nothing. Requires API-key scope: outcomes:write."
       operationId: "createArtifact"
       requestBody:
         content:
@@ -21206,6 +21456,18 @@ paths:
               schema:
                 "$ref": "#/components/schemas/ArtifactEnvelope"
           description: "The created/upserted artifact (metadata only)."
+        "503":
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/GatewayError"
+          description: "`request_not_landed` (`retryable: true`): the request this call names has not been recorded yet — the gateway records a request right after answering it. Nothing was stored; send the same call again after `Retry-After` seconds (both SDKs do). Answered within 15 minutes of the request id’s time, the same for an id another workspace holds; after that an unknown id is 404."
+          headers:
+            "Retry-After":
+              description: "Seconds to wait before sending the same call again."
+              schema:
+                minimum: 1
+                type: "integer"
         default:
           content:
             "application/json":
@@ -21256,7 +21518,7 @@ paths:
         - "Flywheel"
   "/v1/artifacts/{id}/final":
     post:
-      description: "Outcome channel 2 — the ONLY route that may carry a body, and ONLY under `corrections_consent`: the final is stored in the workspace’s encrypted evidence blob store and `diff_stats` are computed server-side against the draft. WITHOUT consent the caller sends CLIENT-computed `diff_stats` + `final_hash` (the SDK `diffStats` helper) and the row is `stored:\"metadata_only\"`, `client_computed:true`. A body without consent is rejected (400). Supplying `artifact_version` binds the final to the draft the human reviewed: a stale value (the draft moved since) is a 409 conflict, never a silent append. When the call type opts into `serve_corrections`, a consented final also updates episode memory’s correction for the matching failed episode — the response’s `episode_correction.status:\"applied\"` means the correction is live for the next similar request. Knowledge Ask receipt ids cannot be bound to artifacts, so a Final cannot acquire Ask request lineage. Requires API-key scope: outcomes:write."
+      description: "Outcome channel 2 — the ONLY route that may carry a body, and ONLY under `corrections_consent`: the final is stored in the workspace’s encrypted evidence blob store and `diff_stats` are computed server-side against the draft. WITHOUT consent the caller sends CLIENT-computed `diff_stats` + `final_hash` (the SDK `diffStats` helper) and the row is `stored:\"metadata_only\"`, `client_computed:true`. A body without consent is rejected (400). Supplying `artifact_version` binds the final to the draft the human reviewed: a stale value (the draft moved since) is a 409 conflict, never a silent append. When the call type opts into `serve_corrections`, a consented final also updates episode memory’s correction for the matching failed episode — the response’s `episode_correction.status:\"applied\"` means the correction is live for the next similar request. Knowledge Ask receipt ids cannot be bound to artifacts, so a Final cannot acquire Ask request lineage. A final for an artifact whose bound request has not been recorded yet answers the retryable 503 `request_not_landed` with `Retry-After` and stores nothing. Requires API-key scope: outcomes:write."
       operationId: "recordArtifactFinal"
       parameters:
         -
@@ -21280,6 +21542,18 @@ paths:
               schema:
                 "$ref": "#/components/schemas/FinalResponse"
           description: "The appended final artifact version."
+        "503":
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/GatewayError"
+          description: "`request_not_landed` (`retryable: true`): the request this call names has not been recorded yet — the gateway records a request right after answering it. Nothing was stored; send the same call again after `Retry-After` seconds (both SDKs do). Answered within 15 minutes of the request id’s time, the same for an id another workspace holds; after that an unknown id is 404."
+          headers:
+            "Retry-After":
+              description: "Seconds to wait before sending the same call again."
+              schema:
+                minimum: 1
+                type: "integer"
         default:
           content:
             "application/json":
@@ -22343,6 +22617,88 @@ paths:
                       index_actions:
                         description: "Present only when true."
                         type: "boolean"
+                      items:
+                        description: "Present only when memory items are on (`PUT /v1/call-types/{id}/learning/items`)."
+                        properties:
+                          key:
+                            enum:
+                              - "conversation"
+                            type: "string"
+                          ranker:
+                            additionalProperties: false
+                            description: "A call type’s retrieval recipe (present only when retrieval by meaning is on)."
+                            properties:
+                              dense_floor:
+                                description: "The meaning similarity (cosine) that admits an example."
+                                maximum: 1
+                                minimum: -1
+                                type: "number"
+                              dense_floor_slope:
+                                description: "How the meaning threshold moves per doubling of the vectors compared (absent ⇒ fixed)."
+                                maximum: 0.1
+                                minimum: 0
+                                type: "number"
+                              encoder:
+                                description: "The static encoder: `sde1:<source revision>:<SHA-256 of the asset>`. Must be the encoder the gateway has loaded."
+                                type: "string"
+                              fusion:
+                                additionalProperties: false
+                                description: "Rank-fusion weights of the keyword, meaning and exact-reference arms."
+                                properties:
+                                  dense:
+                                    maximum: 100
+                                    minimum: 0
+                                    type: "number"
+                                  lexical:
+                                    maximum: 100
+                                    minimum: 0
+                                    type: "number"
+                                  reference:
+                                    maximum: 100
+                                    minimum: 0
+                                    type: "number"
+                                required:
+                                  - "lexical"
+                                  - "dense"
+                                type: "object"
+                              lexical:
+                                description: "The keyword encoder (`lb14uni1`: Unicode words, the recommended one)."
+                                enum:
+                                  - "lb13s1lex1"
+                                  - "lb14uni1"
+                                type: "string"
+                              lexical_floor:
+                                description: "The keyword similarity that admits an example."
+                                maximum: 1
+                                minimum: 0
+                                type: "number"
+                              mode:
+                                description: "Retrieval by meaning AND by words (`lexical` blocks are not served)."
+                                enum:
+                                  - "hybrid"
+                                type: "string"
+                              views:
+                                description: "Index write-time alternative wordings too (not built yet: keep false)."
+                                type: "boolean"
+                            required:
+                              - "mode"
+                              - "encoder"
+                              - "lexical"
+                              - "fusion"
+                              - "lexical_floor"
+                              - "dense_floor"
+                              - "views"
+                            type: "object"
+                          switched_on_at:
+                            type: "string"
+                          validation_first:
+                            type: "boolean"
+                        required:
+                          - "key"
+                          - "ranker"
+                          - "validation_first"
+                          - "switched_on_at"
+                        type: "object"
                       k:
                         exclusiveMinimum: true
                         minimum: 0
@@ -22394,6 +22750,12 @@ paths:
                               - "generation"
                               - "observations"
                             type: "object"
+                          selector:
+                            description: "Present only when set: how lessons are chosen (absent ⇒ today’s selector)."
+                            enum:
+                              - "els1"
+                              - "els2"
+                            type: "string"
                           version_id:
                             nullable: true
                             type: "string"
@@ -22423,6 +22785,71 @@ paths:
                         type: "boolean"
                       record:
                         type: "boolean"
+                      retrieval:
+                        additionalProperties: false
+                        description: "Present only when retrieval by meaning is on (`PUT /v1/call-types/{id}/learning/retrieval`)."
+                        properties:
+                          dense_floor:
+                            description: "The meaning similarity (cosine) that admits an example."
+                            maximum: 1
+                            minimum: -1
+                            type: "number"
+                          dense_floor_slope:
+                            description: "How the meaning threshold moves per doubling of the vectors compared (absent ⇒ fixed)."
+                            maximum: 0.1
+                            minimum: 0
+                            type: "number"
+                          encoder:
+                            description: "The static encoder: `sde1:<source revision>:<SHA-256 of the asset>`. Must be the encoder the gateway has loaded."
+                            type: "string"
+                          fusion:
+                            additionalProperties: false
+                            description: "Rank-fusion weights of the keyword, meaning and exact-reference arms."
+                            properties:
+                              dense:
+                                maximum: 100
+                                minimum: 0
+                                type: "number"
+                              lexical:
+                                maximum: 100
+                                minimum: 0
+                                type: "number"
+                              reference:
+                                maximum: 100
+                                minimum: 0
+                                type: "number"
+                            required:
+                              - "lexical"
+                              - "dense"
+                            type: "object"
+                          lexical:
+                            description: "The keyword encoder (`lb14uni1`: Unicode words, the recommended one)."
+                            enum:
+                              - "lb13s1lex1"
+                              - "lb14uni1"
+                            type: "string"
+                          lexical_floor:
+                            description: "The keyword similarity that admits an example."
+                            maximum: 1
+                            minimum: 0
+                            type: "number"
+                          mode:
+                            description: "Retrieval by meaning AND by words (`lexical` blocks are not served)."
+                            enum:
+                              - "hybrid"
+                            type: "string"
+                          views:
+                            description: "Index write-time alternative wordings too (not built yet: keep false)."
+                            type: "boolean"
+                        required:
+                          - "mode"
+                          - "encoder"
+                          - "lexical"
+                          - "fusion"
+                          - "lexical_floor"
+                          - "dense_floor"
+                          - "views"
+                        type: "object"
                       retrieval_key:
                         description: "Present only when not the default `first_user_message`."
                         enum:
@@ -22430,7 +22857,7 @@ paths:
                           - "content_lines"
                         type: "string"
                       rule_version:
-                        description: "`epm1` — the pure rule version a stored setting is parsed under."
+                        description: "`epm1` — the pure rule version a stored setting is parsed under; `epm2` for a setting with `items` (a build that does not know items reads it as memory off)."
                         type: "string"
                       self_serve:
                         description: "Present (true) only when learning was enabled self-serve through `POST /v1/call-types/{id}/learning/enable` — a published version is then a candidate. In evaluate mode it receives a randomized share of eligible episodes before the policy can make it the active version."
@@ -22583,6 +23010,88 @@ paths:
                       index_actions:
                         description: "Present only when true."
                         type: "boolean"
+                      items:
+                        description: "Present only when memory items are on (`PUT /v1/call-types/{id}/learning/items`)."
+                        properties:
+                          key:
+                            enum:
+                              - "conversation"
+                            type: "string"
+                          ranker:
+                            additionalProperties: false
+                            description: "A call type’s retrieval recipe (present only when retrieval by meaning is on)."
+                            properties:
+                              dense_floor:
+                                description: "The meaning similarity (cosine) that admits an example."
+                                maximum: 1
+                                minimum: -1
+                                type: "number"
+                              dense_floor_slope:
+                                description: "How the meaning threshold moves per doubling of the vectors compared (absent ⇒ fixed)."
+                                maximum: 0.1
+                                minimum: 0
+                                type: "number"
+                              encoder:
+                                description: "The static encoder: `sde1:<source revision>:<SHA-256 of the asset>`. Must be the encoder the gateway has loaded."
+                                type: "string"
+                              fusion:
+                                additionalProperties: false
+                                description: "Rank-fusion weights of the keyword, meaning and exact-reference arms."
+                                properties:
+                                  dense:
+                                    maximum: 100
+                                    minimum: 0
+                                    type: "number"
+                                  lexical:
+                                    maximum: 100
+                                    minimum: 0
+                                    type: "number"
+                                  reference:
+                                    maximum: 100
+                                    minimum: 0
+                                    type: "number"
+                                required:
+                                  - "lexical"
+                                  - "dense"
+                                type: "object"
+                              lexical:
+                                description: "The keyword encoder (`lb14uni1`: Unicode words, the recommended one)."
+                                enum:
+                                  - "lb13s1lex1"
+                                  - "lb14uni1"
+                                type: "string"
+                              lexical_floor:
+                                description: "The keyword similarity that admits an example."
+                                maximum: 1
+                                minimum: 0
+                                type: "number"
+                              mode:
+                                description: "Retrieval by meaning AND by words (`lexical` blocks are not served)."
+                                enum:
+                                  - "hybrid"
+                                type: "string"
+                              views:
+                                description: "Index write-time alternative wordings too (not built yet: keep false)."
+                                type: "boolean"
+                            required:
+                              - "mode"
+                              - "encoder"
+                              - "lexical"
+                              - "fusion"
+                              - "lexical_floor"
+                              - "dense_floor"
+                              - "views"
+                            type: "object"
+                          switched_on_at:
+                            type: "string"
+                          validation_first:
+                            type: "boolean"
+                        required:
+                          - "key"
+                          - "ranker"
+                          - "validation_first"
+                          - "switched_on_at"
+                        type: "object"
                       k:
                         exclusiveMinimum: true
                         minimum: 0
@@ -22634,6 +23143,12 @@ paths:
                               - "generation"
                               - "observations"
                             type: "object"
+                          selector:
+                            description: "Present only when set: how lessons are chosen (absent ⇒ today’s selector)."
+                            enum:
+                              - "els1"
+                              - "els2"
+                            type: "string"
                           version_id:
                             nullable: true
                             type: "string"
@@ -22663,6 +23178,71 @@ paths:
                         type: "boolean"
                       record:
                         type: "boolean"
+                      retrieval:
+                        additionalProperties: false
+                        description: "Present only when retrieval by meaning is on (`PUT /v1/call-types/{id}/learning/retrieval`)."
+                        properties:
+                          dense_floor:
+                            description: "The meaning similarity (cosine) that admits an example."
+                            maximum: 1
+                            minimum: -1
+                            type: "number"
+                          dense_floor_slope:
+                            description: "How the meaning threshold moves per doubling of the vectors compared (absent ⇒ fixed)."
+                            maximum: 0.1
+                            minimum: 0
+                            type: "number"
+                          encoder:
+                            description: "The static encoder: `sde1:<source revision>:<SHA-256 of the asset>`. Must be the encoder the gateway has loaded."
+                            type: "string"
+                          fusion:
+                            additionalProperties: false
+                            description: "Rank-fusion weights of the keyword, meaning and exact-reference arms."
+                            properties:
+                              dense:
+                                maximum: 100
+                                minimum: 0
+                                type: "number"
+                              lexical:
+                                maximum: 100
+                                minimum: 0
+                                type: "number"
+                              reference:
+                                maximum: 100
+                                minimum: 0
+                                type: "number"
+                            required:
+                              - "lexical"
+                              - "dense"
+                            type: "object"
+                          lexical:
+                            description: "The keyword encoder (`lb14uni1`: Unicode words, the recommended one)."
+                            enum:
+                              - "lb13s1lex1"
+                              - "lb14uni1"
+                            type: "string"
+                          lexical_floor:
+                            description: "The keyword similarity that admits an example."
+                            maximum: 1
+                            minimum: 0
+                            type: "number"
+                          mode:
+                            description: "Retrieval by meaning AND by words (`lexical` blocks are not served)."
+                            enum:
+                              - "hybrid"
+                            type: "string"
+                          views:
+                            description: "Index write-time alternative wordings too (not built yet: keep false)."
+                            type: "boolean"
+                        required:
+                          - "mode"
+                          - "encoder"
+                          - "lexical"
+                          - "fusion"
+                          - "lexical_floor"
+                          - "dense_floor"
+                          - "views"
+                        type: "object"
                       retrieval_key:
                         description: "Present only when not the default `first_user_message`."
                         enum:
@@ -22670,7 +23250,7 @@ paths:
                           - "content_lines"
                         type: "string"
                       rule_version:
-                        description: "`epm1` — the pure rule version a stored setting is parsed under."
+                        description: "`epm1` — the pure rule version a stored setting is parsed under; `epm2` for a setting with `items` (a build that does not know items reads it as memory off)."
                         type: "string"
                       self_serve:
                         description: "Present (true) only when learning was enabled self-serve through `POST /v1/call-types/{id}/learning/enable` — a published version is then a candidate. In evaluate mode it receives a randomized share of eligible episodes before the policy can make it the active version."
@@ -22900,6 +23480,88 @@ paths:
                       index_actions:
                         description: "Present only when true."
                         type: "boolean"
+                      items:
+                        description: "Present only when memory items are on (`PUT /v1/call-types/{id}/learning/items`)."
+                        properties:
+                          key:
+                            enum:
+                              - "conversation"
+                            type: "string"
+                          ranker:
+                            additionalProperties: false
+                            description: "A call type’s retrieval recipe (present only when retrieval by meaning is on)."
+                            properties:
+                              dense_floor:
+                                description: "The meaning similarity (cosine) that admits an example."
+                                maximum: 1
+                                minimum: -1
+                                type: "number"
+                              dense_floor_slope:
+                                description: "How the meaning threshold moves per doubling of the vectors compared (absent ⇒ fixed)."
+                                maximum: 0.1
+                                minimum: 0
+                                type: "number"
+                              encoder:
+                                description: "The static encoder: `sde1:<source revision>:<SHA-256 of the asset>`. Must be the encoder the gateway has loaded."
+                                type: "string"
+                              fusion:
+                                additionalProperties: false
+                                description: "Rank-fusion weights of the keyword, meaning and exact-reference arms."
+                                properties:
+                                  dense:
+                                    maximum: 100
+                                    minimum: 0
+                                    type: "number"
+                                  lexical:
+                                    maximum: 100
+                                    minimum: 0
+                                    type: "number"
+                                  reference:
+                                    maximum: 100
+                                    minimum: 0
+                                    type: "number"
+                                required:
+                                  - "lexical"
+                                  - "dense"
+                                type: "object"
+                              lexical:
+                                description: "The keyword encoder (`lb14uni1`: Unicode words, the recommended one)."
+                                enum:
+                                  - "lb13s1lex1"
+                                  - "lb14uni1"
+                                type: "string"
+                              lexical_floor:
+                                description: "The keyword similarity that admits an example."
+                                maximum: 1
+                                minimum: 0
+                                type: "number"
+                              mode:
+                                description: "Retrieval by meaning AND by words (`lexical` blocks are not served)."
+                                enum:
+                                  - "hybrid"
+                                type: "string"
+                              views:
+                                description: "Index write-time alternative wordings too (not built yet: keep false)."
+                                type: "boolean"
+                            required:
+                              - "mode"
+                              - "encoder"
+                              - "lexical"
+                              - "fusion"
+                              - "lexical_floor"
+                              - "dense_floor"
+                              - "views"
+                            type: "object"
+                          switched_on_at:
+                            type: "string"
+                          validation_first:
+                            type: "boolean"
+                        required:
+                          - "key"
+                          - "ranker"
+                          - "validation_first"
+                          - "switched_on_at"
+                        type: "object"
                       k:
                         exclusiveMinimum: true
                         minimum: 0
@@ -22951,6 +23613,12 @@ paths:
                               - "generation"
                               - "observations"
                             type: "object"
+                          selector:
+                            description: "Present only when set: how lessons are chosen (absent ⇒ today’s selector)."
+                            enum:
+                              - "els1"
+                              - "els2"
+                            type: "string"
                           version_id:
                             nullable: true
                             type: "string"
@@ -22980,6 +23648,71 @@ paths:
                         type: "boolean"
                       record:
                         type: "boolean"
+                      retrieval:
+                        additionalProperties: false
+                        description: "Present only when retrieval by meaning is on (`PUT /v1/call-types/{id}/learning/retrieval`)."
+                        properties:
+                          dense_floor:
+                            description: "The meaning similarity (cosine) that admits an example."
+                            maximum: 1
+                            minimum: -1
+                            type: "number"
+                          dense_floor_slope:
+                            description: "How the meaning threshold moves per doubling of the vectors compared (absent ⇒ fixed)."
+                            maximum: 0.1
+                            minimum: 0
+                            type: "number"
+                          encoder:
+                            description: "The static encoder: `sde1:<source revision>:<SHA-256 of the asset>`. Must be the encoder the gateway has loaded."
+                            type: "string"
+                          fusion:
+                            additionalProperties: false
+                            description: "Rank-fusion weights of the keyword, meaning and exact-reference arms."
+                            properties:
+                              dense:
+                                maximum: 100
+                                minimum: 0
+                                type: "number"
+                              lexical:
+                                maximum: 100
+                                minimum: 0
+                                type: "number"
+                              reference:
+                                maximum: 100
+                                minimum: 0
+                                type: "number"
+                            required:
+                              - "lexical"
+                              - "dense"
+                            type: "object"
+                          lexical:
+                            description: "The keyword encoder (`lb14uni1`: Unicode words, the recommended one)."
+                            enum:
+                              - "lb13s1lex1"
+                              - "lb14uni1"
+                            type: "string"
+                          lexical_floor:
+                            description: "The keyword similarity that admits an example."
+                            maximum: 1
+                            minimum: 0
+                            type: "number"
+                          mode:
+                            description: "Retrieval by meaning AND by words (`lexical` blocks are not served)."
+                            enum:
+                              - "hybrid"
+                            type: "string"
+                          views:
+                            description: "Index write-time alternative wordings too (not built yet: keep false)."
+                            type: "boolean"
+                        required:
+                          - "mode"
+                          - "encoder"
+                          - "lexical"
+                          - "fusion"
+                          - "lexical_floor"
+                          - "dense_floor"
+                          - "views"
+                        type: "object"
                       retrieval_key:
                         description: "Present only when not the default `first_user_message`."
                         enum:
@@ -22987,7 +23720,7 @@ paths:
                           - "content_lines"
                         type: "string"
                       rule_version:
-                        description: "`epm1` — the pure rule version a stored setting is parsed under."
+                        description: "`epm1` — the pure rule version a stored setting is parsed under; `epm2` for a setting with `items` (a build that does not know items reads it as memory off)."
                         type: "string"
                       self_serve:
                         description: "Present (true) only when learning was enabled self-serve through `POST /v1/call-types/{id}/learning/enable` — a published version is then a candidate. In evaluate mode it receives a randomized share of eligible episodes before the policy can make it the active version."
@@ -23032,6 +23765,88 @@ paths:
                       index_actions:
                         description: "Present only when true."
                         type: "boolean"
+                      items:
+                        description: "Present only when memory items are on (`PUT /v1/call-types/{id}/learning/items`)."
+                        properties:
+                          key:
+                            enum:
+                              - "conversation"
+                            type: "string"
+                          ranker:
+                            additionalProperties: false
+                            description: "A call type’s retrieval recipe (present only when retrieval by meaning is on)."
+                            properties:
+                              dense_floor:
+                                description: "The meaning similarity (cosine) that admits an example."
+                                maximum: 1
+                                minimum: -1
+                                type: "number"
+                              dense_floor_slope:
+                                description: "How the meaning threshold moves per doubling of the vectors compared (absent ⇒ fixed)."
+                                maximum: 0.1
+                                minimum: 0
+                                type: "number"
+                              encoder:
+                                description: "The static encoder: `sde1:<source revision>:<SHA-256 of the asset>`. Must be the encoder the gateway has loaded."
+                                type: "string"
+                              fusion:
+                                additionalProperties: false
+                                description: "Rank-fusion weights of the keyword, meaning and exact-reference arms."
+                                properties:
+                                  dense:
+                                    maximum: 100
+                                    minimum: 0
+                                    type: "number"
+                                  lexical:
+                                    maximum: 100
+                                    minimum: 0
+                                    type: "number"
+                                  reference:
+                                    maximum: 100
+                                    minimum: 0
+                                    type: "number"
+                                required:
+                                  - "lexical"
+                                  - "dense"
+                                type: "object"
+                              lexical:
+                                description: "The keyword encoder (`lb14uni1`: Unicode words, the recommended one)."
+                                enum:
+                                  - "lb13s1lex1"
+                                  - "lb14uni1"
+                                type: "string"
+                              lexical_floor:
+                                description: "The keyword similarity that admits an example."
+                                maximum: 1
+                                minimum: 0
+                                type: "number"
+                              mode:
+                                description: "Retrieval by meaning AND by words (`lexical` blocks are not served)."
+                                enum:
+                                  - "hybrid"
+                                type: "string"
+                              views:
+                                description: "Index write-time alternative wordings too (not built yet: keep false)."
+                                type: "boolean"
+                            required:
+                              - "mode"
+                              - "encoder"
+                              - "lexical"
+                              - "fusion"
+                              - "lexical_floor"
+                              - "dense_floor"
+                              - "views"
+                            type: "object"
+                          switched_on_at:
+                            type: "string"
+                          validation_first:
+                            type: "boolean"
+                        required:
+                          - "key"
+                          - "ranker"
+                          - "validation_first"
+                          - "switched_on_at"
+                        type: "object"
                       k:
                         exclusiveMinimum: true
                         minimum: 0
@@ -23083,6 +23898,12 @@ paths:
                               - "generation"
                               - "observations"
                             type: "object"
+                          selector:
+                            description: "Present only when set: how lessons are chosen (absent ⇒ today’s selector)."
+                            enum:
+                              - "els1"
+                              - "els2"
+                            type: "string"
                           version_id:
                             nullable: true
                             type: "string"
@@ -23112,6 +23933,71 @@ paths:
                         type: "boolean"
                       record:
                         type: "boolean"
+                      retrieval:
+                        additionalProperties: false
+                        description: "Present only when retrieval by meaning is on (`PUT /v1/call-types/{id}/learning/retrieval`)."
+                        properties:
+                          dense_floor:
+                            description: "The meaning similarity (cosine) that admits an example."
+                            maximum: 1
+                            minimum: -1
+                            type: "number"
+                          dense_floor_slope:
+                            description: "How the meaning threshold moves per doubling of the vectors compared (absent ⇒ fixed)."
+                            maximum: 0.1
+                            minimum: 0
+                            type: "number"
+                          encoder:
+                            description: "The static encoder: `sde1:<source revision>:<SHA-256 of the asset>`. Must be the encoder the gateway has loaded."
+                            type: "string"
+                          fusion:
+                            additionalProperties: false
+                            description: "Rank-fusion weights of the keyword, meaning and exact-reference arms."
+                            properties:
+                              dense:
+                                maximum: 100
+                                minimum: 0
+                                type: "number"
+                              lexical:
+                                maximum: 100
+                                minimum: 0
+                                type: "number"
+                              reference:
+                                maximum: 100
+                                minimum: 0
+                                type: "number"
+                            required:
+                              - "lexical"
+                              - "dense"
+                            type: "object"
+                          lexical:
+                            description: "The keyword encoder (`lb14uni1`: Unicode words, the recommended one)."
+                            enum:
+                              - "lb13s1lex1"
+                              - "lb14uni1"
+                            type: "string"
+                          lexical_floor:
+                            description: "The keyword similarity that admits an example."
+                            maximum: 1
+                            minimum: 0
+                            type: "number"
+                          mode:
+                            description: "Retrieval by meaning AND by words (`lexical` blocks are not served)."
+                            enum:
+                              - "hybrid"
+                            type: "string"
+                          views:
+                            description: "Index write-time alternative wordings too (not built yet: keep false)."
+                            type: "boolean"
+                        required:
+                          - "mode"
+                          - "encoder"
+                          - "lexical"
+                          - "fusion"
+                          - "lexical_floor"
+                          - "dense_floor"
+                          - "views"
+                        type: "object"
                       retrieval_key:
                         description: "Present only when not the default `first_user_message`."
                         enum:
@@ -23119,7 +24005,7 @@ paths:
                           - "content_lines"
                         type: "string"
                       rule_version:
-                        description: "`epm1` — the pure rule version a stored setting is parsed under."
+                        description: "`epm1` — the pure rule version a stored setting is parsed under; `epm2` for a setting with `items` (a build that does not know items reads it as memory off)."
                         type: "string"
                       self_serve:
                         description: "Present (true) only when learning was enabled self-serve through `POST /v1/call-types/{id}/learning/enable` — a published version is then a candidate. In evaluate mode it receives a randomized share of eligible episodes before the policy can make it the active version."
@@ -23507,6 +24393,10 @@ paths:
                         description: "Knowledge facts whose content came from a final or a verified correction the erasure reached: retired (no longer read or served) and their text removed. A fact other end users also supported is retired whole and re-derived from what remains on the next learning pass."
                         minimum: 0
                         type: "integer"
+                      memory_items:
+                        description: "Declared rules and notes the erased end user gave (memory items), in every call type; their validations and their key on corrections they gave go with them."
+                        minimum: 0
+                        type: "integer"
                       oracle_jobs:
                         description: "Verification jobs on a request the erasure reached, their payload removed."
                         minimum: 0
@@ -23579,6 +24469,7 @@ paths:
                       - "import_records"
                       - "workflow_step_links"
                       - "workflow_repair_chains"
+                      - "memory_items"
                     type: "object"
                   call_type_id:
                     type: "string"
@@ -23675,6 +24566,10 @@ paths:
                         description: "Knowledge facts whose content came from a final or a verified correction the erasure reached: retired (no longer read or served) and their text removed. A fact other end users also supported is retired whole and re-derived from what remains on the next learning pass."
                         minimum: 0
                         type: "integer"
+                      memory_items:
+                        description: "Declared rules and notes the erased end user gave (memory items), in every call type; their validations and their key on corrections they gave go with them."
+                        minimum: 0
+                        type: "integer"
                       oracle_jobs:
                         description: "Verification jobs on a request the erasure reached, their payload removed."
                         minimum: 0
@@ -23747,6 +24642,7 @@ paths:
                       - "import_records"
                       - "workflow_step_links"
                       - "workflow_repair_chains"
+                      - "memory_items"
                     type: "object"
                   evicted:
                     description: "Rows moved out of memory (0 for an erasure or a dry run)."
@@ -24774,6 +25670,88 @@ paths:
                       index_actions:
                         description: "Present only when true."
                         type: "boolean"
+                      items:
+                        description: "Present only when memory items are on (`PUT /v1/call-types/{id}/learning/items`)."
+                        properties:
+                          key:
+                            enum:
+                              - "conversation"
+                            type: "string"
+                          ranker:
+                            additionalProperties: false
+                            description: "A call type’s retrieval recipe (present only when retrieval by meaning is on)."
+                            properties:
+                              dense_floor:
+                                description: "The meaning similarity (cosine) that admits an example."
+                                maximum: 1
+                                minimum: -1
+                                type: "number"
+                              dense_floor_slope:
+                                description: "How the meaning threshold moves per doubling of the vectors compared (absent ⇒ fixed)."
+                                maximum: 0.1
+                                minimum: 0
+                                type: "number"
+                              encoder:
+                                description: "The static encoder: `sde1:<source revision>:<SHA-256 of the asset>`. Must be the encoder the gateway has loaded."
+                                type: "string"
+                              fusion:
+                                additionalProperties: false
+                                description: "Rank-fusion weights of the keyword, meaning and exact-reference arms."
+                                properties:
+                                  dense:
+                                    maximum: 100
+                                    minimum: 0
+                                    type: "number"
+                                  lexical:
+                                    maximum: 100
+                                    minimum: 0
+                                    type: "number"
+                                  reference:
+                                    maximum: 100
+                                    minimum: 0
+                                    type: "number"
+                                required:
+                                  - "lexical"
+                                  - "dense"
+                                type: "object"
+                              lexical:
+                                description: "The keyword encoder (`lb14uni1`: Unicode words, the recommended one)."
+                                enum:
+                                  - "lb13s1lex1"
+                                  - "lb14uni1"
+                                type: "string"
+                              lexical_floor:
+                                description: "The keyword similarity that admits an example."
+                                maximum: 1
+                                minimum: 0
+                                type: "number"
+                              mode:
+                                description: "Retrieval by meaning AND by words (`lexical` blocks are not served)."
+                                enum:
+                                  - "hybrid"
+                                type: "string"
+                              views:
+                                description: "Index write-time alternative wordings too (not built yet: keep false)."
+                                type: "boolean"
+                            required:
+                              - "mode"
+                              - "encoder"
+                              - "lexical"
+                              - "fusion"
+                              - "lexical_floor"
+                              - "dense_floor"
+                              - "views"
+                            type: "object"
+                          switched_on_at:
+                            type: "string"
+                          validation_first:
+                            type: "boolean"
+                        required:
+                          - "key"
+                          - "ranker"
+                          - "validation_first"
+                          - "switched_on_at"
+                        type: "object"
                       k:
                         exclusiveMinimum: true
                         minimum: 0
@@ -24825,6 +25803,12 @@ paths:
                               - "generation"
                               - "observations"
                             type: "object"
+                          selector:
+                            description: "Present only when set: how lessons are chosen (absent ⇒ today’s selector)."
+                            enum:
+                              - "els1"
+                              - "els2"
+                            type: "string"
                           version_id:
                             nullable: true
                             type: "string"
@@ -24854,6 +25838,71 @@ paths:
                         type: "boolean"
                       record:
                         type: "boolean"
+                      retrieval:
+                        additionalProperties: false
+                        description: "Present only when retrieval by meaning is on (`PUT /v1/call-types/{id}/learning/retrieval`)."
+                        properties:
+                          dense_floor:
+                            description: "The meaning similarity (cosine) that admits an example."
+                            maximum: 1
+                            minimum: -1
+                            type: "number"
+                          dense_floor_slope:
+                            description: "How the meaning threshold moves per doubling of the vectors compared (absent ⇒ fixed)."
+                            maximum: 0.1
+                            minimum: 0
+                            type: "number"
+                          encoder:
+                            description: "The static encoder: `sde1:<source revision>:<SHA-256 of the asset>`. Must be the encoder the gateway has loaded."
+                            type: "string"
+                          fusion:
+                            additionalProperties: false
+                            description: "Rank-fusion weights of the keyword, meaning and exact-reference arms."
+                            properties:
+                              dense:
+                                maximum: 100
+                                minimum: 0
+                                type: "number"
+                              lexical:
+                                maximum: 100
+                                minimum: 0
+                                type: "number"
+                              reference:
+                                maximum: 100
+                                minimum: 0
+                                type: "number"
+                            required:
+                              - "lexical"
+                              - "dense"
+                            type: "object"
+                          lexical:
+                            description: "The keyword encoder (`lb14uni1`: Unicode words, the recommended one)."
+                            enum:
+                              - "lb13s1lex1"
+                              - "lb14uni1"
+                            type: "string"
+                          lexical_floor:
+                            description: "The keyword similarity that admits an example."
+                            maximum: 1
+                            minimum: 0
+                            type: "number"
+                          mode:
+                            description: "Retrieval by meaning AND by words (`lexical` blocks are not served)."
+                            enum:
+                              - "hybrid"
+                            type: "string"
+                          views:
+                            description: "Index write-time alternative wordings too (not built yet: keep false)."
+                            type: "boolean"
+                        required:
+                          - "mode"
+                          - "encoder"
+                          - "lexical"
+                          - "fusion"
+                          - "lexical_floor"
+                          - "dense_floor"
+                          - "views"
+                        type: "object"
                       retrieval_key:
                         description: "Present only when not the default `first_user_message`."
                         enum:
@@ -24861,7 +25910,7 @@ paths:
                           - "content_lines"
                         type: "string"
                       rule_version:
-                        description: "`epm1` — the pure rule version a stored setting is parsed under."
+                        description: "`epm1` — the pure rule version a stored setting is parsed under; `epm2` for a setting with `items` (a build that does not know items reads it as memory off)."
                         type: "string"
                       self_serve:
                         description: "Present (true) only when learning was enabled self-serve through `POST /v1/call-types/{id}/learning/enable` — a published version is then a candidate. In evaluate mode it receives a randomized share of eligible episodes before the policy can make it the active version."
@@ -24906,6 +25955,88 @@ paths:
                       index_actions:
                         description: "Present only when true."
                         type: "boolean"
+                      items:
+                        description: "Present only when memory items are on (`PUT /v1/call-types/{id}/learning/items`)."
+                        properties:
+                          key:
+                            enum:
+                              - "conversation"
+                            type: "string"
+                          ranker:
+                            additionalProperties: false
+                            description: "A call type’s retrieval recipe (present only when retrieval by meaning is on)."
+                            properties:
+                              dense_floor:
+                                description: "The meaning similarity (cosine) that admits an example."
+                                maximum: 1
+                                minimum: -1
+                                type: "number"
+                              dense_floor_slope:
+                                description: "How the meaning threshold moves per doubling of the vectors compared (absent ⇒ fixed)."
+                                maximum: 0.1
+                                minimum: 0
+                                type: "number"
+                              encoder:
+                                description: "The static encoder: `sde1:<source revision>:<SHA-256 of the asset>`. Must be the encoder the gateway has loaded."
+                                type: "string"
+                              fusion:
+                                additionalProperties: false
+                                description: "Rank-fusion weights of the keyword, meaning and exact-reference arms."
+                                properties:
+                                  dense:
+                                    maximum: 100
+                                    minimum: 0
+                                    type: "number"
+                                  lexical:
+                                    maximum: 100
+                                    minimum: 0
+                                    type: "number"
+                                  reference:
+                                    maximum: 100
+                                    minimum: 0
+                                    type: "number"
+                                required:
+                                  - "lexical"
+                                  - "dense"
+                                type: "object"
+                              lexical:
+                                description: "The keyword encoder (`lb14uni1`: Unicode words, the recommended one)."
+                                enum:
+                                  - "lb13s1lex1"
+                                  - "lb14uni1"
+                                type: "string"
+                              lexical_floor:
+                                description: "The keyword similarity that admits an example."
+                                maximum: 1
+                                minimum: 0
+                                type: "number"
+                              mode:
+                                description: "Retrieval by meaning AND by words (`lexical` blocks are not served)."
+                                enum:
+                                  - "hybrid"
+                                type: "string"
+                              views:
+                                description: "Index write-time alternative wordings too (not built yet: keep false)."
+                                type: "boolean"
+                            required:
+                              - "mode"
+                              - "encoder"
+                              - "lexical"
+                              - "fusion"
+                              - "lexical_floor"
+                              - "dense_floor"
+                              - "views"
+                            type: "object"
+                          switched_on_at:
+                            type: "string"
+                          validation_first:
+                            type: "boolean"
+                        required:
+                          - "key"
+                          - "ranker"
+                          - "validation_first"
+                          - "switched_on_at"
+                        type: "object"
                       k:
                         exclusiveMinimum: true
                         minimum: 0
@@ -24957,6 +26088,12 @@ paths:
                               - "generation"
                               - "observations"
                             type: "object"
+                          selector:
+                            description: "Present only when set: how lessons are chosen (absent ⇒ today’s selector)."
+                            enum:
+                              - "els1"
+                              - "els2"
+                            type: "string"
                           version_id:
                             nullable: true
                             type: "string"
@@ -24986,6 +26123,71 @@ paths:
                         type: "boolean"
                       record:
                         type: "boolean"
+                      retrieval:
+                        additionalProperties: false
+                        description: "Present only when retrieval by meaning is on (`PUT /v1/call-types/{id}/learning/retrieval`)."
+                        properties:
+                          dense_floor:
+                            description: "The meaning similarity (cosine) that admits an example."
+                            maximum: 1
+                            minimum: -1
+                            type: "number"
+                          dense_floor_slope:
+                            description: "How the meaning threshold moves per doubling of the vectors compared (absent ⇒ fixed)."
+                            maximum: 0.1
+                            minimum: 0
+                            type: "number"
+                          encoder:
+                            description: "The static encoder: `sde1:<source revision>:<SHA-256 of the asset>`. Must be the encoder the gateway has loaded."
+                            type: "string"
+                          fusion:
+                            additionalProperties: false
+                            description: "Rank-fusion weights of the keyword, meaning and exact-reference arms."
+                            properties:
+                              dense:
+                                maximum: 100
+                                minimum: 0
+                                type: "number"
+                              lexical:
+                                maximum: 100
+                                minimum: 0
+                                type: "number"
+                              reference:
+                                maximum: 100
+                                minimum: 0
+                                type: "number"
+                            required:
+                              - "lexical"
+                              - "dense"
+                            type: "object"
+                          lexical:
+                            description: "The keyword encoder (`lb14uni1`: Unicode words, the recommended one)."
+                            enum:
+                              - "lb13s1lex1"
+                              - "lb14uni1"
+                            type: "string"
+                          lexical_floor:
+                            description: "The keyword similarity that admits an example."
+                            maximum: 1
+                            minimum: 0
+                            type: "number"
+                          mode:
+                            description: "Retrieval by meaning AND by words (`lexical` blocks are not served)."
+                            enum:
+                              - "hybrid"
+                            type: "string"
+                          views:
+                            description: "Index write-time alternative wordings too (not built yet: keep false)."
+                            type: "boolean"
+                        required:
+                          - "mode"
+                          - "encoder"
+                          - "lexical"
+                          - "fusion"
+                          - "lexical_floor"
+                          - "dense_floor"
+                          - "views"
+                        type: "object"
                       retrieval_key:
                         description: "Present only when not the default `first_user_message`."
                         enum:
@@ -24993,7 +26195,7 @@ paths:
                           - "content_lines"
                         type: "string"
                       rule_version:
-                        description: "`epm1` — the pure rule version a stored setting is parsed under."
+                        description: "`epm1` — the pure rule version a stored setting is parsed under; `epm2` for a setting with `items` (a build that does not know items reads it as memory off)."
                         type: "string"
                       self_serve:
                         description: "Present (true) only when learning was enabled self-serve through `POST /v1/call-types/{id}/learning/enable` — a published version is then a candidate. In evaluate mode it receives a randomized share of eligible episodes before the policy can make it the active version."
@@ -25193,6 +26395,223 @@ paths:
         -
           sessionCookie: []
       summary: "Change the learned memory read deadline"
+      tags:
+        - "Learning"
+  "/v1/call-types/{id}/learning/conversation-memory":
+    get:
+      description: "Whether the call type remembers each end user’s conversations, for that end user only; what switching it on does (`consequence`, and the `consequence_sha256` an owner sends back to switch on); the retention window it remembers (the last `retention_days` days); the most it adds to one request (`ceiling_characters`); and what it holds, as counts only: conversations, distinct end-user keys and the largest key’s share. Dual auth: an api key (`config:read` to read, `config:write` to change) or an owner/admin session with the `X-UR-Workspace` header; a viewer may read only. A call type of another workspace is a 404. Requires API-key scope: config:read or config:write."
+      operationId: "getConversationMemory"
+      parameters:
+        -
+          description: "Path parameter `id`."
+          in: "path"
+          name: "id"
+          required: true
+          schema:
+            description: "Path parameter `id`."
+            type: "string"
+      responses:
+        "200":
+          content:
+            "application/json":
+              schema:
+                description: "A call type’s conversation memory: the switch, what it does, and what it holds (counts only)."
+                properties:
+                  call_type_id:
+                    type: "string"
+                  ceiling_characters:
+                    description: "The most the block adds to one request, in characters (about a quarter as many tokens)."
+                    type: "integer"
+                  changed:
+                    type: "boolean"
+                  config_version:
+                    nullable: true
+                    type: "integer"
+                  consequence:
+                    description: "What switching on does, in one paragraph: read it before switching on."
+                    type: "string"
+                  consequence_sha256:
+                    description: "Send it back as `acknowledged_consequence_sha256` to switch on."
+                    type: "string"
+                  conversations:
+                    description: "Live recorded conversations of the call type (counts only)."
+                    type: "integer"
+                  enabled:
+                    type: "boolean"
+                  end_users:
+                    description: "Distinct end-user keys among them."
+                    type: "integer"
+                  k:
+                    description: "Earlier conversations served per turn (the value an enable writes when off)."
+                    type: "integer"
+                  largest_end_user_share:
+                    description: "The largest single key’s share of the conversations (0 to 1; null with none). Near 1 with many conversations: one key is probably shared by many people."
+                    nullable: true
+                    type: "number"
+                  min_similarity:
+                    type: "number"
+                  object:
+                    enum:
+                      - "conversation_memory"
+                    type: "string"
+                  retention_days:
+                    description: "The workspace’s retention window: memory remembers the last N days."
+                    type: "integer"
+                  user_field_identifies_person:
+                    type: "boolean"
+                required:
+                  - "object"
+                  - "call_type_id"
+                  - "enabled"
+                  - "k"
+                  - "min_similarity"
+                  - "user_field_identifies_person"
+                  - "retention_days"
+                  - "ceiling_characters"
+                  - "consequence"
+                  - "consequence_sha256"
+                  - "conversations"
+                  - "end_users"
+                  - "largest_end_user_share"
+                type: "object"
+          description: "The switch, what it does and what it holds."
+        default:
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/GatewayError"
+          description: "Normalized error envelope."
+      security:
+        -
+          bearerAuth: []
+        -
+          sessionCookie: []
+      summary: "Read conversation memory"
+      tags:
+        - "Learning"
+    put:
+      description: "ON records every conversation of this kind under the end user’s key (`ur.memory_partition`, the `X-UR-Memory-Partition` header, or `user` only with `user_field_identifies_person`) within its tenant, and adds up to `k` (default 5) of the same end user’s most similar earlier conversations before the latest user turn of every request. A request with no key is neither recorded nor served. Switching on is the workspace owner’s through a signed-in session (403 `conversation_memory_owner_only`) and needs the sentence acknowledged (409 `consequence_not_acknowledged`, with the sentence and its sha256), learning on, the corrections consent on (409 `corrections_consent_required`) and retention `full` (409 `retention_not_full`); refused with memory items on (409 `conversation_memory_requires_items_off`) or lessons on (409 `conversation_memory_requires_lessons_off`). OFF stops recording and serving on the next request and deletes nothing. A key bound to a tenant cannot change it (403). Audited; bumps `config_version`; the same values again are a no-op (`changed: false`). Dual auth: an api key (`config:read` to read, `config:write` to change) or an owner/admin session with the `X-UR-Workspace` header; a viewer may read only. A call type of another workspace is a 404. Requires API-key scope: config:write."
+      operationId: "putConversationMemory"
+      parameters:
+        -
+          description: "Path parameter `id`."
+          in: "path"
+          name: "id"
+          required: true
+          schema:
+            description: "Path parameter `id`."
+            type: "string"
+      requestBody:
+        content:
+          "application/json":
+            example:
+              acknowledged_consequence_sha256: "0000000000000000000000000000000000000000000000000000000000000000"
+              enabled: true
+            schema:
+              additionalProperties: false
+              description: "Switch conversation memory on or off for a call type."
+              properties:
+                acknowledged_consequence_sha256:
+                  description: "Required to switch on: the sha256 of the consequence sentence for these values (`consequence_sha256` of the GET with the same `k` and `user_field_identifies_person`). Anything else is refused 409 `consequence_not_acknowledged`, with the sentence."
+                  pattern: "^[0-9a-f]{64}$"
+                  type: "string"
+                enabled:
+                  description: "Remember each end user’s conversations of this kind, for that end user only (true), or stop (false). Switching off stops recording and serving on the next request and deletes nothing."
+                  type: "boolean"
+                k:
+                  description: "Earlier conversations served per turn, 1 to 5 (default 5)."
+                  maximum: 5
+                  minimum: 1
+                  type: "integer"
+                min_similarity:
+                  description: "The keyword picker’s floor: an earlier conversation is served only when its similarity to the latest user turn reaches it (default 0: any shared word)."
+                  maximum: 1
+                  minimum: 0
+                  type: "number"
+                user_field_identifies_person:
+                  description: "The OpenAI `user` field names ONE person, so it may key memory too (default false: only `ur.memory_partition` or the `X-UR-Memory-Partition` header key a conversation)."
+                  type: "boolean"
+              required:
+                - "enabled"
+              type: "object"
+        required: true
+      responses:
+        "200":
+          content:
+            "application/json":
+              schema:
+                description: "A call type’s conversation memory: the switch, what it does, and what it holds (counts only)."
+                properties:
+                  call_type_id:
+                    type: "string"
+                  ceiling_characters:
+                    description: "The most the block adds to one request, in characters (about a quarter as many tokens)."
+                    type: "integer"
+                  changed:
+                    type: "boolean"
+                  config_version:
+                    nullable: true
+                    type: "integer"
+                  consequence:
+                    description: "What switching on does, in one paragraph: read it before switching on."
+                    type: "string"
+                  consequence_sha256:
+                    description: "Send it back as `acknowledged_consequence_sha256` to switch on."
+                    type: "string"
+                  conversations:
+                    description: "Live recorded conversations of the call type (counts only)."
+                    type: "integer"
+                  enabled:
+                    type: "boolean"
+                  end_users:
+                    description: "Distinct end-user keys among them."
+                    type: "integer"
+                  k:
+                    description: "Earlier conversations served per turn (the value an enable writes when off)."
+                    type: "integer"
+                  largest_end_user_share:
+                    description: "The largest single key’s share of the conversations (0 to 1; null with none). Near 1 with many conversations: one key is probably shared by many people."
+                    nullable: true
+                    type: "number"
+                  min_similarity:
+                    type: "number"
+                  object:
+                    enum:
+                      - "conversation_memory"
+                    type: "string"
+                  retention_days:
+                    description: "The workspace’s retention window: memory remembers the last N days."
+                    type: "integer"
+                  user_field_identifies_person:
+                    type: "boolean"
+                required:
+                  - "object"
+                  - "call_type_id"
+                  - "enabled"
+                  - "k"
+                  - "min_similarity"
+                  - "user_field_identifies_person"
+                  - "retention_days"
+                  - "ceiling_characters"
+                  - "consequence"
+                  - "consequence_sha256"
+                  - "conversations"
+                  - "end_users"
+                  - "largest_end_user_share"
+                type: "object"
+          description: "The switch after the change."
+        default:
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/GatewayError"
+          description: "Normalized error envelope."
+      security:
+        -
+          bearerAuth: []
+        -
+          sessionCookie: []
+      summary: "Switch conversation memory on or off"
       tags:
         - "Learning"
   "/v1/call-types/{id}/learning/correction-sharing":
@@ -26058,6 +27477,261 @@ paths:
       summary: "List evaluations"
       tags:
         - "Learning"
+  "/v1/call-types/{id}/learning/items":
+    get:
+      description: "Whether the call type is served from memory items, since when, and the ranker’s meaning floor (null = off). Dual auth: an api key (`config:read` to read, `config:write` to change) or an owner/admin session with the `X-UR-Workspace` header; a viewer may read only. A call type of another workspace is a 404. Requires API-key scope: config:read or config:write."
+      operationId: "getLearningItems"
+      parameters:
+        -
+          description: "Path parameter `id`."
+          in: "path"
+          name: "id"
+          required: true
+          schema:
+            description: "Path parameter `id`."
+            type: "string"
+      responses:
+        "200":
+          content:
+            "application/json":
+              schema:
+                description: "A call type’s memory-items switch."
+                properties:
+                  call_type_id:
+                    type: "string"
+                  changed:
+                    type: "boolean"
+                  dense_floor:
+                    description: "Null = floors off."
+                    nullable: true
+                    type: "number"
+                  enabled:
+                    type: "boolean"
+                  key:
+                    description: "What a request is matched on (null when off)."
+                    enum:
+                      - "conversation"
+                    nullable: true
+                    type: "string"
+                  object:
+                    enum:
+                      - "learning_items"
+                    type: "string"
+                  switched_on_at:
+                    nullable: true
+                    type: "string"
+                  validation_first:
+                    type: "boolean"
+                required:
+                  - "object"
+                  - "call_type_id"
+                  - "enabled"
+                  - "key"
+                  - "switched_on_at"
+                  - "dense_floor"
+                  - "validation_first"
+                type: "object"
+          description: "The switch."
+        default:
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/GatewayError"
+          description: "Normalized error envelope."
+      security:
+        -
+          bearerAuth: []
+        -
+          sessionCookie: []
+      summary: "Read the memory-items switch"
+      tags:
+        - "Learning"
+    put:
+      description: "ON serves the call type from memory items: each request is matched on its conversation and served only the items its own reach allows, ranked by meaning with the deployment’s pinned encoder (409 `retrieval_encoder_not_configured` or `retrieval_encoder_not_loaded`). Switching on records the instant (`switched_on_at`): only items stored at or after it are served, and switching on again keeps it. It serves corrections as items and needs episode memory set up for the call type (409 `memory_setting_required`) with lessons off (409 `items_requires_lessons_off`). OFF serves as before. Requires learning to be switched on for the workspace. A key bound to a tenant cannot change it (403). Audited; bumps `config_version`; the same values again are a no-op (`changed: false`). Dual auth: an api key (`config:read` to read, `config:write` to change) or an owner/admin session with the `X-UR-Workspace` header; a viewer may read only. A call type of another workspace is a 404. Requires API-key scope: config:write."
+      operationId: "putLearningItems"
+      parameters:
+        -
+          description: "Path parameter `id`."
+          in: "path"
+          name: "id"
+          required: true
+          schema:
+            description: "Path parameter `id`."
+            type: "string"
+      requestBody:
+        content:
+          "application/json":
+            example:
+              enabled: true
+            schema:
+              additionalProperties: false
+              description: "Switch memory items on or off for a call type."
+              properties:
+                dense_floor:
+                  description: "The ranker’s meaning floor: an item is served only when its best cosine reaches it. Null or omitted: off (every ranked item may be served, the measured default). The measured alternative is 0.20."
+                  maximum: 1
+                  minimum: -1
+                  nullable: true
+                  type: "number"
+                enabled:
+                  description: "Serve this call type from memory items (true) or as before (false). Switching on records the instant: only items stored at or after it are served."
+                  type: "boolean"
+                validation_first:
+                  description: "A tenant admin’s own item waits for a validation before anyone else sees it (default false)."
+                  type: "boolean"
+              required:
+                - "enabled"
+              type: "object"
+        required: true
+      responses:
+        "200":
+          content:
+            "application/json":
+              schema:
+                description: "A call type’s memory-items switch."
+                properties:
+                  call_type_id:
+                    type: "string"
+                  changed:
+                    type: "boolean"
+                  dense_floor:
+                    description: "Null = floors off."
+                    nullable: true
+                    type: "number"
+                  enabled:
+                    type: "boolean"
+                  key:
+                    description: "What a request is matched on (null when off)."
+                    enum:
+                      - "conversation"
+                    nullable: true
+                    type: "string"
+                  object:
+                    enum:
+                      - "learning_items"
+                    type: "string"
+                  switched_on_at:
+                    nullable: true
+                    type: "string"
+                  validation_first:
+                    type: "boolean"
+                required:
+                  - "object"
+                  - "call_type_id"
+                  - "enabled"
+                  - "key"
+                  - "switched_on_at"
+                  - "dense_floor"
+                  - "validation_first"
+                type: "object"
+          description: "The switch after the change."
+        default:
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/GatewayError"
+          description: "Normalized error envelope."
+      security:
+        -
+          bearerAuth: []
+        -
+          sessionCookie: []
+      summary: "Switch memory items on or off"
+      tags:
+        - "Learning"
+  "/v1/call-types/{id}/learning/items/{item_id}/validate":
+    post:
+      description: "Records that a developer (a session, or a `server_side` key claiming `given_by: developer`) or a tenant admin (a `server_side` key claiming `given_by: tenant_admin`) vouches for an item: a rule, note or comment (`mit_…`) or a corrected request’s episode (`ept_…`). A validation opens an end user’s item to its own tenant, never further; a tenant admin’s validation counts only inside its tenant and never for its own item. 403 `permission` `validator_role_required` for anyone else. Audited. Dual auth: an api key (`config:read` to read, `config:write` to change) or an owner/admin session with the `X-UR-Workspace` header; a viewer may read only. A call type of another workspace is a 404. Requires API-key scope: config:write."
+      operationId: "validateMemoryItem"
+      parameters:
+        -
+          description: "Path parameter `id`."
+          in: "path"
+          name: "id"
+          required: true
+          schema:
+            description: "Path parameter `id`."
+            type: "string"
+        -
+          description: "Path parameter `item_id`."
+          in: "path"
+          name: "item_id"
+          required: true
+          schema:
+            description: "Path parameter `item_id`."
+            type: "string"
+      requestBody:
+        content:
+          "application/json":
+            schema:
+              additionalProperties: false
+              description: "Validate an item: opens it to its own tenant (never further in stop 1)."
+              properties:
+                given_by:
+                  description: "Who gives this. `developer` is honoured only from a dashboard session or an api key marked `server_side`; `tenant_admin` only from an api key marked `server_side`; anything else is recorded as `end_user`, the role whose items stay with their giver. Omitted: a session is a developer, any api key an end user."
+                  enum:
+                    - "developer"
+                    - "tenant_admin"
+                    - "end_user"
+                  type: "string"
+                tenant:
+                  description: "The validating tenant admin’s tenant, when the setting is `metadata:<key>` (under `api_key` the key’s tenant)."
+                  maxLength: 1024
+                  minLength: 1
+                  type: "string"
+                user:
+                  description: "The validating tenant admin’s end-user key (a tenant admin never validates their own item)."
+                  maxLength: 1024
+                  minLength: 1
+                  type: "string"
+              type: "object"
+        required: true
+      responses:
+        "201":
+          content:
+            "application/json":
+              schema:
+                description: "A recorded validation."
+                properties:
+                  created_at:
+                    type: "string"
+                  id:
+                    description: "`miv_…`."
+                    type: "string"
+                  item_id:
+                    description: "The validated item: a rule or note (`mit_…`) or a corrected trace (`ept_…`)."
+                    type: "string"
+                  object:
+                    enum:
+                      - "memory_item_validation"
+                    type: "string"
+                  role:
+                    enum:
+                      - "developer"
+                      - "tenant_admin"
+                    type: "string"
+                required:
+                  - "object"
+                  - "id"
+                  - "item_id"
+                  - "role"
+                  - "created_at"
+                type: "object"
+          description: "The recorded validation."
+        default:
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/GatewayError"
+          description: "Normalized error envelope."
+      security:
+        -
+          bearerAuth: []
+        -
+          sessionCookie: []
+      summary: "Validate a memory item"
+      tags:
+        - "Learning"
   "/v1/call-types/{id}/learning/pause":
     post:
       description: "Stops reflecting and stops evaluation decisions; the ACTIVE version keeps serving and no evaluation arm is assigned while paused. Idempotent. 409 `conflict` (`learning_not_enabled`) for a call type that was never enabled through this API. Dual auth: an api key (`config:read` to read, `config:write` to change) or an owner/admin session with the `X-UR-Workspace` header; a viewer may read only. A call type of another workspace is a 404. Requires API-key scope: config:write."
@@ -26126,6 +27800,130 @@ paths:
       summary: "Resume learning"
       tags:
         - "Learning"
+  "/v1/call-types/{id}/learning/retrieval":
+    put:
+      description: "Set or clear the retrieval recipe of an existing memory setting; nothing else changes. `recommended` is the measured recipe for the deployment’s encoder (by meaning and by words, with thresholds so nothing unrelated is shown); it also turns de-duplication on and sets a similarity floor to 0 (a recipe never runs with one), both recorded in the audit event. An explicit block must name the encoder the deployment configures (else 409 `retrieval_encoder_not_configured`); its id is `memory_encoder.encoder` in the learning status. If the gateway that answers could not load that encoder, `recommended` answers 409 `retrieval_encoder_not_loaded` (an explicit block is still accepted). `null` goes back to picking by words only. `lessons_selector: els2` is refused by name until it is served. Requires an existing memory setting and learning enabled. Appends a config version, visible within 5 seconds, with an audit of the before and after recipe. Dual auth: an api key (`config:read` to read, `config:write` to change) or an owner/admin session with the `X-UR-Workspace` header; a viewer may read only. A call type of another workspace is a 404. Requires API-key scope: config:write."
+      operationId: "setLearningRetrieval"
+      parameters:
+        -
+          description: "Path parameter `id`."
+          in: "path"
+          name: "id"
+          required: true
+          schema:
+            description: "Path parameter `id`."
+            type: "string"
+      requestBody:
+        content:
+          "application/json":
+            schema:
+              additionalProperties: false
+              description: "Set or clear the retrieval recipe of an existing memory setting; nothing else changes. config:write or owner/admin session. Appends a config version (visible within 5 seconds) and audits the before and after recipe."
+              properties:
+                lessons_selector:
+                  description: "How lessons are chosen. `els2` (by situation, with meaning) is not served yet and is refused by name; `els1` is today’s selector."
+                  enum:
+                    - "els1"
+                    - "els2"
+                  type: "string"
+                retrieval:
+                  anyOf:
+                    -
+                      enum:
+                        - "recommended"
+                      type: "string"
+                    -
+                      additionalProperties: false
+                      description: "A call type’s retrieval recipe (present only when retrieval by meaning is on)."
+                      properties:
+                        dense_floor:
+                          description: "The meaning similarity (cosine) that admits an example."
+                          maximum: 1
+                          minimum: -1
+                          type: "number"
+                        dense_floor_slope:
+                          description: "How the meaning threshold moves per doubling of the vectors compared (absent ⇒ fixed)."
+                          maximum: 0.1
+                          minimum: 0
+                          type: "number"
+                        encoder:
+                          description: "The static encoder: `sde1:<source revision>:<SHA-256 of the asset>`. Must be the encoder the gateway has loaded."
+                          type: "string"
+                        fusion:
+                          additionalProperties: false
+                          description: "Rank-fusion weights of the keyword, meaning and exact-reference arms."
+                          properties:
+                            dense:
+                              maximum: 100
+                              minimum: 0
+                              type: "number"
+                            lexical:
+                              maximum: 100
+                              minimum: 0
+                              type: "number"
+                            reference:
+                              maximum: 100
+                              minimum: 0
+                              type: "number"
+                          required:
+                            - "lexical"
+                            - "dense"
+                          type: "object"
+                        lexical:
+                          description: "The keyword encoder (`lb14uni1`: Unicode words, the recommended one)."
+                          enum:
+                            - "lb13s1lex1"
+                            - "lb14uni1"
+                          type: "string"
+                        lexical_floor:
+                          description: "The keyword similarity that admits an example."
+                          maximum: 1
+                          minimum: 0
+                          type: "number"
+                        mode:
+                          description: "Retrieval by meaning AND by words (`lexical` blocks are not served)."
+                          enum:
+                            - "hybrid"
+                          type: "string"
+                        views:
+                          description: "Index write-time alternative wordings too (not built yet: keep false)."
+                          type: "boolean"
+                      required:
+                        - "mode"
+                        - "encoder"
+                        - "lexical"
+                        - "fusion"
+                        - "lexical_floor"
+                        - "dense_floor"
+                        - "views"
+                      type: "object"
+                  description: "`recommended`: the measured recipe (`SDE1_RECOMMENDED_RETRIEVAL`) for the deployment’s encoder (it sets a similarity floor to 0). An explicit block: that recipe (its encoder must be the one the deployment configures, `memory_encoder.encoder` in the learning status). `null`: back to retrieval by words only."
+                  nullable: true
+              required:
+                - "retrieval"
+              type: "object"
+        required: true
+      responses:
+        "200":
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/LearningStatus"
+          description: "Updated learning status (with the recipe in `retrieval`)."
+        default:
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/GatewayError"
+          description: "Normalized error envelope."
+      security:
+        -
+          bearerAuth: []
+        -
+          sessionCookie: []
+      summary: "Set how memory picks examples (by meaning and by words)"
+      tags:
+        - "Learning"
   "/v1/call-types/{id}/learning/rollback":
     post:
       description: "Points the active version at an EARLIER immutable version (`version_id`, or the version active immediately before the current one) so it serves exactly that version’s lessons again. A running evaluation stops. 409 `conflict` (`no_rollback_target` / `rollback_target_not_earlier`) when there is nothing to roll back to. Dual auth: an api key (`config:read` to read, `config:write` to change) or an owner/admin session with the `X-UR-Workspace` header; a viewer may read only. A call type of another workspace is a 404. Requires API-key scope: config:write."
@@ -26171,6 +27969,527 @@ paths:
         -
           sessionCookie: []
       summary: "Roll back to an earlier version"
+      tags:
+        - "Learning"
+  "/v1/call-types/{id}/learning/rules":
+    get:
+      description: "The call type’s rules and notes and every-kind ones, newest first (`?limit=` 1–500, default 100; `?include_retired=true` adds retired ones). A key bound to a tenant sees only the items given in, or named for, its tenant. Dual auth: an api key (`config:read` to read, `config:write` to change) or an owner/admin session with the `X-UR-Workspace` header; a viewer may read only. A call type of another workspace is a 404. Requires API-key scope: config:read or config:write."
+      operationId: "listMemoryRules"
+      parameters:
+        -
+          description: "Path parameter `id`."
+          in: "path"
+          name: "id"
+          required: true
+          schema:
+            description: "Path parameter `id`."
+            type: "string"
+        -
+          description: "At most this many (1–500, default 100)."
+          in: "query"
+          name: "limit"
+          required: false
+          schema:
+            description: "At most this many (1–500, default 100)."
+            type: "string"
+        -
+          description: "`true` to include retired items."
+          in: "query"
+          name: "include_retired"
+          required: false
+          schema:
+            description: "`true` to include retired items."
+            type: "string"
+      responses:
+        "200":
+          content:
+            "application/json":
+              schema:
+                description: "The call type’s rules and notes (and every-kind ones), newest first; a tenant-bound key sees its tenant’s only."
+                properties:
+                  data:
+                    items:
+                      description: "One memory item: a declared rule or note, or a comment on an answer."
+                      properties:
+                        call_type_id:
+                          description: "The kind it serves; null = every kind."
+                          nullable: true
+                          type: "string"
+                        created_at:
+                          type: "string"
+                        expires_at:
+                          description: "When it is deleted (an end user’s or a tenant admin’s words: the corrections retention window); null = kept."
+                          nullable: true
+                          type: "string"
+                        giver_role:
+                          description: "The role the call’s claim resolved to."
+                          enum:
+                            - "developer"
+                            - "tenant_admin"
+                            - "end_user"
+                          type: "string"
+                        has_vectors:
+                          description: "Its meaning vector was made at write time."
+                          type: "boolean"
+                        id:
+                          description: "`mit_…`."
+                          type: "string"
+                        named_tenant:
+                          description: "A developer restricted it to one named tenant."
+                          type: "boolean"
+                        object:
+                          enum:
+                            - "memory_item"
+                          type: "string"
+                        request_id:
+                          description: "The request a comment is attached to; null for a rule or a note."
+                          nullable: true
+                          type: "string"
+                        retired_at:
+                          nullable: true
+                          type: "string"
+                        sort:
+                          description: "`rule` or `note` (declared here), or `comment` (a comment sent with the feedback call, attached to its request)."
+                          enum:
+                            - "rule"
+                            - "note"
+                            - "comment"
+                          type: "string"
+                        tenant_scoped:
+                          description: "Given in a tenant (its reach stops there unless it is a developer’s own words)."
+                          type: "boolean"
+                        text:
+                          description: "The giver’s own words."
+                          type: "string"
+                        text_sha256:
+                          type: "string"
+                      required:
+                        - "object"
+                        - "id"
+                        - "sort"
+                        - "request_id"
+                        - "call_type_id"
+                        - "giver_role"
+                        - "tenant_scoped"
+                        - "named_tenant"
+                        - "text"
+                        - "text_sha256"
+                        - "has_vectors"
+                        - "retired_at"
+                        - "expires_at"
+                        - "created_at"
+                      type: "object"
+                    type: "array"
+                  object:
+                    enum:
+                      - "list"
+                    type: "string"
+                required:
+                  - "object"
+                  - "data"
+                type: "object"
+          description: "The rules and notes."
+        default:
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/GatewayError"
+          description: "Normalized error envelope."
+      security:
+        -
+          bearerAuth: []
+        -
+          sessionCookie: []
+      summary: "List the rules and notes"
+      tags:
+        - "Learning"
+    post:
+      description: "Stores a rule (a standing instruction) or a note (a standing fact) in the giver’s own words; it is served verbatim, never rewritten. WHO GIVES IT decides who it reaches: a developer’s (a dashboard session, or an api key marked `server_side` claiming `given_by: developer`) reaches every request of the call type (or of every kind with `every_kind`), or only the ONE tenant it names in `tenant`; a tenant admin’s (a `server_side` key claiming `given_by: tenant_admin`) reaches its own tenant; anything else is an end user’s and reaches only that end user (`user`). The tenant comes from the workspace’s tenant setting (`GET /v1/workspaces/{id}/memory-tenancy`). An end user’s or a tenant admin’s item is learning content: it needs the corrections consent (409 `consent_off`) and is deleted after the corrections retention window. Served only while the call type’s items switch is on (`PUT /v1/call-types/{id}/learning/items`) and only if stored at or after it was switched on. 403 `permission` `tenant_bound_key_developer` (a key bound to a tenant cannot give a developer’s rule) or `tenant_bound_key_other_tenant` (it gives only in its own tenant). Audited with the text’s sha256 and length, never the text. Dual auth: an api key (`config:read` to read, `config:write` to change) or an owner/admin session with the `X-UR-Workspace` header; a viewer may read only. A call type of another workspace is a 404. Requires API-key scope: config:write."
+      operationId: "createMemoryRule"
+      parameters:
+        -
+          description: "Path parameter `id`."
+          in: "path"
+          name: "id"
+          required: true
+          schema:
+            description: "Path parameter `id`."
+            type: "string"
+      requestBody:
+        content:
+          "application/json":
+            example:
+              sort: "rule"
+              text: "Always quote the tracking number when a parcel is late."
+            schema:
+              additionalProperties: false
+              description: "Declare a rule or a note."
+              properties:
+                every_kind:
+                  description: "Serve it to every kind of call of the workspace (default false: only this call type, the path’s `id`)."
+                  type: "boolean"
+                given_by:
+                  description: "Who gives this. `developer` is honoured only from a dashboard session or an api key marked `server_side`; `tenant_admin` only from an api key marked `server_side`; anything else is recorded as `end_user`, the role whose items stay with their giver. Omitted: a session is a developer, any api key an end user."
+                  enum:
+                    - "developer"
+                    - "tenant_admin"
+                    - "end_user"
+                  type: "string"
+                sort:
+                  description: "`rule` (a standing instruction, the default) or `note` (a standing fact)."
+                  enum:
+                    - "rule"
+                    - "note"
+                  type: "string"
+                tenant:
+                  description: "For a developer: the ONE tenant the item is restricted to (omit to serve every tenant). For a tenant admin or an end user: the tenant they give in, when the setting is `metadata:<key>` (under `api_key` the key’s tenant is used). Stored as a digest."
+                  maxLength: 1024
+                  minLength: 1
+                  type: "string"
+                text:
+                  description: "The rule or note in the giver’s own words (served verbatim; never rewritten)."
+                  maxLength: 4000
+                  minLength: 1
+                  type: "string"
+                user:
+                  description: "The giver’s end-user key, as the requests carry it (`ur.memory_partition`, `X-UR-Memory-Partition` or `user`); stored only as a digest (`epp1_…`). The giver is always served their own item."
+                  maxLength: 1024
+                  minLength: 1
+                  type: "string"
+              required:
+                - "text"
+              type: "object"
+        required: true
+      responses:
+        "201":
+          content:
+            "application/json":
+              schema:
+                description: "One memory item: a declared rule or note, or a comment on an answer."
+                properties:
+                  call_type_id:
+                    description: "The kind it serves; null = every kind."
+                    nullable: true
+                    type: "string"
+                  created_at:
+                    type: "string"
+                  expires_at:
+                    description: "When it is deleted (an end user’s or a tenant admin’s words: the corrections retention window); null = kept."
+                    nullable: true
+                    type: "string"
+                  giver_role:
+                    description: "The role the call’s claim resolved to."
+                    enum:
+                      - "developer"
+                      - "tenant_admin"
+                      - "end_user"
+                    type: "string"
+                  has_vectors:
+                    description: "Its meaning vector was made at write time."
+                    type: "boolean"
+                  id:
+                    description: "`mit_…`."
+                    type: "string"
+                  named_tenant:
+                    description: "A developer restricted it to one named tenant."
+                    type: "boolean"
+                  object:
+                    enum:
+                      - "memory_item"
+                    type: "string"
+                  request_id:
+                    description: "The request a comment is attached to; null for a rule or a note."
+                    nullable: true
+                    type: "string"
+                  retired_at:
+                    nullable: true
+                    type: "string"
+                  sort:
+                    description: "`rule` or `note` (declared here), or `comment` (a comment sent with the feedback call, attached to its request)."
+                    enum:
+                      - "rule"
+                      - "note"
+                      - "comment"
+                    type: "string"
+                  tenant_scoped:
+                    description: "Given in a tenant (its reach stops there unless it is a developer’s own words)."
+                    type: "boolean"
+                  text:
+                    description: "The giver’s own words."
+                    type: "string"
+                  text_sha256:
+                    type: "string"
+                required:
+                  - "object"
+                  - "id"
+                  - "sort"
+                  - "request_id"
+                  - "call_type_id"
+                  - "giver_role"
+                  - "tenant_scoped"
+                  - "named_tenant"
+                  - "text"
+                  - "text_sha256"
+                  - "has_vectors"
+                  - "retired_at"
+                  - "expires_at"
+                  - "created_at"
+                type: "object"
+          description: "The stored rule or note."
+        default:
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/GatewayError"
+          description: "Normalized error envelope."
+      security:
+        -
+          bearerAuth: []
+        -
+          sessionCookie: []
+      summary: "Declare a rule or a note"
+      tags:
+        - "Learning"
+  "/v1/call-types/{id}/learning/rules/{item_id}/restore":
+    post:
+      description: "Serves a retired item again. Idempotent (`changed: false` when not retired). Audited. A key bound to a tenant reaches only its tenant’s items (404 otherwise). Dual auth: an api key (`config:read` to read, `config:write` to change) or an owner/admin session with the `X-UR-Workspace` header; a viewer may read only. A call type of another workspace is a 404. Requires API-key scope: config:write."
+      operationId: "restoreMemoryRule"
+      parameters:
+        -
+          description: "Path parameter `id`."
+          in: "path"
+          name: "id"
+          required: true
+          schema:
+            description: "Path parameter `id`."
+            type: "string"
+        -
+          description: "Path parameter `item_id`."
+          in: "path"
+          name: "item_id"
+          required: true
+          schema:
+            description: "Path parameter `item_id`."
+            type: "string"
+      responses:
+        "200":
+          content:
+            "application/json":
+              schema:
+                description: "A retired or restored item (a rule, a note or a comment)."
+                properties:
+                  changed:
+                    description: "False when the item was already in the asked state."
+                    type: "boolean"
+                  item:
+                    description: "One memory item: a declared rule or note, or a comment on an answer."
+                    properties:
+                      call_type_id:
+                        description: "The kind it serves; null = every kind."
+                        nullable: true
+                        type: "string"
+                      created_at:
+                        type: "string"
+                      expires_at:
+                        description: "When it is deleted (an end user’s or a tenant admin’s words: the corrections retention window); null = kept."
+                        nullable: true
+                        type: "string"
+                      giver_role:
+                        description: "The role the call’s claim resolved to."
+                        enum:
+                          - "developer"
+                          - "tenant_admin"
+                          - "end_user"
+                        type: "string"
+                      has_vectors:
+                        description: "Its meaning vector was made at write time."
+                        type: "boolean"
+                      id:
+                        description: "`mit_…`."
+                        type: "string"
+                      named_tenant:
+                        description: "A developer restricted it to one named tenant."
+                        type: "boolean"
+                      object:
+                        enum:
+                          - "memory_item"
+                        type: "string"
+                      request_id:
+                        description: "The request a comment is attached to; null for a rule or a note."
+                        nullable: true
+                        type: "string"
+                      retired_at:
+                        nullable: true
+                        type: "string"
+                      sort:
+                        description: "`rule` or `note` (declared here), or `comment` (a comment sent with the feedback call, attached to its request)."
+                        enum:
+                          - "rule"
+                          - "note"
+                          - "comment"
+                        type: "string"
+                      tenant_scoped:
+                        description: "Given in a tenant (its reach stops there unless it is a developer’s own words)."
+                        type: "boolean"
+                      text:
+                        description: "The giver’s own words."
+                        type: "string"
+                      text_sha256:
+                        type: "string"
+                    required:
+                      - "object"
+                      - "id"
+                      - "sort"
+                      - "request_id"
+                      - "call_type_id"
+                      - "giver_role"
+                      - "tenant_scoped"
+                      - "named_tenant"
+                      - "text"
+                      - "text_sha256"
+                      - "has_vectors"
+                      - "retired_at"
+                      - "expires_at"
+                      - "created_at"
+                    type: "object"
+                required:
+                  - "item"
+                  - "changed"
+                type: "object"
+          description: "The item after the change."
+        default:
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/GatewayError"
+          description: "Normalized error envelope."
+      security:
+        -
+          bearerAuth: []
+        -
+          sessionCookie: []
+      summary: "Restore a retired rule, note or comment"
+      tags:
+        - "Learning"
+  "/v1/call-types/{id}/learning/rules/{item_id}/retire":
+    post:
+      description: "Stops serving the item (a rule, a note, or a comment the feedback call stored: its `memory_item_id`) from the next request on; it stays stored and can be restored. Idempotent (`changed: false` when already retired). Audited. A key bound to a tenant reaches only its tenant’s items (404 otherwise). Dual auth: an api key (`config:read` to read, `config:write` to change) or an owner/admin session with the `X-UR-Workspace` header; a viewer may read only. A call type of another workspace is a 404. Requires API-key scope: config:write."
+      operationId: "retireMemoryRule"
+      parameters:
+        -
+          description: "Path parameter `id`."
+          in: "path"
+          name: "id"
+          required: true
+          schema:
+            description: "Path parameter `id`."
+            type: "string"
+        -
+          description: "Path parameter `item_id`."
+          in: "path"
+          name: "item_id"
+          required: true
+          schema:
+            description: "Path parameter `item_id`."
+            type: "string"
+      responses:
+        "200":
+          content:
+            "application/json":
+              schema:
+                description: "A retired or restored item (a rule, a note or a comment)."
+                properties:
+                  changed:
+                    description: "False when the item was already in the asked state."
+                    type: "boolean"
+                  item:
+                    description: "One memory item: a declared rule or note, or a comment on an answer."
+                    properties:
+                      call_type_id:
+                        description: "The kind it serves; null = every kind."
+                        nullable: true
+                        type: "string"
+                      created_at:
+                        type: "string"
+                      expires_at:
+                        description: "When it is deleted (an end user’s or a tenant admin’s words: the corrections retention window); null = kept."
+                        nullable: true
+                        type: "string"
+                      giver_role:
+                        description: "The role the call’s claim resolved to."
+                        enum:
+                          - "developer"
+                          - "tenant_admin"
+                          - "end_user"
+                        type: "string"
+                      has_vectors:
+                        description: "Its meaning vector was made at write time."
+                        type: "boolean"
+                      id:
+                        description: "`mit_…`."
+                        type: "string"
+                      named_tenant:
+                        description: "A developer restricted it to one named tenant."
+                        type: "boolean"
+                      object:
+                        enum:
+                          - "memory_item"
+                        type: "string"
+                      request_id:
+                        description: "The request a comment is attached to; null for a rule or a note."
+                        nullable: true
+                        type: "string"
+                      retired_at:
+                        nullable: true
+                        type: "string"
+                      sort:
+                        description: "`rule` or `note` (declared here), or `comment` (a comment sent with the feedback call, attached to its request)."
+                        enum:
+                          - "rule"
+                          - "note"
+                          - "comment"
+                        type: "string"
+                      tenant_scoped:
+                        description: "Given in a tenant (its reach stops there unless it is a developer’s own words)."
+                        type: "boolean"
+                      text:
+                        description: "The giver’s own words."
+                        type: "string"
+                      text_sha256:
+                        type: "string"
+                    required:
+                      - "object"
+                      - "id"
+                      - "sort"
+                      - "request_id"
+                      - "call_type_id"
+                      - "giver_role"
+                      - "tenant_scoped"
+                      - "named_tenant"
+                      - "text"
+                      - "text_sha256"
+                      - "has_vectors"
+                      - "retired_at"
+                      - "expires_at"
+                      - "created_at"
+                    type: "object"
+                required:
+                  - "item"
+                  - "changed"
+                type: "object"
+          description: "The item after the change."
+        default:
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/GatewayError"
+          description: "Normalized error envelope."
+      security:
+        -
+          bearerAuth: []
+        -
+          sessionCookie: []
+      summary: "Retire a rule, a note or a comment"
       tags:
         - "Learning"
   "/v1/call-types/{id}/learning/tool-documentation":
@@ -43638,7 +45957,7 @@ paths:
         - "Flywheel"
   "/v1/generation":
     get:
-      description: "OpenRouter `/generation` parity — cost/tokens/timing/routing for one prior request. Name the request by the gateway’s id (`id`, the `X-UR-Request-Id` response header) or by the alias your client sent as `X-UR-Request-Id` (`client_request_id`; the answered request with it, else the newest). Exactly one of the two. Requires API-key scope: gateway:invoke."
+      description: "OpenRouter `/generation` parity — cost/tokens/timing/routing for one prior request. Name the request by the gateway’s id (`id`, the `X-UR-Request-Id` response header) or by the alias your client sent as `X-UR-Request-Id` (`client_request_id`; the answered request with it, else the newest). Exactly one of the two. The gateway records a request right after answering it: asked by `id` before that, the lookup answers the retryable 503 `request_not_landed` with `Retry-After` (send it again); an unknown or long-gone id, an id of another workspace after 15 minutes, and an alias with no match are 404. Requires API-key scope: gateway:invoke."
       operationId: "getGeneration"
       parameters:
         -
@@ -43666,6 +45985,18 @@ paths:
               schema:
                 "$ref": "#/components/schemas/GenerationStats"
           description: "The post-hoc stats block."
+        "503":
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/GatewayError"
+          description: "`request_not_landed` (`retryable: true`): the request this call names has not been recorded yet — the gateway records a request right after answering it. Nothing was stored; send the same call again after `Retry-After` seconds (both SDKs do). Answered within 15 minutes of the request id’s time, the same for an id another workspace holds; after that an unknown id is 404."
+          headers:
+            "Retry-After":
+              description: "Seconds to wait before sending the same call again."
+              schema:
+                minimum: 1
+                type: "integer"
         default:
           content:
             "application/json":
@@ -44323,6 +46654,8 @@ paths:
                           - "answered_from_memory"
                           - "request_failed"
                           - "route_not_recorded"
+                          - "partition_missing"
+                          - "tenant_missing"
                           - "association_window_passed"
                           - "ambiguous_partition"
                           - "ambiguous_request"
@@ -44438,7 +46771,7 @@ paths:
         - "Flywheel"
   "/v1/outcomes/batch":
     post:
-      description: "Record ≤ 1,000 events keyed by `request_id | artifact_id | artifact_key` (+ optional `claim_key`) with per-row acceptance (`accepted | duplicate | conflict | rejected{reason} | pending`) + a verdict rollup. Same idempotency + server-assigned provenance as the single routes. A `request_id` row follows the request-outcome contract: when the request has not been recorded yet it is `pending` with a durable `receipt` (applied when the request lands), every such row carries its `receipt` (the same one the request-outcome route returns for the same `source_event_id`), and a refusal is in-row (`rejected` with `request_not_found` / `outcome_backlog_full`). NEVER a body. Any internal req_int_ request reference refuses the batch with 403 internal_knowledge_ask before I/O. Ordinary missing request rows retain the existing pending-receipt path. Requires API-key scope: outcomes:write."
+      description: "Record ≤ 1,000 events keyed by `request_id | artifact_id | artifact_key` (+ optional `claim_key`) with per-row acceptance (`accepted | duplicate | conflict | rejected{reason} | pending`) + a verdict rollup. Same idempotency + server-assigned provenance as the single routes. A `request_id` row follows the request-outcome contract: a batch naming a request the gateway has not recorded yet is refused WHOLE with the retryable 503 `request_not_landed` (`Retry-After`) before any write — send it again; every recorded row carries its `receipt` (the same one the request-outcome route returns for the same `source_event_id`), and any other refusal is in-row (`rejected` with `request_not_found` / `outcome_backlog_full`). NEVER a body. Any internal req_int_ request reference refuses the batch with 403 internal_knowledge_ask before I/O. Requires API-key scope: outcomes:write."
       operationId: "recordOutcomesBatch"
       requestBody:
         content:
@@ -44453,6 +46786,18 @@ paths:
               schema:
                 "$ref": "#/components/schemas/BatchOutcomesResponse"
           description: "The per-row batch results + a verdict rollup."
+        "503":
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/GatewayError"
+          description: "`request_not_landed` (`retryable: true`): the request this call names has not been recorded yet — the gateway records a request right after answering it. Nothing was stored; send the same call again after `Retry-After` seconds (both SDKs do). Answered within 15 minutes of the request id’s time, the same for an id another workspace holds; after that an unknown id is 404."
+          headers:
+            "Retry-After":
+              description: "Seconds to wait before sending the same call again."
+              schema:
+                minimum: 1
+                type: "integer"
         default:
           content:
             "application/json":
@@ -44564,7 +46909,7 @@ paths:
         - "Preflight"
   "/v1/requests/{id}/feedback":
     post:
-      description: "Thumbs up/down + tags + optional comment, scoped to the key’s workspace. Knowledge Ask requests refuse 403 internal_knowledge_ask before feedback is stored. Requires API-key scope: gateway:invoke."
+      description: "Thumbs up/down + tags + optional comment, scoped to the key’s workspace. Knowledge Ask requests refuse 403 internal_knowledge_ask before feedback is stored. Under the corrections consent, a comment with words of its own also becomes a memory item attached to the request (`memory_item_id`): served, while the call type serves memory items, to its giver; a tenant admin’s to its tenant; an end user’s to others of its tenant only once validated; never across tenants. Send it the moment the answer arrives: the gateway records a request right after answering it, and until then the feedback answers the retryable 503 `request_not_landed` with `Retry-After` and stores nothing (both SDKs send it again; the stored feedback and its memory item follow). An unknown or long-gone request id, an alias, and another workspace’s request after 15 minutes are 404. Requires API-key scope: gateway:invoke."
       operationId: "submitFeedback"
       parameters:
         -
@@ -44587,6 +46932,18 @@ paths:
               schema:
                 "$ref": "#/components/schemas/FeedbackEnvelope"
           description: "The stored feedback row, wrapped in the `feedback` envelope."
+        "503":
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/GatewayError"
+          description: "`request_not_landed` (`retryable: true`): the request this call names has not been recorded yet — the gateway records a request right after answering it. Nothing was stored; send the same call again after `Retry-After` seconds (both SDKs do). Answered within 15 minutes of the request id’s time, the same for an id another workspace holds; after that an unknown id is 404."
+          headers:
+            "Retry-After":
+              description: "Seconds to wait before sending the same call again."
+              schema:
+                minimum: 1
+                type: "integer"
         default:
           content:
             "application/json":
@@ -44663,6 +47020,8 @@ paths:
                                 - "answered_from_memory"
                                 - "request_failed"
                                 - "route_not_recorded"
+                                - "partition_missing"
+                                - "tenant_missing"
                                 - "association_window_passed"
                                 - "ambiguous_partition"
                                 - "ambiguous_request"
@@ -44787,7 +47146,7 @@ paths:
         - "Flywheel"
   "/v1/requests/{id}/outcomes":
     post:
-      description: "Record ONE outcome for a request: it lands on the request’s existing artifact, else a one-request `answer` artifact is created. Replay identity SURVIVES regrouping (the `(producer, request_id, kind, source_event_id)` binding pins the original target/version). Report it the moment you hold the final response: when the request has not been recorded yet the answer is still 202, with `status: \"pending\"` and a durable `receipt` that is applied once the request lands (or expires `request_not_found` after 15 minutes). Every 202 carries the `receipt`; a retry with the same `source_event_id` and payload returns the same receipt and never counts twice. 400 invalid id or outcome, 404 a gateway-minted `req_…` id too old (or too far ahead) to still be in flight, 409 the same key with a different payload, 429 `outcome_backlog_full` when your workspace already holds 5,000 pending receipts. NEVER a body. Knowledge Ask requests refuse 403 internal_knowledge_ask before any outcome, artifact, binding or receipt write; the namespace check does not depend on a request row or producer mark. Requires API-key scope: outcomes:write."
+      description: "Record ONE outcome for a request: it lands on the request’s existing artifact, else a one-request `answer` artifact is created. Replay identity SURVIVES regrouping (the `(producer, request_id, kind, source_event_id)` binding pins the original target/version). Report it the moment you hold the final response: when the request has not been recorded yet (the gateway records it right after answering) the answer is the retryable 503 `request_not_landed` with `Retry-After`, nothing stored — send the same event again (both SDKs do). Every 202 carries the `receipt`; a retry with the same `source_event_id` and payload returns the same receipt and never counts twice. 400 invalid id or outcome, 404 a gateway-minted `req_…` id too old (or too far ahead) to still be in flight, 409 the same key with a different payload, 429 `outcome_backlog_full` when your workspace already holds 5,000 pending receipts. NEVER a body. Knowledge Ask requests refuse 403 internal_knowledge_ask before any outcome, artifact, binding or receipt write; the namespace check does not depend on a request row or producer mark. Requires API-key scope: outcomes:write."
       operationId: "recordRequestOutcome"
       parameters:
         -
@@ -44888,6 +47247,8 @@ paths:
                               - "answered_from_memory"
                               - "request_failed"
                               - "route_not_recorded"
+                              - "partition_missing"
+                              - "tenant_missing"
                               - "association_window_passed"
                               - "ambiguous_partition"
                               - "ambiguous_request"
@@ -45028,6 +47389,18 @@ paths:
                   - "receipt"
                 type: "object"
           description: "The outcome’s result and its durable receipt."
+        "503":
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/GatewayError"
+          description: "`request_not_landed` (`retryable: true`): the request this call names has not been recorded yet — the gateway records a request right after answering it. Nothing was stored; send the same call again after `Retry-After` seconds (both SDKs do). Answered within 15 minutes of the request id’s time, the same for an id another workspace holds; after that an unknown id is 404."
+          headers:
+            "Retry-After":
+              description: "Seconds to wait before sending the same call again."
+              schema:
+                minimum: 1
+                type: "integer"
         default:
           content:
             "application/json":
@@ -45385,6 +47758,11 @@ paths:
                 expiresAt:
                   description: "ISO-8601 expiry, or omit for a non-expiring key."
                   type: "string"
+                memory_tenant:
+                  description: "The tenant this key belongs to (stored only as a digest). Under the `api_key` tenant setting it is every request’s tenant; a tenant-bound key reads only learning data it can be confined to its tenant."
+                  maxLength: 1024
+                  minLength: 1
+                  type: "string"
                 metadata:
                   additionalProperties:
                     nullable: true
@@ -45399,6 +47777,9 @@ paths:
                   items:
                     type: "string"
                   type: "array"
+                server_side:
+                  description: "The key never leaves your servers. Only such a key may claim `given_by: developer` or `tenant_admin` on memory calls; any other key gives as an end user. Default false."
+                  type: "boolean"
                 spendCapMicroUsd:
                   description: "Per-key monthly hard cap (integer micro-USD)."
                   type: "integer"
@@ -45486,14 +47867,21 @@ paths:
         content:
           "application/json":
             schema:
-              description: "Update an API key's default call type."
+              description: "Update an API key's default call type, server-side marker or bound tenant."
               properties:
                 default_call_type:
-                  description: "A slug or id of an existing call type of this workspace to SET as the key default, or null to CLEAR it. An unknown slug/id is a 404."
+                  description: "A slug or id of an existing call type of this workspace to SET as the key default, or null to CLEAR it. An unknown slug/id is a 404. Omitted: unchanged."
                   nullable: true
                   type: "string"
-              required:
-                - "default_call_type"
+                memory_tenant:
+                  description: "Bind the key to a tenant (a label, stored as a digest), or null to unbind it. Omitted: unchanged."
+                  maxLength: 1024
+                  minLength: 1
+                  nullable: true
+                  type: "string"
+                server_side:
+                  description: "Mark (or unmark) the key as server-side. Omitted: unchanged."
+                  type: "boolean"
               type: "object"
         required: true
       responses:
@@ -45524,6 +47912,9 @@ paths:
                       lastUsedAt:
                         nullable: true
                         type: "string"
+                      memoryTenantBound:
+                        description: "The key is bound to a tenant (the label is stored only as a digest, never returned)."
+                        type: "boolean"
                       metadata:
                         additionalProperties:
                           nullable: true
@@ -45546,6 +47937,9 @@ paths:
                         items:
                           type: "string"
                         type: "array"
+                      serverSide:
+                        description: "The customer marked the key as never leaving its servers."
+                        type: "boolean"
                       spendCapMicroUsd:
                         nullable: true
                         type: "integer"
@@ -45559,6 +47953,8 @@ paths:
                       - "rpsLimit"
                       - "benchSuiteDefault"
                       - "defaultCallTypeId"
+                      - "serverSide"
+                      - "memoryTenantBound"
                       - "expiresAt"
                       - "lastUsedAt"
                       - "metadata"
@@ -46599,6 +48995,123 @@ paths:
       summary: "Change a member role"
       tags:
         - "Members"
+  "/v1/workspaces/{id}/memory-tenancy":
+    get:
+      description: "Where a request’s TENANT comes from for memory items, and what that does (`consequence`): `undeclared` (the default: nothing an end user or a tenant admin gives reaches anyone but its giver), `none` (the workspace is ONE tenant: with real tenants, one tenant’s items would reach the others), `metadata:<key>` (each request names its tenant in `metadata.<key>`) or `api_key` (each key is bound to one tenant with `memory_tenant`). Any member. 404 while learning is switched off for the workspace."
+      operationId: "getMemoryTenancy"
+      parameters:
+        -
+          description: "Path parameter `id`."
+          in: "path"
+          name: "id"
+          required: true
+          schema:
+            description: "Path parameter `id`."
+            type: "string"
+      responses:
+        "200":
+          content:
+            "application/json":
+              schema:
+                description: "The workspace’s tenant setting for memory items."
+                properties:
+                  changed:
+                    description: "On a PUT: whether the setting changed."
+                    type: "boolean"
+                  consequence:
+                    description: "What this setting does, in one sentence."
+                    type: "string"
+                  object:
+                    enum:
+                      - "memory_tenancy"
+                    type: "string"
+                  tenant_source:
+                    description: "`none`, `metadata:<key>`, `api_key` or `undeclared` (the default)."
+                    type: "string"
+                required:
+                  - "object"
+                  - "tenant_source"
+                  - "consequence"
+                type: "object"
+          description: "The tenant setting."
+        default:
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/ApiError"
+          description: "Normalized error envelope."
+      security:
+        -
+          sessionCookie: []
+      summary: "Read the workspace tenant setting for memory items"
+      tags:
+        - "Flywheel"
+    put:
+      description: "Sets where a request’s tenant comes from (exact value, no trimming; 400 `validation_error` otherwise). Choose `none` ONLY if your customers are not tenants of one another: under `none` a tenant admin’s items and every validated item serve EVERY request of the workspace. Items keep the tenant they were given in: a change moves no stored item. owner|admin, audited (`workspace.memory_tenancy.update`: the setting before and after, never a tenant label), bumps `config_version`; the same value again is a no-op (`changed: false`). 404 while learning is switched off for the workspace."
+      operationId: "putMemoryTenancy"
+      parameters:
+        -
+          description: "Path parameter `id`."
+          in: "path"
+          name: "id"
+          required: true
+          schema:
+            description: "Path parameter `id`."
+            type: "string"
+      requestBody:
+        content:
+          "application/json":
+            schema:
+              additionalProperties: false
+              description: "Set the workspace’s tenant setting."
+              properties:
+                tenant_source:
+                  description: "`none`, `metadata:<key>` (1 to 64 of `A-Z a-z 0-9 _ . -`), `api_key` or `undeclared`. Exact: no trimming."
+                  maxLength: 80
+                  minLength: 1
+                  type: "string"
+              required:
+                - "tenant_source"
+              type: "object"
+        required: true
+      responses:
+        "200":
+          content:
+            "application/json":
+              schema:
+                description: "The workspace’s tenant setting for memory items."
+                properties:
+                  changed:
+                    description: "On a PUT: whether the setting changed."
+                    type: "boolean"
+                  consequence:
+                    description: "What this setting does, in one sentence."
+                    type: "string"
+                  object:
+                    enum:
+                      - "memory_tenancy"
+                    type: "string"
+                  tenant_source:
+                    description: "`none`, `metadata:<key>`, `api_key` or `undeclared` (the default)."
+                    type: "string"
+                required:
+                  - "object"
+                  - "tenant_source"
+                  - "consequence"
+                type: "object"
+          description: "The tenant setting after the change."
+        default:
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/ApiError"
+          description: "Normalized error envelope."
+      security:
+        -
+          sessionCookie: []
+      summary: "Set the workspace tenant setting for memory items"
+      tags:
+        - "Flywheel"
   "/v1/workspaces/{id}/model-policy":
     get:
       description: "The workspace MODEL POLICY (which models this workspace may run): a preset (`us_only` | `global` | `custom`) plus per-model/per-provider/per-lab allow-deny rules and the US-hosted open-weight exception. Default `global` when unset. RBAC `model_policy.read`."

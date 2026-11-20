@@ -174,6 +174,29 @@ COVERAGE: dict[str, str] = {
     "listLearningVersions": 'client.learning.versions("support-reply")',
     "updateLearningReadLimit": 'client.learning.set_read_limit("support-reply", 400)',
     "getLearningCost": 'client.learning.cost("support-reply", window="30d")',
+    "getConversationMemory": 'client.learning.conversation_memory("support-reply")',
+    "putConversationMemory": (
+        'client.learning.set_conversation_memory("support-reply", False, k=3, min_similarity=0.1)'
+    ),
+    "getLearningItems": 'client.learning.memory_items("support-reply")',
+    "putLearningItems": (
+        'client.learning.set_memory_items("support-reply", True, validation_first=True, '
+        "dense_floor=0.2)"
+    ),
+    "validateMemoryItem": (
+        'client.learning.validate_item("support-reply", "mit_example", given_by="tenant_admin", '
+        'user="admin-1")'
+    ),
+    "setLearningRetrieval": (
+        'client.learning.set_retrieval("support-reply", "recommended", lessons_selector="els1")'
+    ),
+    "listMemoryRules": ('client.learning.rules("support-reply", limit=10, include_retired=True)'),
+    "createMemoryRule": (
+        'client.learning.create_rule("support-reply", "Always answer in the customer\'s language.", '
+        'sort="rule", given_by="developer")'
+    ),
+    "retireMemoryRule": 'client.learning.retire_rule("support-reply", "mit_example")',
+    "restoreMemoryRule": 'client.learning.restore_rule("support-reply", "mit_example")',
     "getLearningVersion": 'client.learning.version("support-reply", "epb_3")',
     "promoteLearningVersion": 'client.learning.promote("support-reply", "epb_3")',
     "rejectLearningVersion": 'client.learning.reject("support-reply", "epb_3")',

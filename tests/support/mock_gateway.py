@@ -1039,6 +1039,26 @@ def _stop_running(state: dict[str, Any]) -> str | None:
     return None
 
 
+def _memory_item_op(method: str, rest: str) -> str | None:
+    """The memory-item, rule and conversation-memory operation a learning sub-path names, if any."""
+    fixed = {
+        ("GET", "conversation-memory"): "getConversationMemory",
+        ("PUT", "conversation-memory"): "putConversationMemory",
+        ("GET", "items"): "getLearningItems",
+        ("PUT", "items"): "putLearningItems",
+        ("GET", "rules"): "listMemoryRules",
+        ("POST", "rules"): "createMemoryRule",
+    }
+    if (method, rest) in fixed:
+        return fixed[(method, rest)]
+    parts = rest.split("/")
+    if method == "POST" and len(parts) == 3 and parts[0] == "items" and parts[2] == "validate":
+        return "validateMemoryItem"
+    if method == "POST" and len(parts) == 3 and parts[0] == "rules":
+        return {"retire": "retireMemoryRule", "restore": "restoreMemoryRule"}.get(parts[2])
+    return None
+
+
 def _learning(method: str, call_type: str, rest: str, body: dict[str, Any]) -> tuple[int, Any]:
     if call_type == "ct_missing":
         return _error("not_found", f"call type '{call_type}' not found")
@@ -1089,6 +1109,16 @@ def _learning(method: str, call_type: str, rest: str, body: dict[str, Any]) -> t
             cost = _op_sample("getLearningCost")
             cost["call_type_id"] = call_type
             return 200, cost
+        if method == "PUT" and rest == "retrieval":
+            return 200, _learning_status(call_type, state)
+        memory_op = _memory_item_op(method, rest)
+        if memory_op is not None:
+            # Memory items, rules and notes and conversation memory have no state here either: a
+            # schema sample of the operation's answer.
+            answer = _op_sample(memory_op)
+            if isinstance(answer, dict) and "call_type_id" in answer:
+                answer["call_type_id"] = call_type
+            return (201 if memory_op in {"createMemoryRule", "validateMemoryItem"} else 200), answer
         if method == "POST" and rest == "enable":
             if call_type == "no-consent":
                 return _error(

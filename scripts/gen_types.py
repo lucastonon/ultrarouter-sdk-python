@@ -176,6 +176,16 @@ RESPONSE_NAMES: dict[str, str] = {
     "listEpisodePrecedents": "EpisodePrecedentList",
     "getEpisodePrecedent": "EpisodePrecedent",
     "getLearningCost": "LearningCost",
+    # memory items, rules and notes, conversation memory
+    "getConversationMemory": "ConversationMemory",
+    "putConversationMemory": "ConversationMemory",
+    "getLearningItems": "MemoryItemsSetting",
+    "putLearningItems": "MemoryItemsSetting",
+    "validateMemoryItem": "MemoryItemValidation",
+    "listMemoryRules": "MemoryRuleList",
+    "createMemoryRule": "MemoryRule",
+    "restoreMemoryRule": "MemoryRuleChange",
+    "retireMemoryRule": "MemoryRuleChange",
 }
 
 #: Names for inline (non-component) request bodies, keyed by operationId.
@@ -201,6 +211,11 @@ PARAMS_NAMES: dict[str, str] = {
     "evictEpisodeMemory": "EpisodeEvictParams",
     "importEpisodeMemory": "EpisodeMemoryImportParams",
     "updateLearningReadLimit": "LearningReadLimitParams",
+    "putConversationMemory": "ConversationMemoryParams",
+    "putLearningItems": "MemoryItemsParams",
+    "validateMemoryItem": "MemoryItemValidateParams",
+    "setLearningRetrieval": "LearningRetrievalParams",
+    "createMemoryRule": "MemoryRuleCreateParams",
 }
 
 #: Renames for automatically-derived nested class names (auto name -> public name).
@@ -259,6 +274,12 @@ NESTED_NAMES: dict[str, str] = {
     "EpisodeEvictionListItem": "EpisodeEviction",
     "EpisodeMemoryImportResultResult": "EpisodeMemoryImportPairResult",
     "EpisodeMemoryImportResultCounts": "EpisodeMemoryImportCounts",
+    # memory rules and notes: the created rule has the list item's shape (met first), so the item
+    # carries the public name both answer with
+    "MemoryRuleListItem": "MemoryRule",
+    # how memory picks examples: the recipe in a status read and in the setting request
+    "EpisodeMemoryStatusSettingItemsRanker": "RetrievalRecipe",
+    "LearningRetrievalParamsRetrieval": "RetrievalRecipeParams",
     # bench
     "BenchRunAllowance": "BenchAllowance",
     "BenchRunDisposition": "BenchDisposition",
