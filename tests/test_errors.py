@@ -24,6 +24,7 @@ from ultrarouter import (
     PromptVariablesMissingError,
     RateLimitError,
     RequestNotLandedError,
+    RequestRefusedError,
     SpendGuardUnavailableError,
     UltraRouter,
     UltraRouterError,
@@ -54,6 +55,7 @@ def test_taxonomy_lists_every_code_with_status_and_retryability() -> None:
     assert GATEWAY_ERROR_TAXONOMY["atomic_spend_guard_unavailable"] == (503, False)
     assert GATEWAY_ERROR_TAXONOMY["internal_knowledge_ask"] == (403, False)
     assert GATEWAY_ERROR_TAXONOMY["request_not_landed"] == (503, True)
+    assert GATEWAY_ERROR_TAXONOMY["request_refused"] == (404, False)
     assert GATEWAY_ERROR_TAXONOMY["workspace_busy"] == (503, True)
     for code in GATEWAY_ERROR_CODES:
         assert is_gateway_error_code(code)
@@ -334,3 +336,16 @@ def test_contradictory_model_unpriced_is_not_retried_even_with_a_retryable_statu
             client.chat.completions.create(model="m", messages=[{"role": "user", "content": "x"}])
     assert info.value.retryable is False
     assert len(calls) == 1
+
+
+def test_a_refused_request_is_final_and_its_own_not_found(mock_gateway: MockGateway) -> None:
+    """``request_refused`` (404) raises its class at once, never retried, and is still a NotFoundError."""
+    mock_gateway.fail("/v1/models", status=404, code="request_refused", times=5)
+    with (
+        UltraRouter(api_key=TEST_KEY, base_url=mock_gateway.url, max_retries=3) as client,
+        pytest.raises(RequestRefusedError) as info,
+    ):
+        client.models.list()
+    assert isinstance(info.value, NotFoundError)
+    assert info.value.retryable is False
+    assert len(mock_gateway.requests) == 1

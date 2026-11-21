@@ -75,6 +75,7 @@ __all__ = [
     "ReceiptWaitTimeoutError",
     "RequestCancelledError",
     "RequestNotLandedError",
+    "RequestRefusedError",
     "SpendCapExceededError",
     "SpendGuardUnavailableError",
     "UltraRouterError",
@@ -119,6 +120,7 @@ GATEWAY_ERROR_TAXONOMY: Mapping[str, ErrorTaxonomyEntry] = {
     "max_cost_exceeded": ErrorTaxonomyEntry(402, False),
     "atomic_spend_guard_unavailable": ErrorTaxonomyEntry(503, False),
     "request_not_landed": ErrorTaxonomyEntry(503, True),
+    "request_refused": ErrorTaxonomyEntry(404, False),
     "workspace_busy": ErrorTaxonomyEntry(503, True),
     "provider_unavailable": ErrorTaxonomyEntry(502, True),
     "provider_timeout": ErrorTaxonomyEntry(504, True),
@@ -490,6 +492,18 @@ class RequestNotLandedError(APIStatusError):
     default_code = "request_not_landed"
 
 
+class RequestRefusedError(NotFoundError):
+    """``request_refused`` (404): the request this call names was refused by the gateway before
+    any provider was called (a spend cap, a rate limit, an invalid body, an unpriced or denied
+    model) and was never recorded.
+
+    Nothing was stored. Final: never retried. The lookups answer it for 20 minutes, then
+    ``not_found``. A subclass of :class:`NotFoundError`, so code that catches that still catches it.
+    """
+
+    default_code = "request_refused"
+
+
 class WorkspaceBusyError(APIStatusError):
     """``workspace_busy`` (503): the workspace was held (by an end-user erasure or a long write)
     longer than this write could wait.
@@ -728,6 +742,7 @@ _CODE_CLASSES: dict[str, type[APIStatusError]] = {
         OutcomeBacklogFullError,
         InternalKnowledgeAskError,
         RequestNotLandedError,
+        RequestRefusedError,
         WorkspaceBusyError,
     )
     if cls.default_code is not None

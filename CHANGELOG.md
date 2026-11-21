@@ -6,6 +6,11 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+- The `request_refused` error code (404, not retryable) and its class `RequestRefusedError`, a
+  subclass of `NotFoundError`. A request the gateway refused before any provider was called (a spend
+  cap, a rate limit, an invalid body, an unpriced or denied model) is never recorded; the request
+  lookups now answer `request_refused` for 20 minutes instead of `request_not_landed`, so the
+  client raises at once instead of retrying for 15 minutes.
 - New methods for the memory operations the synced API specification adds, each with an async
   twin, under `client.learning`: `memory_items(...)` / `set_memory_items(...)` (serve a call type
   from memory items), `rules(...)`, `create_rule(...)`, `retire_rule(...)` and `restore_rule(...)`

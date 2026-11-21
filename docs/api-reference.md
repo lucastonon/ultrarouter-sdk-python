@@ -2751,6 +2751,7 @@ Base class of every typed response returned by the SDK.
 | `ReceiptWaitTimeoutError` | `APITimeoutError` | `timeout` | `outcomes.wait_for_receipt` ran out of time before the receipt reached a final status. |
 | `RequestCancelledError` | `APIStatusError` | `cancelled` | `cancelled` (499): the request was aborted before completion. |
 | `RequestNotLandedError` | `APIStatusError` | `request_not_landed` | `request_not_landed` (503): the request this call names (an outcome, a final, a reviewer event, feedback, an artifact's `request_ids`, or the generation lookup by id) has not been recorded yet. |
+| `RequestRefusedError` | `NotFoundError` | `request_refused` | `request_refused` (404): the request this call names was refused by the gateway before any provider was called (a spend cap, a rate limit, an invalid body, an unpriced or denied model) and was never recorded. |
 | `SpendCapExceededError` | `APIStatusError` | `spend_cap_exceeded` | `spend_cap_exceeded` (402): the hard spend cap for the period was reached. |
 | `SpendGuardUnavailableError` | `APIStatusError` | `atomic_spend_guard_unavailable` | `atomic_spend_guard_unavailable` (503): live paid execution is not available. |
 | `UltraRouterError` | `Exception` | (any) | Base class of every error the SDK raises. |
