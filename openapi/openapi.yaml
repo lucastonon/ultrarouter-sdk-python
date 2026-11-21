@@ -1,5 +1,5 @@
 # ultrarouter public API specification (OpenAPI). Synced artifact: do not hand-edit.
-# spec-sha256: 2a2c6256c7af3ef0ac10435736041d3b56374d65992d6411315ae91d08ad6242
+# spec-sha256: d2eb3039efc6a92605f740a5750265fb2ade7adfb74affd37f61d7e2287c36e1
 # Generated from the ultrarouter API route schemas — DO NOT EDIT BY HAND.
 # Regenerated from the schemas on every change; hand edits are overwritten.
 components:
@@ -21441,7 +21441,7 @@ paths:
       tags:
         - "Flywheel"
     post:
-      description: "Create/upsert the customer’s unit of value by `key` (archetype, artifact_type, occurred_at, request_ids[], declared claims[], situation facets). A request already grouped into ANOTHER artifact is a `conflict` (409) with the owning artifact id. Declared claims always win their claim_key: a key the platform extractor already owns is SUPERSEDED — the extracted claim is kept under `superseded_claims` (state `superseded`, linked by `superseded_by_claim_id`) and your claim becomes the active one; re-declaring a key you already declared keeps the first declaration. NEVER a body. Request IDs produced by Knowledge Ask refuse 403 internal_knowledge_ask before any artifact, membership or claim write. Each of `request_ids` must be the gateway’s id of a request served in your workspace (the `X-UR-Request-Id` response header): one the gateway has not recorded yet (it records a request right after answering it) answers the retryable 503 `request_not_landed` with `Retry-After` and writes nothing, so send it again; any other is 404 `request_not_found`, writing nothing. Requires API-key scope: outcomes:write."
+      description: "Create/upsert the customer’s unit of value by `key` (archetype, artifact_type, occurred_at, request_ids[], declared claims[], situation facets). A request already grouped into ANOTHER artifact is a `conflict` (409) with the owning artifact id. Declared claims always win their claim_key: a key the platform extractor already owns is SUPERSEDED — the extracted claim is kept under `superseded_claims` (state `superseded`, linked by `superseded_by_claim_id`) and your claim becomes the active one; re-declaring a key you already declared keeps the first declaration. NEVER a body. Request IDs produced by Knowledge Ask refuse 403 internal_knowledge_ask before any artifact, membership or claim write. Each of `request_ids` must be the gateway’s id of a request served in your workspace (the `X-UR-Request-Id` response header): one the gateway has not recorded yet (it records a request right after answering it) answers the retryable 503 `request_not_landed` with `Retry-After` and writes nothing, so send it again; any other (a request the gateway refused without recording it included) is 404 `request_not_found`, writing nothing. Requires API-key scope: outcomes:write."
       operationId: "createArtifact"
       requestBody:
         content:
@@ -21461,7 +21461,7 @@ paths:
             "application/json":
               schema:
                 "$ref": "#/components/schemas/GatewayError"
-          description: "`request_not_landed` (`retryable: true`): the request this call names has not been recorded yet — the gateway records a request right after answering it. Nothing was stored; send the same call again after `Retry-After` seconds (both SDKs do). Answered within 15 minutes of the request id’s time, the same for an id another workspace holds; after that an unknown id is 404."
+          description: "`request_not_landed` (`retryable: true`): the request this call names has not been recorded yet — the gateway records a request right after answering it. Nothing was stored; send the same call again after `Retry-After` seconds (both SDKs do). Answered within 15 minutes of the request id’s time, the same for an id another workspace holds; after that an unknown id is 404. A request the gateway REFUSED after authenticating your key (a spend cap, a rate limit, an invalid body, an unpriced or denied model) is never recorded: once its refusal is noted (milliseconds) the answer is the final 404 `request_refused` instead."
           headers:
             "Retry-After":
               description: "Seconds to wait before sending the same call again."
@@ -21518,7 +21518,7 @@ paths:
         - "Flywheel"
   "/v1/artifacts/{id}/final":
     post:
-      description: "Outcome channel 2 — the ONLY route that may carry a body, and ONLY under `corrections_consent`: the final is stored in the workspace’s encrypted evidence blob store and `diff_stats` are computed server-side against the draft. WITHOUT consent the caller sends CLIENT-computed `diff_stats` + `final_hash` (the SDK `diffStats` helper) and the row is `stored:\"metadata_only\"`, `client_computed:true`. A body without consent is rejected (400). Supplying `artifact_version` binds the final to the draft the human reviewed: a stale value (the draft moved since) is a 409 conflict, never a silent append. When the call type opts into `serve_corrections`, a consented final also updates episode memory’s correction for the matching failed episode — the response’s `episode_correction.status:\"applied\"` means the correction is live for the next similar request. Knowledge Ask receipt ids cannot be bound to artifacts, so a Final cannot acquire Ask request lineage. A final for an artifact whose bound request has not been recorded yet answers the retryable 503 `request_not_landed` with `Retry-After` and stores nothing. Requires API-key scope: outcomes:write."
+      description: "Outcome channel 2 — the ONLY route that may carry a body, and ONLY under `corrections_consent`: the final is stored in the workspace’s encrypted evidence blob store and `diff_stats` are computed server-side against the draft. WITHOUT consent the caller sends CLIENT-computed `diff_stats` + `final_hash` (the SDK `diffStats` helper) and the row is `stored:\"metadata_only\"`, `client_computed:true`. A body without consent is rejected (400). Supplying `artifact_version` binds the final to the draft the human reviewed: a stale value (the draft moved since) is a 409 conflict, never a silent append. When the call type opts into `serve_corrections`, a consented final also updates episode memory’s correction for the matching failed episode — the response’s `episode_correction.status:\"applied\"` means the correction is live for the next similar request. Knowledge Ask receipt ids cannot be bound to artifacts, so a Final cannot acquire Ask request lineage. A final for an artifact whose bound request has not been recorded yet answers the retryable 503 `request_not_landed` with `Retry-After` and stores nothing. A request the gateway refused is never recorded, so no artifact is ever bound to one. Requires API-key scope: outcomes:write."
       operationId: "recordArtifactFinal"
       parameters:
         -
@@ -21547,7 +21547,7 @@ paths:
             "application/json":
               schema:
                 "$ref": "#/components/schemas/GatewayError"
-          description: "`request_not_landed` (`retryable: true`): the request this call names has not been recorded yet — the gateway records a request right after answering it. Nothing was stored; send the same call again after `Retry-After` seconds (both SDKs do). Answered within 15 minutes of the request id’s time, the same for an id another workspace holds; after that an unknown id is 404."
+          description: "`request_not_landed` (`retryable: true`): the request this call names has not been recorded yet — the gateway records a request right after answering it. Nothing was stored; send the same call again after `Retry-After` seconds (both SDKs do). Answered within 15 minutes of the request id’s time, the same for an id another workspace holds; after that an unknown id is 404. A request the gateway REFUSED after authenticating your key (a spend cap, a rate limit, an invalid body, an unpriced or denied model) is never recorded: once its refusal is noted (milliseconds) the answer is the final 404 `request_refused` instead."
           headers:
             "Retry-After":
               description: "Seconds to wait before sending the same call again."
@@ -45957,7 +45957,7 @@ paths:
         - "Flywheel"
   "/v1/generation":
     get:
-      description: "OpenRouter `/generation` parity — cost/tokens/timing/routing for one prior request. Name the request by the gateway’s id (`id`, the `X-UR-Request-Id` response header) or by the alias your client sent as `X-UR-Request-Id` (`client_request_id`; the answered request with it, else the newest). Exactly one of the two. The gateway records a request right after answering it: asked by `id` before that, the lookup answers the retryable 503 `request_not_landed` with `Retry-After` (send it again); an unknown or long-gone id, an id of another workspace after 15 minutes, and an alias with no match are 404. Requires API-key scope: gateway:invoke."
+      description: "OpenRouter `/generation` parity — cost/tokens/timing/routing for one prior request. Name the request by the gateway’s id (`id`, the `X-UR-Request-Id` response header) or by the alias your client sent as `X-UR-Request-Id` (`client_request_id`; the answered request with it, else the newest). Exactly one of the two. The gateway records a request right after answering it: asked by `id` before that, the lookup answers the retryable 503 `request_not_landed` with `Retry-After` (send it again); an unknown or long-gone id, an id of another workspace after 15 minutes, and an alias with no match are 404. A request the gateway refused after authenticating the key, without recording it (its error named this id; the `/v1/messages` and `/v1/responses` doors, embeddings, a chat body refused before its call type resolved, a Knowledge Ask), is the final 404 `request_refused` for 20 minutes, its message naming the HTTP status and code it was refused with (no stats are invented); a chat request refused later is recorded and described with `status: \"error\"`. Requires API-key scope: gateway:invoke."
       operationId: "getGeneration"
       parameters:
         -
@@ -45990,7 +45990,7 @@ paths:
             "application/json":
               schema:
                 "$ref": "#/components/schemas/GatewayError"
-          description: "`request_not_landed` (`retryable: true`): the request this call names has not been recorded yet — the gateway records a request right after answering it. Nothing was stored; send the same call again after `Retry-After` seconds (both SDKs do). Answered within 15 minutes of the request id’s time, the same for an id another workspace holds; after that an unknown id is 404."
+          description: "`request_not_landed` (`retryable: true`): the request this call names has not been recorded yet — the gateway records a request right after answering it. Nothing was stored; send the same call again after `Retry-After` seconds (both SDKs do). Answered within 15 minutes of the request id’s time, the same for an id another workspace holds; after that an unknown id is 404. A request the gateway REFUSED after authenticating your key (a spend cap, a rate limit, an invalid body, an unpriced or denied model) is never recorded: once its refusal is noted (milliseconds) the answer is the final 404 `request_refused` instead."
           headers:
             "Retry-After":
               description: "Seconds to wait before sending the same call again."
@@ -46771,7 +46771,7 @@ paths:
         - "Flywheel"
   "/v1/outcomes/batch":
     post:
-      description: "Record ≤ 1,000 events keyed by `request_id | artifact_id | artifact_key` (+ optional `claim_key`) with per-row acceptance (`accepted | duplicate | conflict | rejected{reason} | pending`) + a verdict rollup. Same idempotency + server-assigned provenance as the single routes. A `request_id` row follows the request-outcome contract: a batch naming a request the gateway has not recorded yet is refused WHOLE with the retryable 503 `request_not_landed` (`Retry-After`) before any write — send it again; every recorded row carries its `receipt` (the same one the request-outcome route returns for the same `source_event_id`), and any other refusal is in-row (`rejected` with `request_not_found` / `outcome_backlog_full`). NEVER a body. Any internal req_int_ request reference refuses the batch with 403 internal_knowledge_ask before I/O. Requires API-key scope: outcomes:write."
+      description: "Record ≤ 1,000 events keyed by `request_id | artifact_id | artifact_key` (+ optional `claim_key`) with per-row acceptance (`accepted | duplicate | conflict | rejected{reason} | pending`) + a verdict rollup. Same idempotency + server-assigned provenance as the single routes. A `request_id` row follows the request-outcome contract: a batch naming a request the gateway has not recorded yet is refused WHOLE with the retryable 503 `request_not_landed` (`Retry-After`) before any write — send it again; every recorded row carries its `receipt` (the same one the request-outcome route returns for the same `source_event_id`), and any other refusal is in-row (`rejected` with `request_not_found` / `request_refused` for a request the gateway refused without recording it / `outcome_backlog_full`). NEVER a body. Any internal req_int_ request reference refuses the batch with 403 internal_knowledge_ask before I/O. Requires API-key scope: outcomes:write."
       operationId: "recordOutcomesBatch"
       requestBody:
         content:
@@ -46791,7 +46791,7 @@ paths:
             "application/json":
               schema:
                 "$ref": "#/components/schemas/GatewayError"
-          description: "`request_not_landed` (`retryable: true`): the request this call names has not been recorded yet — the gateway records a request right after answering it. Nothing was stored; send the same call again after `Retry-After` seconds (both SDKs do). Answered within 15 minutes of the request id’s time, the same for an id another workspace holds; after that an unknown id is 404."
+          description: "`request_not_landed` (`retryable: true`): the request this call names has not been recorded yet — the gateway records a request right after answering it. Nothing was stored; send the same call again after `Retry-After` seconds (both SDKs do). Answered within 15 minutes of the request id’s time, the same for an id another workspace holds; after that an unknown id is 404. A request the gateway REFUSED after authenticating your key (a spend cap, a rate limit, an invalid body, an unpriced or denied model) is never recorded: once its refusal is noted (milliseconds) the answer is the final 404 `request_refused` instead."
           headers:
             "Retry-After":
               description: "Seconds to wait before sending the same call again."
@@ -46909,7 +46909,7 @@ paths:
         - "Preflight"
   "/v1/requests/{id}/feedback":
     post:
-      description: "Thumbs up/down + tags + optional comment, scoped to the key’s workspace. Knowledge Ask requests refuse 403 internal_knowledge_ask before feedback is stored. Under the corrections consent, a comment with words of its own also becomes a memory item attached to the request (`memory_item_id`): served, while the call type serves memory items, to its giver; a tenant admin’s to its tenant; an end user’s to others of its tenant only once validated; never across tenants. Send it the moment the answer arrives: the gateway records a request right after answering it, and until then the feedback answers the retryable 503 `request_not_landed` with `Retry-After` and stores nothing (both SDKs send it again; the stored feedback and its memory item follow). An unknown or long-gone request id, an alias, and another workspace’s request after 15 minutes are 404. Requires API-key scope: gateway:invoke."
+      description: "Thumbs up/down + tags + optional comment, scoped to the key’s workspace. Knowledge Ask requests refuse 403 internal_knowledge_ask before feedback is stored. Under the corrections consent, a comment with words of its own also becomes a memory item attached to the request (`memory_item_id`): served, while the call type serves memory items, to its giver; a tenant admin’s to its tenant; an end user’s to others of its tenant only once validated; never across tenants. Send it the moment the answer arrives: the gateway records a request right after answering it, and until then the feedback answers the retryable 503 `request_not_landed` with `Retry-After` and stores nothing (both SDKs send it again; the stored feedback and its memory item follow). An unknown or long-gone request id, an alias, and another workspace’s request after 15 minutes are 404; a request the gateway refused without recording it is the final 404 `request_refused`, nothing stored. Requires API-key scope: gateway:invoke."
       operationId: "submitFeedback"
       parameters:
         -
@@ -46937,7 +46937,7 @@ paths:
             "application/json":
               schema:
                 "$ref": "#/components/schemas/GatewayError"
-          description: "`request_not_landed` (`retryable: true`): the request this call names has not been recorded yet — the gateway records a request right after answering it. Nothing was stored; send the same call again after `Retry-After` seconds (both SDKs do). Answered within 15 minutes of the request id’s time, the same for an id another workspace holds; after that an unknown id is 404."
+          description: "`request_not_landed` (`retryable: true`): the request this call names has not been recorded yet — the gateway records a request right after answering it. Nothing was stored; send the same call again after `Retry-After` seconds (both SDKs do). Answered within 15 minutes of the request id’s time, the same for an id another workspace holds; after that an unknown id is 404. A request the gateway REFUSED after authenticating your key (a spend cap, a rate limit, an invalid body, an unpriced or denied model) is never recorded: once its refusal is noted (milliseconds) the answer is the final 404 `request_refused` instead."
           headers:
             "Retry-After":
               description: "Seconds to wait before sending the same call again."
@@ -47146,7 +47146,7 @@ paths:
         - "Flywheel"
   "/v1/requests/{id}/outcomes":
     post:
-      description: "Record ONE outcome for a request: it lands on the request’s existing artifact, else a one-request `answer` artifact is created. Replay identity SURVIVES regrouping (the `(producer, request_id, kind, source_event_id)` binding pins the original target/version). Report it the moment you hold the final response: when the request has not been recorded yet (the gateway records it right after answering) the answer is the retryable 503 `request_not_landed` with `Retry-After`, nothing stored — send the same event again (both SDKs do). Every 202 carries the `receipt`; a retry with the same `source_event_id` and payload returns the same receipt and never counts twice. 400 invalid id or outcome, 404 a gateway-minted `req_…` id too old (or too far ahead) to still be in flight, 409 the same key with a different payload, 429 `outcome_backlog_full` when your workspace already holds 5,000 pending receipts. NEVER a body. Knowledge Ask requests refuse 403 internal_knowledge_ask before any outcome, artifact, binding or receipt write; the namespace check does not depend on a request row or producer mark. Requires API-key scope: outcomes:write."
+      description: "Record ONE outcome for a request: it lands on the request’s existing artifact, else a one-request `answer` artifact is created. Replay identity SURVIVES regrouping (the `(producer, request_id, kind, source_event_id)` binding pins the original target/version). Report it the moment you hold the final response: when the request has not been recorded yet (the gateway records it right after answering) the answer is the retryable 503 `request_not_landed` with `Retry-After`, nothing stored — send the same event again (both SDKs do); a request the gateway refused without recording it is the final 404 `request_refused`, nothing stored. Every 202 carries the `receipt`; a retry with the same `source_event_id` and payload returns the same receipt and never counts twice. 400 invalid id or outcome, 404 a gateway-minted `req_…` id too old (or too far ahead) to still be in flight, 409 the same key with a different payload, 429 `outcome_backlog_full` when your workspace already holds 5,000 pending receipts. NEVER a body. Knowledge Ask requests refuse 403 internal_knowledge_ask before any outcome, artifact, binding or receipt write; the namespace check does not depend on a request row or producer mark. Requires API-key scope: outcomes:write."
       operationId: "recordRequestOutcome"
       parameters:
         -
@@ -47394,7 +47394,7 @@ paths:
             "application/json":
               schema:
                 "$ref": "#/components/schemas/GatewayError"
-          description: "`request_not_landed` (`retryable: true`): the request this call names has not been recorded yet — the gateway records a request right after answering it. Nothing was stored; send the same call again after `Retry-After` seconds (both SDKs do). Answered within 15 minutes of the request id’s time, the same for an id another workspace holds; after that an unknown id is 404."
+          description: "`request_not_landed` (`retryable: true`): the request this call names has not been recorded yet — the gateway records a request right after answering it. Nothing was stored; send the same call again after `Retry-After` seconds (both SDKs do). Answered within 15 minutes of the request id’s time, the same for an id another workspace holds; after that an unknown id is 404. A request the gateway REFUSED after authenticating your key (a spend cap, a rate limit, an invalid body, an unpriced or denied model) is never recorded: once its refusal is noted (milliseconds) the answer is the final 404 `request_refused` instead."
           headers:
             "Retry-After":
               description: "Seconds to wait before sending the same call again."
