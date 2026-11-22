@@ -1,5 +1,5 @@
 # ultrarouter public API specification (OpenAPI). Synced artifact: do not hand-edit.
-# spec-sha256: 2644a9efaec9953d5be99b31262452aae31a9200dd0a8f697fb3f2bcb6bb9b0e
+# spec-sha256: e5f392b4a101bb04fe0259eb965600d0fc943b88bdffb73e14c3e4dc1eeb1e9a
 # Generated from the ultrarouter API route schemas — DO NOT EDIT BY HAND.
 # Regenerated from the schemas on every change; hand edits are overwritten.
 components:
@@ -26414,7 +26414,7 @@ paths:
         - "Learning"
   "/v1/call-types/{id}/learning/conversation-memory":
     get:
-      description: "Whether the call type remembers each end user’s conversations, for that end user only; what switching it on does (`consequence`, and the `consequence_sha256` an owner sends back to switch on); the retention window it remembers (the last `retention_days` days); the most it adds to one request (`ceiling_characters`); and what it holds, as counts only: conversations, distinct end-user keys and the largest key’s share. Dual auth: an api key (`config:read` to read, `config:write` to change) or an owner/admin session with the `X-UR-Workspace` header; a viewer may read only. A call type of another workspace is a 404. Requires API-key scope: config:read or config:write."
+      description: "Whether the call type remembers each end user’s conversations, for that end user only; what switching it on does (`consequence`, and the `consequence_sha256` an owner sends back to switch on); the retention window it remembers (the last `retention_days` days); the most it adds to one request of this kind (`max_block_tokens`, estimated tokens, and `ceiling_characters`); and what it holds, as counts only: conversations, distinct end-user keys and the largest key’s share. Dual auth: an api key (`config:read` to read, `config:write` to change) or an owner/admin session with the `X-UR-Workspace` header; a viewer may read only. A call type of another workspace is a 404. Requires API-key scope: config:read or config:write."
       operationId: "getConversationMemory"
       parameters:
         -
@@ -26435,7 +26435,7 @@ paths:
                   call_type_id:
                     type: "string"
                   ceiling_characters:
-                    description: "The most the block adds to one request, in characters (about a quarter as many tokens)."
+                    description: "The most the block adds to one request, in characters (`max_block_tokens` × 4; about a quarter as many tokens)."
                     type: "integer"
                   changed:
                     type: "boolean"
@@ -26463,6 +26463,9 @@ paths:
                     description: "The largest single key’s share of the conversations (0 to 1; null with none). Near 1 with many conversations: one key is probably shared by many people."
                     nullable: true
                     type: "number"
+                  max_block_tokens:
+                    description: "The most estimated tokens the block adds to one request of this kind (the value an enable writes when off: the default, 3,000)."
+                    type: "integer"
                   min_similarity:
                     type: "number"
                   object:
@@ -26482,6 +26485,7 @@ paths:
                   - "min_similarity"
                   - "user_field_identifies_person"
                   - "retention_days"
+                  - "max_block_tokens"
                   - "ceiling_characters"
                   - "consequence"
                   - "consequence_sha256"
@@ -26505,7 +26509,7 @@ paths:
       tags:
         - "Learning"
     put:
-      description: "ON records every conversation of this kind under the end user’s key (`ur.memory_partition`, the `X-UR-Memory-Partition` header, or `user` only with `user_field_identifies_person`) within its tenant, and adds up to `k` (default 5) of the same end user’s most similar earlier conversations before the latest user turn of every request. A request with no key is neither recorded nor served. Switching on is the workspace owner’s through a signed-in session (403 `conversation_memory_owner_only`) and needs the sentence acknowledged (409 `consequence_not_acknowledged`, with the sentence and its sha256), learning on, the corrections consent on (409 `corrections_consent_required`) and retention `full` (409 `retention_not_full`); refused with memory items on (409 `conversation_memory_requires_items_off`) or lessons on (409 `conversation_memory_requires_lessons_off`). OFF stops recording and serving on the next request and deletes nothing. A key bound to a tenant cannot change it (403). Audited; bumps `config_version`; the same values again are a no-op (`changed: false`). Dual auth: an api key (`config:read` to read, `config:write` to change) or an owner/admin session with the `X-UR-Workspace` header; a viewer may read only. A call type of another workspace is a 404. Requires API-key scope: config:write."
+      description: "ON records every conversation of this kind under the end user’s key (`ur.memory_partition`, the `X-UR-Memory-Partition` header, or `user` only with `user_field_identifies_person`) within its tenant, and adds up to `k` (default 5) of the same end user’s most similar earlier conversations before the latest user turn of every request, at most `max_block_tokens` estimated tokens (500 to 6,000; default 3,000): below 6,000 a block over it first keeps fewer characters of each conversation’s replies, those nearest the latest user turn, then drops whole conversations, and each request’s stamp reports the tokens added and cut. A request with no key is neither recorded nor served. Switching on is the workspace owner’s through a signed-in session (403 `conversation_memory_owner_only`) and needs the sentence acknowledged (409 `consequence_not_acknowledged`, with the sentence and its sha256), learning on, the corrections consent on (409 `corrections_consent_required`) and retention `full` (409 `retention_not_full`); refused with lessons on (409 `conversation_memory_requires_lessons_off`). With memory items on, both are served in one block under one allowance: the items by their own reach, the conversations to their own end user only and within `max_block_tokens`; a conversation’s words are never attached to an item served to anyone else. OFF stops recording and serving on the next request and deletes nothing; with memory items on, it keeps them as they were. A key bound to a tenant cannot change it (403). Audited; bumps `config_version`; the same values again are a no-op (`changed: false`). Dual auth: an api key (`config:read` to read, `config:write` to change) or an owner/admin session with the `X-UR-Workspace` header; a viewer may read only. A call type of another workspace is a 404. Requires API-key scope: config:write."
       operationId: "putConversationMemory"
       parameters:
         -
@@ -26527,7 +26531,7 @@ paths:
               description: "Switch conversation memory on or off for a call type."
               properties:
                 acknowledged_consequence_sha256:
-                  description: "Required to switch on: the sha256 of the consequence sentence for these values (`consequence_sha256` of the GET with the same `k` and `user_field_identifies_person`). Anything else is refused 409 `consequence_not_acknowledged`, with the sentence."
+                  description: "Required to switch on: the sha256 of the consequence sentence for these values (`consequence_sha256` of the GET with the same `k`, `user_field_identifies_person` and `max_block_tokens`). Anything else is refused 409 `consequence_not_acknowledged`, with the sentence."
                   pattern: "^[0-9a-f]{64}$"
                   type: "string"
                 enabled:
@@ -26537,6 +26541,11 @@ paths:
                   description: "Earlier conversations served per turn, 1 to 5 (default 5)."
                   maximum: 5
                   minimum: 1
+                  type: "integer"
+                max_block_tokens:
+                  description: "The most estimated tokens (characters ÷ 4) the memory block may add to one request of this kind, 500 to 6,000 (default 3,000). Below 6,000 a block over it first keeps fewer characters of each earlier conversation’s replies (those nearest the latest user turn; every user turn stays), then drops whole conversations from the least similar. Each request’s stamp reports the tokens added and what was cut. Absent: the default applies."
+                  maximum: 6000
+                  minimum: 500
                   type: "integer"
                 min_similarity:
                   description: "The keyword picker’s floor: an earlier conversation is served only when its similarity to the latest user turn reaches it (default 0: any shared word)."
@@ -26560,7 +26569,7 @@ paths:
                   call_type_id:
                     type: "string"
                   ceiling_characters:
-                    description: "The most the block adds to one request, in characters (about a quarter as many tokens)."
+                    description: "The most the block adds to one request, in characters (`max_block_tokens` × 4; about a quarter as many tokens)."
                     type: "integer"
                   changed:
                     type: "boolean"
@@ -26588,6 +26597,9 @@ paths:
                     description: "The largest single key’s share of the conversations (0 to 1; null with none). Near 1 with many conversations: one key is probably shared by many people."
                     nullable: true
                     type: "number"
+                  max_block_tokens:
+                    description: "The most estimated tokens the block adds to one request of this kind (the value an enable writes when off: the default, 3,000)."
+                    type: "integer"
                   min_similarity:
                     type: "number"
                   object:
@@ -26607,6 +26619,7 @@ paths:
                   - "min_similarity"
                   - "user_field_identifies_person"
                   - "retention_days"
+                  - "max_block_tokens"
                   - "ceiling_characters"
                   - "consequence"
                   - "consequence_sha256"
@@ -27562,7 +27575,7 @@ paths:
       tags:
         - "Learning"
     put:
-      description: "ON serves the call type from memory items: each request is matched on its conversation and served only the items its own reach allows, ranked by meaning with the deployment’s pinned encoder (409 `retrieval_encoder_not_configured` or `retrieval_encoder_not_loaded`). Switching on records the instant (`switched_on_at`): only items stored at or after it are served, and switching on again keeps it. It serves corrections as items and needs episode memory set up for the call type (409 `memory_setting_required`) with lessons off (409 `items_requires_lessons_off`). OFF serves as before. Requires learning to be switched on for the workspace. A key bound to a tenant cannot change it (403). Audited; bumps `config_version`; the same values again are a no-op (`changed: false`). Dual auth: an api key (`config:read` to read, `config:write` to change) or an owner/admin session with the `X-UR-Workspace` header; a viewer may read only. A call type of another workspace is a 404. Requires API-key scope: config:write."
+      description: "ON serves the call type from memory items: each request is matched on its conversation and served only the items its own reach allows, ranked by meaning with the deployment’s pinned encoder (409 `retrieval_encoder_not_configured` or `retrieval_encoder_not_loaded`). Switching on records the instant (`switched_on_at`): only items stored at or after it are served, and switching on again keeps it. It serves corrections as items and needs episode memory set up for the call type (409 `memory_setting_required`) with lessons off (409 `items_requires_lessons_off`). OFF serves as before. Switching items on or off keeps the call type’s other memory settings as they were. Requires learning to be switched on for the workspace. A key bound to a tenant cannot change it (403). Audited; bumps `config_version`; the same values again are a no-op (`changed: false`). Dual auth: an api key (`config:read` to read, `config:write` to change) or an owner/admin session with the `X-UR-Workspace` header; a viewer may read only. A call type of another workspace is a 404. Requires API-key scope: config:write."
       operationId: "putLearningItems"
       parameters:
         -
@@ -46495,7 +46508,7 @@ paths:
         - "Knowledge"
   "/v1/messages":
     post:
-      description: "Native passthrough for the Anthropic Messages API: point the official `@anthropic-ai/sdk` at ultrarouter by changing only the base URL and the key. The ur key is accepted via `Authorization: Bearer` OR `x-api-key` (the Anthropic SDK style). When no passthrough stage rule of the workspace matches and the call is not an experiment’s treated call (below), the body is FORWARDED VERBATIM to Anthropic and the response is returned UNTOUCHED — the gateway only meters, caps and captures. A matching rule (`PUT /v1/workspaces/{id}/passthrough-policy`) can rewrite the model, serve another family’s model through translation, drop a sampling parameter the served model refuses, add `cache_control` markers, or insert an experiment pack. Forwarding a field is not a check that Anthropic supports it with the served model. This route does not learn: it records no learning episodes (learning runs on `POST /v1/chat/completions`). `stream:true` forwards the upstream SSE bytes verbatim only for an unmodified Anthropic request with no experiment pack placed; a stream served through translation from another family is re-encoded event by event. The ur extensions ride request headers (`X-UR-Call-Type`, `X-UR-Timeout-Ms` clamped 1 s–600 s (default 300 s), `X-UR-Trace`); the response carries `X-UR-Request-Id` and (non-streaming) `X-UR-Cost-Micro-USD`. An allowlist of request headers (`anthropic-version`, `anthropic-beta`, `idempotency-key`) is forwarded upstream; the caller's own key headers are never forwarded. Upstream errors pass through with their status and body; gateway failures (auth, caps, timeout) use the normalized error envelope. EXPERIMENT-BOUND calls: a call carrying `X-UR-Experiment-Execution` (an execution enrolled on `POST /v1/flywheel/experiments/{id}/executions`; the key also needs `flywheel:experiment:run`) is authorized against its execution (workspace, live experiment, open phase, bound candidate) BEFORE dispatch, reserved against the experiment budget from `max_tokens` and the dispatched bytes, claimed once (a retry of the same `attempt` is refused) and settled from the measured cost. For the TREATED arm’s lever call type only, the frozen learned pack is placed as a NEW FIRST TEXT BLOCK of the first user message — `system` and every `cache_control` marker are untouched; other stages and the control arm are forwarded unchanged. Refusals are named in the error message. A call without the header is unaffected. Requires API-key scope: gateway:invoke."
+      description: "Native passthrough for the Anthropic Messages API: point the official `@anthropic-ai/sdk` at ultrarouter by changing only the base URL and the key. The ur key is accepted via `Authorization: Bearer` OR `x-api-key` (the Anthropic SDK style). When no passthrough stage rule of the workspace matches, the call is not an experiment’s treated call and memory places no block (both below), the body is FORWARDED VERBATIM to Anthropic and the response is returned UNTOUCHED — the gateway only meters, caps and captures. A matching rule (`PUT /v1/workspaces/{id}/passthrough-policy`) can rewrite the model, serve another family’s model through translation, drop a sampling parameter the served model refuses, add `cache_control` markers, or insert an experiment pack. Forwarding a field is not a check that Anthropic supports it with the served model. This route learns only when learning (staff switch it on) and the workspace’s native exposure switch (it turns on when the workspace owner turns self-learning on) are both on: it is then recorded and served memory as `POST /v1/chat/completions` is, as a block in the first user message; otherwise it records no learning episodes and places no block. `stream:true` forwards the upstream SSE bytes verbatim only for an unmodified Anthropic request with no experiment pack placed; a stream served through translation from another family is re-encoded event by event. The ur extensions ride request headers (`X-UR-Call-Type`, `X-UR-Timeout-Ms` clamped 1 s–600 s (default 300 s), `X-UR-Trace`); the response carries `X-UR-Request-Id` and (non-streaming) `X-UR-Cost-Micro-USD`. An allowlist of request headers (`anthropic-version`, `anthropic-beta`, `idempotency-key`) is forwarded upstream; the caller's own key headers are never forwarded. Upstream errors pass through with their status and body; gateway failures (auth, caps, timeout) use the normalized error envelope. EXPERIMENT-BOUND calls: a call carrying `X-UR-Experiment-Execution` (an execution enrolled on `POST /v1/flywheel/experiments/{id}/executions`; the key also needs `flywheel:experiment:run`) is authorized against its execution (workspace, live experiment, open phase, bound candidate) BEFORE dispatch, reserved against the experiment budget from `max_tokens` and the dispatched bytes, claimed once (a retry of the same `attempt` is refused) and settled from the measured cost. For the TREATED arm’s lever call type only, the frozen learned pack is placed as a NEW FIRST TEXT BLOCK of the first user message — `system` and every `cache_control` marker are untouched; other stages and the control arm are forwarded unchanged. Refusals are named in the error message. A call without the header is unaffected. Requires API-key scope: gateway:invoke."
       operationId: "createMessage"
       requestBody:
         content:
@@ -46508,7 +46521,7 @@ paths:
                   role: "user"
               model: "claude-opus-5-5"
             schema:
-              description: "Anthropic Messages API request, forwarded verbatim to Anthropic when no passthrough stage rule of the workspace matches and the call is not an experiment’s treated call. Every field beyond `model` (system, messages, tools, output_config, cache_control, continuation blocks, …) is then passed through unchanged; a matching rule can rewrite the model, translate, drop a refused parameter or add `cache_control`, and a treated experiment call gets its pack as a new first text block. Auth may be the ur key via `Authorization: Bearer` or `x-api-key`; the caller's key is never forwarded upstream (the platform/BYOK key is injected server-side)."
+              description: "Anthropic Messages API request, forwarded verbatim to Anthropic when no passthrough stage rule of the workspace matches, the call is not an experiment’s treated call and memory places no block. Every field beyond `model` (system, messages, tools, output_config, cache_control, continuation blocks, …) is then passed through unchanged; a matching rule can rewrite the model, translate, drop a refused parameter or add `cache_control`, a treated experiment call gets its pack as a new first text block, and memory (learning and the workspace’s native exposure switch both on) places its block in the first user message. Auth may be the ur key via `Authorization: Bearer` or `x-api-key`; the caller's key is never forwarded upstream (the platform/BYOK key is injected server-side)."
               properties:
                 model:
                   description: "The Anthropic model id to call (e.g. \"claude-opus-5-5\"). This exact model is the model called."
@@ -47448,7 +47461,7 @@ paths:
         - "Flywheel"
   "/v1/responses":
     post:
-      description: "Native passthrough for the OpenAI Responses API: point the official `openai` SDK at ultrarouter by changing only the base URL and the key. When no passthrough stage rule of the workspace matches, the JSON body is FORWARDED VERBATIM to OpenAI (no routing, no compression, no model remapping, no field injection) and the response is returned UNTOUCHED — the gateway only meters, caps and captures. A matching rule (`PUT /v1/workspaces/{id}/passthrough-policy`) can rewrite the model, serve another family’s model through translation, or insert an experiment pack. Forwarding a field is not a check that OpenAI supports it with the served model. This route does not learn: it records no learning episodes (learning runs on `POST /v1/chat/completions`). `stream:true` forwards the upstream SSE bytes verbatim only for an unmodified same-family request; a stream served through translation from another family is re-encoded event by event. The ur extensions ride request headers (`X-UR-Call-Type`, `X-UR-Timeout-Ms` clamped 1 s–600 s (default 300 s), `X-UR-Trace`); the response carries `X-UR-Request-Id` and (non-streaming) `X-UR-Cost-Micro-USD`. An allowlist of request headers (`openai-beta`, `openai-organization`, `openai-project`, `idempotency-key`) is forwarded upstream; the caller's own `Authorization` is never forwarded. Upstream errors pass through with their status and body; gateway failures (auth, caps, timeout) use the normalized error envelope. EXPERIMENT-BOUND calls: a call carrying `X-UR-Experiment-Execution` (an execution enrolled on `POST /v1/flywheel/experiments/{id}/executions`; the key also needs `flywheel:experiment:run`) is authorized against its execution, reserved against the experiment budget before dispatch and settled from the measured cost; it must send `max_output_tokens`, a call type and an `attempt` in `X-UR-Trace`. The learned pack is never placed into a Responses body (a treated lever-stage call here is refused by name). A call without the header is unaffected. Requires API-key scope: gateway:invoke."
+      description: "Native passthrough for the OpenAI Responses API: point the official `openai` SDK at ultrarouter by changing only the base URL and the key. When no passthrough stage rule of the workspace matches and memory places no block (below), the JSON body is FORWARDED VERBATIM to OpenAI (no routing, no compression, no model remapping, no field injection) and the response is returned UNTOUCHED — the gateway only meters, caps and captures. A matching rule (`PUT /v1/workspaces/{id}/passthrough-policy`) can rewrite the model, serve another family’s model through translation, or insert an experiment pack. Forwarding a field is not a check that OpenAI supports it with the served model. This route learns only when learning (staff switch it on) and the workspace’s native exposure switch (it turns on when the workspace owner turns self-learning on) are both on: it is then recorded and served memory as `POST /v1/chat/completions` is, as a block in the first user `input` item; otherwise it records no learning episodes and places no block. `stream:true` forwards the upstream SSE bytes verbatim only for an unmodified same-family request; a stream served through translation from another family is re-encoded event by event. The ur extensions ride request headers (`X-UR-Call-Type`, `X-UR-Timeout-Ms` clamped 1 s–600 s (default 300 s), `X-UR-Trace`); the response carries `X-UR-Request-Id` and (non-streaming) `X-UR-Cost-Micro-USD`. An allowlist of request headers (`openai-beta`, `openai-organization`, `openai-project`, `idempotency-key`) is forwarded upstream; the caller's own `Authorization` is never forwarded. Upstream errors pass through with their status and body; gateway failures (auth, caps, timeout) use the normalized error envelope. EXPERIMENT-BOUND calls: a call carrying `X-UR-Experiment-Execution` (an execution enrolled on `POST /v1/flywheel/experiments/{id}/executions`; the key also needs `flywheel:experiment:run`) is authorized against its execution, reserved against the experiment budget before dispatch and settled from the measured cost; it must send `max_output_tokens`, a call type and an `attempt` in `X-UR-Trace`. The learned pack is never placed into a Responses body (a treated lever-stage call here is refused by name). A call without the header is unaffected. Requires API-key scope: gateway:invoke."
       operationId: "createResponse"
       requestBody:
         content:
@@ -47457,7 +47470,7 @@ paths:
               input: "Draft a product update in two sentences."
               model: "gpt-6-sol"
             schema:
-              description: "OpenAI Responses API request, forwarded verbatim to OpenAI when no passthrough stage rule of the workspace matches. Every field beyond `model` (input, instructions, tools, text.format, reasoning, include, store, prompt_cache_key, metadata, …) is then passed through unchanged; a matching rule can rewrite the model, translate the body for another family or insert an experiment pack."
+              description: "OpenAI Responses API request, forwarded verbatim to OpenAI when no passthrough stage rule of the workspace matches and memory places no block. Every field beyond `model` (input, instructions, tools, text.format, reasoning, include, store, prompt_cache_key, metadata, …) is then passed through unchanged; a matching rule can rewrite the model, translate the body for another family or insert an experiment pack, and memory (learning and the workspace’s native exposure switch both on) places its block in the first user `input` item."
               properties:
                 model:
                   description: "The OpenAI model id to call (e.g. \"gpt-6-sol\"). This exact model is the model called."

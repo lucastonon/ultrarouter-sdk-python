@@ -4908,7 +4908,8 @@ class ConversationMemory(BaseModel):
     call_type_id: str
 
     ceiling_characters: int
-    """The most the block adds to one request, in characters (about a quarter as many tokens)."""
+    """The most the block adds to one request, in characters (`max_block_tokens` × 4; about a quarter as many tokens).
+    """
 
     changed: bool | None = None
 
@@ -4935,6 +4936,10 @@ class ConversationMemory(BaseModel):
     """The largest single key’s share of the conversations (0 to 1; null with none). Near 1 with many conversations: one key is probably shared by many people.
     """
 
+    max_block_tokens: int
+    """The most estimated tokens the block adds to one request of this kind (the value an enable writes when off: the default, 3,000).
+    """
+
     min_similarity: float
 
     object: str
@@ -4950,7 +4955,7 @@ class ConversationMemoryParams(TypedDict, total=False):
     """Switch conversation memory on or off for a call type."""
 
     acknowledged_consequence_sha256: str
-    """Required to switch on: the sha256 of the consequence sentence for these values (`consequence_sha256` of the GET with the same `k` and `user_field_identifies_person`). Anything else is refused 409 `consequence_not_acknowledged`, with the sentence.
+    """Required to switch on: the sha256 of the consequence sentence for these values (`consequence_sha256` of the GET with the same `k`, `user_field_identifies_person` and `max_block_tokens`). Anything else is refused 409 `consequence_not_acknowledged`, with the sentence.
     """
 
     enabled: Required[bool]
@@ -4959,6 +4964,10 @@ class ConversationMemoryParams(TypedDict, total=False):
 
     k: int
     """Earlier conversations served per turn, 1 to 5 (default 5)."""
+
+    max_block_tokens: int
+    """The most estimated tokens (characters ÷ 4) the memory block may add to one request of this kind, 500 to 6,000 (default 3,000). Below 6,000 a block over it first keeps fewer characters of each earlier conversation’s replies (those nearest the latest user turn; every user turn stays), then drops whole conversations from the least similar. Each request’s stamp reports the tokens added and what was cut. Absent: the default applies.
+    """
 
     min_similarity: float
     """The keyword picker’s floor: an earlier conversation is served only when its similarity to the latest user turn reaches it (default 0: any shared word).
@@ -10444,7 +10453,7 @@ class CompanyKnowledgeDetail(BaseModel):
 
 
 class CreateMessageParams(TypedDict, total=False):
-    """Anthropic Messages API request, forwarded verbatim to Anthropic when no passthrough stage rule of the workspace matches and the call is not an experiment’s treated call. Every field beyond `model` (system, messages, tools, output_config, cache_control, continuation blocks, …) is then passed through unchanged; a matching rule can rewrite the model, translate, drop a refused parameter or add `cache_control`, and a treated experiment call gets its pack as a new first text block. Auth may be the ur key via `Authorization: Bearer` or `x-api-key`; the caller's key is never forwarded upstream (the platform/BYOK key is injected server-side)."""
+    """Anthropic Messages API request, forwarded verbatim to Anthropic when no passthrough stage rule of the workspace matches, the call is not an experiment’s treated call and memory places no block. Every field beyond `model` (system, messages, tools, output_config, cache_control, continuation blocks, …) is then passed through unchanged; a matching rule can rewrite the model, translate, drop a refused parameter or add `cache_control`, a treated experiment call gets its pack as a new first text block, and memory (learning and the workspace’s native exposure switch both on) places its block in the first user message. Auth may be the ur key via `Authorization: Bearer` or `x-api-key`; the caller's key is never forwarded upstream (the platform/BYOK key is injected server-side)."""
 
     model: Required[str]
     """The Anthropic model id to call (e.g. "claude-opus-5-5"). This exact model is the model called.
