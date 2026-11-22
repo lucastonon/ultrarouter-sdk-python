@@ -2053,7 +2053,7 @@ OpenAI-compatible embeddings response with the ultrarouter `ur` block.
 
 *request shape (TypedDict)*
 
-Anthropic Messages API request, forwarded verbatim to Anthropic. Every field beyond `model` (system, messages, tools, output_config, cache_control, continuation blocks, …) is passed through unchanged. Auth may be the ur key via `Authorization: Bearer` or `x-api-key`; the caller's key is never forwarded upstream (the platform/BYOK key is injected server-side).
+Anthropic Messages API request, forwarded verbatim to Anthropic when no passthrough stage rule of the workspace matches and the call is not an experiment’s treated call. Every field beyond `model` (system, messages, tools, output_config, cache_control, continuation blocks, …) is then passed through unchanged; a matching rule can rewrite the model, translate, drop a refused parameter or add `cache_control`, and a treated experiment call gets its pack as a new first text block. Auth may be the ur key via `Authorization: Bearer` or `x-api-key`; the caller's key is never forwarded upstream (the platform/BYOK key is injected server-side).
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |

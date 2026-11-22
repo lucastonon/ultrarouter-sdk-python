@@ -10444,7 +10444,7 @@ class CompanyKnowledgeDetail(BaseModel):
 
 
 class CreateMessageParams(TypedDict, total=False):
-    """Anthropic Messages API request, forwarded verbatim to Anthropic. Every field beyond `model` (system, messages, tools, output_config, cache_control, continuation blocks, …) is passed through unchanged. Auth may be the ur key via `Authorization: Bearer` or `x-api-key`; the caller's key is never forwarded upstream (the platform/BYOK key is injected server-side)."""
+    """Anthropic Messages API request, forwarded verbatim to Anthropic when no passthrough stage rule of the workspace matches and the call is not an experiment’s treated call. Every field beyond `model` (system, messages, tools, output_config, cache_control, continuation blocks, …) is then passed through unchanged; a matching rule can rewrite the model, translate, drop a refused parameter or add `cache_control`, and a treated experiment call gets its pack as a new first text block. Auth may be the ur key via `Authorization: Bearer` or `x-api-key`; the caller's key is never forwarded upstream (the platform/BYOK key is injected server-side)."""
 
     model: Required[str]
     """The Anthropic model id to call (e.g. "claude-opus-5-5"). This exact model is the model called.
