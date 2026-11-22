@@ -113,7 +113,7 @@ Present only when a corrected body was supplied under consent. THE BARRIER: `/fi
 | --- | --- | --- | --- |
 | `corrected_at` | `str \| None` | yes | When the stored correction is effective (ISO), or null. |
 | `pending_seconds` | `int \| None` | no | With `pending`: how long the gateway keeps the correction waiting for its episode (900). |
-| `reason` | `str \| None` | no | A permanent no_episode retains the request recording reason, such as route_not_recorded or record_off. |
+| `reason` | `str \| None` | no | A permanent no_episode retains the request recording reason, such as route_not_recorded or record_off. `erased_in_flight` (no_episode): the final this correction copies lost its body to an erasure after the call was taken in; `giver_erased` (no_episode): the end user named as giver (`user`) was erased since; `learning_off` (not_serving): the learning switch was off when the correction was to be written. Nothing is stored in these cases. |
 | `receipt` | `OutcomeReceiptRecord \| None` | no | Poll this durable receipt: pending until its trace and failure verdict land, then applied; expires after 15 minutes. References the existing consented final only. |
 | `status` | `str` | yes | Whether this correction reached episode memory: `applied` (stored, eligible to serve on the next request) \| `unchanged` (the same correction was already stored) \| `not_serving` (the call type is not opted into serve_corrections) \| `consent_off` \| `no_correction_text` \| `no_episode` (no failed episode holds this artifact’s request) \| `pending` (no failed episode holds it YET — the recorder writes it after the response and its verdict lands with the outcome — so the gateway keeps the correction for up to `pending_seconds` and applies it when the episode lands; the response does not wait, and the status route’s `traces.corrected` shows it applied).  Known values: ``applied``, ``unchanged``, ``not_serving``, ``consent_off``, ``no_correction_text``, ``no_episode``, ``pending``. |
 | `trace_id` | `str \| None` | yes | The episode trace the correction bound to, or null. |
@@ -420,7 +420,7 @@ The per-row batch results + a verdict rollup.
 | `data` | `list[BatchOutcomeResult]` | yes |  |
 | `duplicate` | `int` | yes |  |
 | `object` | `str` | yes | Known values: ``list``. |
-| `pending` | `int` | yes | Rows whose request has not been recorded yet (durable pending receipts). |
+| `pending` | `int` | yes | Rows that repeat a receipt an earlier version stored to wait for its request (a new row naming a request not recorded yet refuses the whole batch with the retryable 503). |
 | `rejected` | `int` | yes |  |
 
 ### BenchAllowance
@@ -2359,6 +2359,7 @@ Which rows: every field set is ANDed; at least one is required.
 | `producer` | `str` | no | The producer of the verifying outcome event. |
 | `rubric_hash` | `str` | no | Resolved through the reviewer receipts, which do not exist yet: matches nothing today. |
 | `taught_between` | `EpisodeEvictParamsSelectorTaughtBetween` | no | When the rows entered memory: the later of their verdict and their correction. |
+| `tenant` | `str` | no | With `partition` only: the tenant the end user belongs to, as the workspace names its tenants (the label bound to the sending key, or the `metadata` value). User `42` of two tenants is two end users: their keys are stored apart, and an erasure reaches only the named tenant’s. A key bound to a tenant erases in its own tenant only (another tenant here is 403 `permission`; absent means its own). Absent from a session or an unbound key: the end user of no tenant. Digested on arrival; the raw value is never stored or logged. |
 
 ### EpisodeEvictParamsSelectorTaughtBetween
 
@@ -3611,7 +3612,7 @@ A stored feedback row.
 | `created_at` | `str` | yes |  |
 | `giver_role` | `str \| None` | yes | The role `given_by` resolved to (null on feedback stored before it existed).  Known values: ``developer``, ``tenant_admin``, ``end_user``. |
 | `id` | `str` | yes |  |
-| `memory_item_id` | `str \| None` | yes | The memory item the comment became (`mit_…`): validate, retire or restore it under `/v1/call-types/{id}/learning/`. Null when none was stored (no comment, no corrections consent). |
+| `memory_item_id` | `str \| None` | yes | The memory item the comment became (`mit_…`): validate, retire or restore it under `/v1/call-types/{id}/learning/`. Null when none was stored (no comment, learning off, no corrections consent). |
 | `object` | `str` | yes | Known values: ``request_feedback``. |
 | `rating` | `float` | yes |  |
 | `request_id` | `str` | yes |  |
@@ -3625,7 +3626,7 @@ Human feedback on a prior request.
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `comment` | `str` | no | Optional free-text comment on the answer. When the workspace has granted the corrections consent, a comment with words of its own also becomes a memory item attached to this request (`memory_item_id`), served only to the requests its giver and tenant allow while the call type serves memory items, and deleted after the corrections retention window. |
+| `comment` | `str` | no | Optional free-text comment on the answer. While learning is enabled for the workspace and it has granted the corrections consent, a comment with words of its own also becomes a memory item attached to this request (`memory_item_id`), served only to the requests its giver and tenant allow while the call type serves memory items, and deleted after the corrections retention window. |
 | `given_by` | `Literal['developer', 'tenant_admin', 'end_user']` | no | Who gives this feedback. `developer` or `tenant_admin` is honoured only from an api key marked `server_side`; anything else is recorded as `end_user`. |
 | `rating` | `Required[Literal[1] \| Literal[-1]]` | no | Thumbs up (1) or thumbs down (-1) — the human feedback signal evals consume. |
 | `tags` | `list[str]` | no | Optional free-form tags (e.g. "hallucination", "great"). |
@@ -6097,7 +6098,7 @@ Poll this durable receipt: pending until its trace and failure verdict land, the
 | `reason` | `str \| None` | yes | A stable machine reason when not applied: `request_not_found`, `idempotency_conflict`, `apply_failed`, `end_user_erased` (status `erased`), or the validation reason. |
 | `request_id` | `str` | yes | The request the outcome names. |
 | `source_event_id` | `str` | yes | Your idempotency discriminator, or a server-minted one when none was sent (then a retry is a new outcome). |
-| `status` | `str` | yes | `pending` — the request has not been recorded yet; `applied` — the outcome is recorded; `rejected` — it failed validation once the request was known (see `reason`); `failed` — recording kept hitting an internal error; `expired` — no request with this id appeared in your workspace within 15 minutes (`reason: request_not_found`); `erased` — the end user of the request was erased (`reason: end_user_erased`): the outcome input is gone, and the receipt is deleted at its retention deadline.  Known values: ``pending``, ``applied``, ``rejected``, ``failed``, ``expired``, ``erased``. |
+| `status` | `str` | yes | `pending` — waiting: a consented final waiting for the failed episode it corrects, or a receipt an earlier version stored before its request was recorded (an outcome sent today before its request is recorded is refused with the retryable 503 `request_not_landed` and gets no receipt); `applied` — the outcome is recorded; `rejected` — it failed validation once the request was known (see `reason`); `failed` — recording kept hitting an internal error; `expired` — no request with this id appeared in your workspace within 15 minutes (`reason: request_not_found`); `erased` — the end user of the request was erased (`reason: end_user_erased`): the outcome input is gone, and the receipt is deleted at its retention deadline.  Known values: ``pending``, ``applied``, ``rejected``, ``failed``, ``expired``, ``erased``. |
 | `updated_at` | `str` | yes |  |
 
 ### OutcomeReceiptRecordEpisode
@@ -6555,7 +6556,7 @@ One request-shortcut outcome result with its durable receipt.
 | `receipt` | `OutcomeReceiptRecord` | yes | A durable receipt for one reported outcome. |
 | `source` | `str \| None` | yes | Known values: ``declared``, ``inferred``, ``gateway``, ``imported``. |
 | `source_event_id` | `str \| None` | yes |  |
-| `status` | `str` | yes | `accepted` — recorded now; `duplicate` — a retry of an outcome already recorded (no-op); `pending` — the request has not been recorded yet: the outcome is stored durably and applied when it is (poll the `receipt`). A conflict is answered 409 and a rejection 400 on this route.  Known values: ``accepted``, ``duplicate``, ``conflict``, ``rejected``, ``pending``. |
+| `status` | `str` | yes | `accepted` — recorded now; `duplicate` — a retry of an outcome already recorded (no-op); `pending` — only a retry of a receipt an earlier version stored to wait for its request, applied when that request is recorded (a new outcome on a request not recorded yet is the retryable 503 `request_not_landed`, with no receipt). A conflict is answered 409 and a rejection 400 on this route.  Known values: ``accepted``, ``duplicate``, ``conflict``, ``rejected``, ``pending``. |
 | `target_kind` | `str \| None` | yes | Known values: ``artifact``, ``claim``. |
 
 ### ResponseFormatJsonObjectParam

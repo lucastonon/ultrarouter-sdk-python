@@ -882,7 +882,7 @@ class ArtifactFinalEpisodeCorrection(BaseModel):
     """With `pending`: how long the gateway keeps the correction waiting for its episode (900)."""
 
     reason: str | None = None
-    """A permanent no_episode retains the request recording reason, such as route_not_recorded or record_off.
+    """A permanent no_episode retains the request recording reason, such as route_not_recorded or record_off. `erased_in_flight` (no_episode): the final this correction copies lost its body to an erasure after the call was taken in; `giver_erased` (no_episode): the end user named as giver (`user`) was erased since; `learning_off` (not_serving): the learning switch was off when the correction was to be written. Nothing is stored in these cases.
     """
 
     receipt: OutcomeReceiptRecord | None = None
@@ -955,7 +955,7 @@ class OutcomeReceiptRecord(BaseModel):
     """
 
     status: str
-    """`pending` — the request has not been recorded yet; `applied` — the outcome is recorded; `rejected` — it failed validation once the request was known (see `reason`); `failed` — recording kept hitting an internal error; `expired` — no request with this id appeared in your workspace within 15 minutes (`reason: request_not_found`); `erased` — the end user of the request was erased (`reason: end_user_erased`): the outcome input is gone, and the receipt is deleted at its retention deadline.
+    """`pending` — waiting: a consented final waiting for the failed episode it corrects, or a receipt an earlier version stored before its request was recorded (an outcome sent today before its request is recorded is refused with the retryable 503 `request_not_landed` and gets no receipt); `applied` — the outcome is recorded; `rejected` — it failed validation once the request was known (see `reason`); `failed` — recording kept hitting an internal error; `expired` — no request with this id appeared in your workspace within 15 minutes (`reason: request_not_found`); `erased` — the end user of the request was erased (`reason: end_user_erased`): the outcome input is gone, and the receipt is deleted at its retention deadline.
 
     Known values: ``pending``, ``applied``, ``rejected``, ``failed``, ``expired``, ``erased``.
     """
@@ -3379,6 +3379,10 @@ class EpisodeEvictParamsSelector(TypedDict, total=False):
 
     taught_between: EpisodeEvictParamsSelectorTaughtBetween
     """When the rows entered memory: the later of their verdict and their correction."""
+
+    tenant: str
+    """With `partition` only: the tenant the end user belongs to, as the workspace names its tenants (the label bound to the sending key, or the `metadata` value). User `42` of two tenants is two end users: their keys are stored apart, and an erasure reaches only the named tenant’s. A key bound to a tenant erases in its own tenant only (another tenant here is 403 `permission`; absent means its own). Absent from a session or an unbound key: the end user of no tenant. Digested on arrival; the raw value is never stored or logged.
+    """
 
 
 EpisodeEvictParamsSelectorTaughtBetween = TypedDict(
@@ -10652,7 +10656,8 @@ class BatchOutcomesResponse(BaseModel):
     """Known values: ``list``."""
 
     pending: int
-    """Rows whose request has not been recorded yet (durable pending receipts)."""
+    """Rows that repeat a receipt an earlier version stored to wait for its request (a new row naming a request not recorded yet refuses the whole batch with the retryable 503).
+    """
 
     rejected: int
 
@@ -11047,7 +11052,7 @@ class FeedbackCreateParams(TypedDict, total=False):
     """Human feedback on a prior request."""
 
     comment: str
-    """Optional free-text comment on the answer. When the workspace has granted the corrections consent, a comment with words of its own also becomes a memory item attached to this request (`memory_item_id`), served only to the requests its giver and tenant allow while the call type serves memory items, and deleted after the corrections retention window.
+    """Optional free-text comment on the answer. While learning is enabled for the workspace and it has granted the corrections consent, a comment with words of its own also becomes a memory item attached to this request (`memory_item_id`), served only to the requests its giver and tenant allow while the call type serves memory items, and deleted after the corrections retention window.
     """
 
     given_by: Literal["developer", "tenant_admin", "end_user"]
@@ -11088,7 +11093,7 @@ class Feedback(BaseModel):
     id: str
 
     memory_item_id: str | None
-    """The memory item the comment became (`mit_…`): validate, retire or restore it under `/v1/call-types/{id}/learning/`. Null when none was stored (no comment, no corrections consent).
+    """The memory item the comment became (`mit_…`): validate, retire or restore it under `/v1/call-types/{id}/learning/`. Null when none was stored (no comment, learning off, no corrections consent).
     """
 
     object: str
@@ -11193,7 +11198,7 @@ class RequestOutcomeResult(BaseModel):
     source_event_id: str | None
 
     status: str
-    """`accepted` — recorded now; `duplicate` — a retry of an outcome already recorded (no-op); `pending` — the request has not been recorded yet: the outcome is stored durably and applied when it is (poll the `receipt`). A conflict is answered 409 and a rejection 400 on this route.
+    """`accepted` — recorded now; `duplicate` — a retry of an outcome already recorded (no-op); `pending` — only a retry of a receipt an earlier version stored to wait for its request, applied when that request is recorded (a new outcome on a request not recorded yet is the retryable 503 `request_not_landed`, with no receipt). A conflict is answered 409 and a rejection 400 on this route.
 
     Known values: ``accepted``, ``duplicate``, ``conflict``, ``rejected``, ``pending``.
     """
